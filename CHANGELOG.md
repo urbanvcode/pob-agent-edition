@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-13
+
+Guide mode 2 (follow-up to Stage 3). Based on **Path of Building Community v2.67.2** (same as 0.6.0).
+
 ### Added
 - **Guide tab** in PoB (button "Guide" under Party/Compare): pick a guide and a stage (or Auto, the closest stage), import a guide from its link or code, and press **Analyse**. PoB simulates every difference in your build and shows the next passives, gems and gear in order. Your tree is drawn with the guide's stage over it (green = take it, red = not in the guide) and the next passives numbered 1, 2, 3; click a step to jump to it on the tree or open its instant-buyout search. "keep" marks a deliberate difference so it is not flagged again.
 - **Priorities by what you lack**: resistances under their cap come first; otherwise defence or damage, whichever is further behind the guide stage, counts more (Hardcore leans to defence). The Guide tab, the Overview card and the AI's `guide_compare` / `guide_next_steps` show the focus and why.
@@ -143,7 +147,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.3.0...v0.4.0

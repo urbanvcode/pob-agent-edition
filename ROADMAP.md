@@ -46,7 +46,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 0 | Foundation | ✅ |
 | 1 | Player profile & explanation modes | ✅ |
 | 2 | Character import & progress sync | ✅ 0.4.0 |
-| 3 | Guide mode | ✅ 0.5.0 |
+| 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1) |
 | 4 | Optimiser (goal-based min-maxing) | ⬜ |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
 | 6 | Crafting helper | ⬜ |
@@ -245,7 +245,7 @@ Progress card shows a timeline.
 Tested with a real multi-stage guide (Deadeye, 11 loadouts): stage detection, compare,
 next steps with "2 div", card in a second window (port 31340). `npm test` runs `tests/guide.test.mjs`.
 
-**Guide mode 2 (patch 0.6.1, player's requests after 0.5.0):**
+**Guide mode 2 (released in 0.6.1, player's requests after 0.5.0):**
 5. ✅ **Guide tab** in PoB (`Classes/GuideTab.lua`, "Guide" button under Party/Compare): guide + stage pickers (Auto =
    detected), Import guide (link or code, PoB's own build-site downloads), Analyse (same engine as the AI tools),
    the player's tree with the guide stage drawn over it (PoB's compare colours) and the next passives numbered 1, 2, 3,
@@ -959,3 +959,4 @@ The player always runs two sessions:
 | 0.4.0 (2026-11-13) | 2 Character import & progress sync |
 | 0.5.0 (2026-11-13) | 3 Guide mode |
 | 0.6.0 (2026-11-13) | 9 PoE knowledge engine |
+| 0.6.1 (2026-11-13) | 3 follow-up: Guide mode 2 (Guide tab, priorities, levelling, sync button) |

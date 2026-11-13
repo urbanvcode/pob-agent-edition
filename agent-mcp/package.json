@@ -1,6 +1,6 @@
 {
   "name": "pob-agent-mcp",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "MCP server for PoB Agent Edition: drives the Path of Building window (or a headless engine) for AI assistants. Based on pob-mcp by ianderse.",
   "license": "GPL-3.0-or-later",
   "type": "module",

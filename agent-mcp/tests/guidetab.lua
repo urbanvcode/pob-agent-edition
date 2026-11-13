@@ -97,5 +97,15 @@ if not tab.result or not tab.result.ok then fail("Analyse gave no result: " .. t
 if not tab.result.focus or not tab.result.plan then fail("Analyse result has no focus or plan") end
 local card = dkjson.decode(read(tmp .. "/AgentCache/guide/card.json"))
 if not card or card.build ~= playerBuild.buildName then fail("card.json not written for the player's build") end
+-- Hide/Show panel: the tree gets the whole width, and the choice survives a restart.
+if tab:PanelWidth() <= 0 then fail("the panel should be shown by default") end
+tab:SetPanelHidden(true)
+if tab:PanelWidth() ~= 0 then fail("hidden panel still takes width") end
+local settings = dkjson.decode(read(tmp .. "/AgentEdition.json"))
+if not settings or settings.guideHelpHidden ~= true then fail("guideHelpHidden not saved in AgentEdition.json") end
+local again = new("GuideTab", playerBuild)
+if again:PanelWidth() ~= 0 then fail("the hidden panel was not remembered") end
+again:SetPanelHidden(false)
+if new("GuideTab", playerBuild):PanelWidth() <= 0 then fail("Show panel was not remembered") end
 print = io.write
 print("guidetab ok: " .. #tab.stages .. " stages, detected " .. tostring(tab.detected.index) .. ", focus " .. tostring(tab.result.focus.title) .. "\n")

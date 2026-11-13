@@ -16,6 +16,67 @@ export type PlayMode = "trade" | "ssf" | "mixed";
 export type ExplanationMode = "teach" | "concise" | "deep";
 export type Experience = "poe2" | "new" | "poe1";
 
+/**
+ * Build preferences from the "Create a build" interview (Stage 11), shared with
+ * PathOfBuilding/src/Agent/Settings.lua (normalizePreferences). "" / 0 / [] = not answered.
+ */
+export interface Preferences {
+  playstyle: string[];
+  content: "" | "clear" | "bossing" | "both";
+  defence: "" | "tanky" | "balanced" | "glass";
+  buttons: "" | "few" | "some" | "many";
+  pace: "" | "big_hits" | "fast_hits" | "any";
+  novelty: "" | "proven" | "new" | "any";
+  start: "" | "league_start" | "mid_league";
+  hours: number;
+  budget: string;
+  exclude: string[];
+  likes: string[];
+  updated?: string;
+}
+
+export const PLAYSTYLES = ["melee", "ranged", "spells", "minions", "totems", "traps", "mines", "dot", "hits"];
+export const PREFERENCE_CHOICES = {
+  content: ["clear", "bossing", "both"],
+  defence: ["tanky", "balanced", "glass"],
+  buttons: ["few", "some", "many"],
+  pace: ["big_hits", "fast_hits", "any"],
+  novelty: ["proven", "new", "any"],
+  start: ["league_start", "mid_league"],
+} as const;
+
+export function normalizePreferences(raw: unknown): Preferences {
+  const p = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const pick = (key: keyof typeof PREFERENCE_CHOICES): any => {
+    const v = typeof p[key] === "string" ? (p[key] as string).trim().toLowerCase() : "";
+    return (PREFERENCE_CHOICES[key] as readonly string[]).includes(v) ? v : "";
+  };
+  const hours = Number(p.hours);
+  const out: Preferences = {
+    playstyle: stringList(p.playstyle).map((s) => s.toLowerCase()).filter((s) => PLAYSTYLES.includes(s)),
+    content: pick("content"), defence: pick("defence"), buttons: pick("buttons"), pace: pick("pace"),
+    novelty: pick("novelty"), start: pick("start"),
+    hours: Number.isFinite(hours) && hours > 0 ? Math.round(hours) : 0,
+    budget: str(p.budget),
+    exclude: stringList(p.exclude),
+    likes: stringList(p.likes),
+  };
+  if (typeof p.updated === "string") out.updated = p.updated;
+  return out;
+}
+
+/** One line: the answers given so far ("" when none). */
+export function preferencesLine(p: Preferences): string {
+  const parts: string[] = [];
+  if (p.playstyle.length) parts.push(p.playstyle.join("/"));
+  for (const k of ["content", "defence", "buttons", "pace", "novelty", "start"] as const) if (p[k]) parts.push(`${k} ${p[k].replace("_", " ")}`);
+  if (p.hours) parts.push(`${p.hours} h/week`);
+  if (p.budget) parts.push(`budget ${p.budget}`);
+  if (p.likes.length) parts.push(`likes ${p.likes.join(", ")}`);
+  if (p.exclude.length) parts.push(`not ${p.exclude.join(", ")}`);
+  return parts.join(" | ");
+}
+
 export interface PlayerProfile {
   playMode: PlayMode;
   hardcore: boolean;
@@ -25,6 +86,7 @@ export interface PlayerProfile {
   experience: Experience;
   explanationMode: ExplanationMode;
   learnedTopics: string[];
+  preferences: Preferences;
   updated?: string;
 }
 
@@ -84,6 +146,7 @@ export function normalizeProfile(raw: unknown): PlayerProfile {
     experience: oneOf(EXPERIENCE, p.experience, "poe2"),
     explanationMode: oneOf(EXPLANATION_MODES, p.explanationMode, "teach"),
     learnedTopics: stringList(p.learnedTopics),
+    preferences: normalizePreferences(p.preferences),
   };
   if (typeof cur.updated === "string") profile.currency.updated = cur.updated;
   if (typeof p.updated === "string") profile.updated = p.updated;
@@ -141,6 +204,8 @@ export interface ProfileUpdate {
   experience?: string;
   explanationMode?: string;
   reset_learned?: boolean;
+  /** Interview answers, merged into the stored preferences (Stage 11). */
+  preferences?: Partial<Preferences>;
 }
 
 function now(): string {
@@ -181,9 +246,15 @@ export function updateProfile(update: ProfileUpdate): { profile: PlayerProfile; 
     next.goals = next.goals.filter((g) => !drop.has(g.toLowerCase()));
   }
   if (update.reset_learned) next.learnedTopics = [];
+  if (update.preferences && typeof update.preferences === "object") {
+    const merged = normalizePreferences({ ...next.preferences, ...update.preferences });
+    const { updated: _a, ...a } = next.preferences;
+    const { updated: _b, ...b } = merged;
+    if (JSON.stringify(a) !== JSON.stringify(b)) { next.preferences = merged; next.preferences.updated = now(); }
+  }
 
   const stamp = now();
-  for (const key of ["playMode", "hardcore", "league", "goals", "experience", "explanationMode", "learnedTopics"] as const) {
+  for (const key of ["playMode", "hardcore", "league", "goals", "experience", "explanationMode", "learnedTopics", "preferences"] as const) {
     if (JSON.stringify(current[key]) !== JSON.stringify(next[key])) changed.push(key);
   }
   const { updated: _u, ...curA } = current.currency;
@@ -274,6 +345,7 @@ export function formatProfile(p: PlayerProfile, file: string | undefined, stored
     `Experience: ${EXPERIENCE[p.experience]} (${p.experience})`,
     `Explanation mode: ${EXPLANATION_MODES[p.explanationMode]} (${p.explanationMode})`,
     `Learned topics (${p.learnedTopics.length}): ${p.learnedTopics.length ? p.learnedTopics.join(", ") : "none yet"}`,
+    `Build preferences: ${preferencesLine(p.preferences) || "(interview not done: build_create { interview: true })"}`,
   ];
   if (!stored) lines.push("", "(No profile saved yet - these are the defaults. The player can set it in PoB Agent Edition > Options > Agent profile, or tell you.)");
   lines.push("", "=== How to answer ===", ...answerRules(p).map((r) => `- ${r}`));

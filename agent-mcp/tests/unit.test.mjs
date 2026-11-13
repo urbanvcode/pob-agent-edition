@@ -37,11 +37,12 @@ const tokens = (value) => Math.ceil(JSON.stringify(value).length / 4);
 // Stage 6 used 99 of its 350 (affixes craft, base, ilvl).
 // Stage 8 used 130 of its 350 (atlas farm, goal, log).
 // Stage 7 used 65 of its 350 (guide levelling).
-const TOOL_BUDGET = 3472, GUIDE_BUDGET = 950;
+// Stage 11 used 242 of its 450 (build_create).
+const TOOL_BUDGET = 3714, GUIDE_BUDGET = 950;
 test("tool definitions stay within the budget (3,100 now, 5,000 with every reserved stage)", () => {
   const total = tokens(defs);
   assert.ok(total <= TOOL_BUDGET, `tool definitions are about ${total} tokens (budget ${TOOL_BUDGET})`);
-  assert.ok(TOOL_BUDGET + 450 <= 5000); // only Stage 11 still reserved
+  assert.ok(TOOL_BUDGET <= 5000); // every reserved stage has added its tools
 });
 
 test("agent guide stays short", () => {
@@ -60,6 +61,7 @@ test("the agreed tool list is complete and nothing else is exposed", () => {
     "trade_search", "plan_upgrades", "prices",
     "atlas",
     "kb_lookup", "kb_patch",
+    "build_create",
   ];
   assert.deepEqual(defs.map((d) => d.name), expected);
   for (const d of defs) {

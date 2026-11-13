@@ -11,6 +11,7 @@ import { S, routed, tool, type Args, type Tool } from "../registry.js";
 import type { TradeApiClient } from "../trade/client.js";
 import { adviceTools, atlasTools } from "./advice.js";
 import { characterTools } from "./character.js";
+import { createTools } from "./create.js";
 import { editTools } from "./edit.js";
 import { farmingTools } from "./farming.js";
 import { guideTools } from "./guides.js";
@@ -64,6 +65,7 @@ export function internalTools(trade: TradeApiClient): Tool[] {
     ...atlasTools,
     ...farmingTools(trade),
     ...knowledgeTools(),
+    ...createTools,
   ];
   for (const t of list) if (WRITES[t.name]) t.writes = WRITES[t.name];
   return list;
@@ -168,5 +170,6 @@ export function allTools(trade: TradeApiClient, internal: Tool[] = internalTools
     keep("trade_search"), keep("plan_upgrades"), prices,
     atlas,
     keep("kb_lookup"), keep("kb_patch"),
+    keep("build_create"),
   ];
 }

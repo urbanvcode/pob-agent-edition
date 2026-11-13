@@ -22,7 +22,7 @@ import { FACTS, UNKNOWN, cite } from "./facts.js";
 import { altOdds, rareMix, triesFor, unitsOf, type BenchOption, type Hits } from "./odds.js";
 import { atRoll, hitsOf, parseWants, share, template, unmatched, wantRule, type Pool, type PoolLine, type Want } from "./target.js";
 
-export interface CraftArgs { craft: string; slot?: string; item_text?: string; base?: string; ilvl?: number; focus?: string; league?: string }
+export interface CraftArgs { craft: string; slot?: string; item_text?: string; base?: string; ilvl?: number; focus?: string; league?: string; /** Skip the buy check (the caller searched already). */ noBuy?: boolean }
 
 export interface Method {
   name: string;
@@ -415,7 +415,7 @@ export async function craftPlan(ctx: Context, args: CraftArgs): Promise<CraftRes
   } else if (sim && "note" in sim) L.push("", sim.note!);
 
   let buyChaos: number | undefined;
-  if (!ssf && league) {
+  if (!ssf && league && !args.noBuy) {
     const buy = await buyCheck(ctx, pool, wants, league, r, args.slot);
     if (buy && "fair" in buy && buy.fair) {
       buyChaos = buy.fair.low;

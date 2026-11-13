@@ -9,7 +9,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## What's here
 - `PathOfBuilding/` — PoB Agent Edition (our fork, branch `agent`): live API, Overview dashboard, inventory with icons, AI Advisor card.
-- `agent-mcp/` — our MCP server (26 tools; the 0.8.0 names still work as hidden aliases): talks to the PoB Agent Edition window, or to a headless PoB when it is closed. Its Lua side is `PathOfBuilding/src/Agent/Handlers/`.
+- `agent-mcp/` — our MCP server (27 tools; the 0.8.0 names still work as hidden aliases): talks to the PoB Agent Edition window, or to a headless PoB when it is closed. Its Lua side is `PathOfBuilding/src/Agent/Handlers/`.
 - Builds live in `Documents\Path of Building\Builds` (in the user's Documents folder).
 
 ## Start
@@ -87,6 +87,12 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - `kb_patch` reads GGG's official patch notes: `{ version: "3.30" }` a league, `{ filter }` a text or section, `{ build: true }` only the lines naming the open build's gems, uniques, keystones, notables and ascendancy. General changes can affect a build without naming its parts: say what was and wasn't checked.
 - "Is this good for my build?" is not a fact from a text: simulate it (`what_if`). Numbers for the player's build always come from PoB.
 - Fetching is polite: robots.txt is obeyed, requests are paced and capped per question, pages are cached (`AgentCache\knowledge`). If a site asks for a pause, say so; don't retry.
+
+## Create a build (Stage 11)
+- "What should I play?", "cheap bow league starter": `build_create { interview: true }` first (ask the questions, a few at a time), save with `build_create { answers: {...} }` (stored as `profile.preferences`, schema in `Settings.lua` / `profile.ts`). Then `build_create` (no mode) = poe.ninja builds of the league that fit, with classes, common uniques and today's prices.
+- `build_create { skill, class? }` = a NEW build file from the top poe.ninja characters using the skill (up to 3 simulated and compared; never overwrites). Name what PoB does not model (the result lists it).
+- `build_create { theorycraft: "minions" }` = cited patch lines + usage on poe.ninja; with `skill` it builds the idea from the nearest real template (skill swapped in). Always say "theorycraft, not tested by players".
+- `build_create { targets: true, slot? }` = every rare as must-have / nice-to-have stats with ranges (PoB-simulated), close instant-buyout listings simulated ("x% of the target"), craft option, unique roll ranges. `build_create { prices: true }` = cost per item set with league and time. The must/nice cut-offs are advisor rules: say so.
 
 ## AI chat inside PoB (Stage 10)
 - PoB has its own chat panel (right edge of the build screen). It runs `agent-mcp/build/chat/bridge.js`, which starts Claude Code (`claude -p --output-format stream-json`), Codex (`codex exec --json`) or the Anthropic API with a fresh agent-mcp server pinned to that window (`POB_AGENT_PORT`, `POB_LIVE=only`). No new MCP tools: the chat uses the same tools and rules.

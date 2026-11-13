@@ -54,7 +54,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 8 | Farming & money advisor | ✅ (built 2026-11-14, not released yet) |
 | 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ 0.6.0 |
 | 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ✅ 0.8.0 |
-| 11 | Create a build | ⬜ |
+| 11 | Create a build | ✅ (built 2026-11-14, not released yet) |
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ✅ 0.7.0 |
 | 14 | PoE2 edition | 💭 |
@@ -748,7 +748,7 @@ that used the pob tools on the open build.
 
 ---
 
-## Stage 11 — Create a build ⬜
+## Stage 11 — Create a build ✅ (2026-11-14, not released yet)
 
 **Why:** the player wants to find or design a build that fits how they like to play, including new builds that a
 patch makes possible and ideas nobody plays yet. It must stay honest about what is proven, what is theorycraft and
@@ -814,6 +814,57 @@ what things really cost.
 - every rare has a target, and the trade search finds close items with their simulated gain;
 - "what's new in 3.30 for minions?" → cited patch opportunities → a theorycraft build marked as such, with PoB
   numbers and any unmodelled parts named.
+
+**Built (2026-11-14):** one new tool, `build_create` (242 of the 450 tokens; guide +45 tokens). Engine in
+`agent-mcp/src/create/` (`ninjaBuilds.ts`, `build.ts`, `targets.ts`), tool `src/tools/create.ts`, PoB side
+`PathOfBuilding/src/Agent/Handlers/Create.lua` (read-only: `create_targets`, `create_sets`, `create_unmodelled`,
+`create_gem_tags`, `create_find_names`).
+1. ✅ Interview: `build_create { interview: true }` (questions with saved answers), `{ answers }` saves them as
+   `profile.preferences` (playstyle, content, defence, buttons, pace, novelty, start, hours, budget, likes, exclude) plus
+   playMode/hardcore. Same schema in `Settings.lua` (`normalizePreferences`, so the Options window keeps it) and `profile.ts`;
+   `profile` shows them.
+2. ✅ poe.ninja builds client: the build search is protobuf and the name lists "NDIC" dictionaries; both read without a schema
+   (header layout checked: lengths must add up, else "unknown format"). Counts per class, main skill, unique, keystone, all
+   gems; top 100 characters; a character's PoB export. Polite: 1 request/s, 10 per call, cached 1 h (dictionaries 30 days).
+   Discover ranks main skills by the answers (PoB gem tags -> playstyle), shows classes, uniques used by 20%+ with poe.ninja
+   prices and an advisor cost tier; buttons/pace/hours/difficulty are said to be unchecked.
+3. ✅ From a character: `build_create { skill, class? }` loads up to 3 top characters (different classes), simulates each
+   (main skill set to the asked skill), picks by the answers (tanky/hardcore = EHP first) and saves a NEW file
+   "New build - <skill> <class>" with notes (source link, matches, what PoB does not model). Guide import (`guide { source }`)
+   stays the way for guides; any created build works as a guide (`guide { guide: "<name>" }`).
+4. ✅ Prices: `build_create { prices: true }` = per item set uniques (poe.ninja) + rares (cheapest close listing from the
+   last targets run, 24 h), gems shared; league and time shown.
+5. ✅ Targets: each rare line removed in turn and simulated -> worth per stat (pseudo totals for life/ES/mana/resists/
+   attributes, explicit trade ids from PoB's QueryMods); must-haves cover ~70% of the worth at 75% of the roll,
+   nice-to-haves at 50% (advisor rules, labelled); "and" search (relaxed to n-1 when < 3 results), 8 cheapest simulated,
+   "x% of the target" = worth over a plain base / the target's; craft plan for the must-haves (Stage 6 `craftPlan`, new
+   `noBuy` option); uniques: each ranged line at its lowest and highest roll -> "any roll" or the roll losing <= 1%.
+   SSF: no trade requests. At most 5 slots searched per call (16-request cap).
+6. ✅ Theorycraft: `kb_patch` lines for the topic (cited), gem/unique names PoB knows found in them, their poe.ninja usage
+   (main skill / any slot / uniques; < 1% = few players), suggestions per matching skill. With `skill`: a real template using
+   it, or when nobody does, the most played skill sharing the most playstyle tags with its main gem replaced; labelled
+   "THEORYCRAFT, NOT TESTED BY PLAYERS" in the answer and the build notes; unmodelled lines/passives/gems named.
+7. ✅ MCP tool (one name, modes). Not built: an Overview start screen when no build is open (Stage 12).
+
+Tests: `tests/create.test.mjs` (12, offline: fake poe.ninja protobuf/NDIC + economy, fake trade, canned patch notes,
+headless fixture; Lua `Settings.lua` round trip through luajit). Real check (2026-11-14, few polite requests): discover,
+template and theorycraft on Covens; targets on Standard (Covens had no instant-buyout rings on day one).
+
+Choices made while the player was away (can be changed):
+- Templates are top poe.ninja characters (their PoB export), not guides; a "budget version" is left to `optimise` /
+  `plan_upgrades { budget }` / `guide { next: true, budget }` on the new build instead of a generated cheaper item set.
+- The optimiser is not run automatically after creating (it works on the open build; the result says to open it and run
+  `optimise`), so nothing touches the player's window.
+- Cost tiers (< 1 div cheap, 1-10 medium, > 10 expensive) and the target cut-offs are advisor rules, labelled.
+
+Loose ends / check later:
+- [ ] Day one of 3.30: poe.ninja main-skill data is thin (most characters not yet calculated) and classes are mostly base
+  classes; discover gets better after a few days. Unique prices for Covens were missing on poe.ninja.
+- [ ] poe.ninja's protobuf/NDIC formats are undocumented: if they change, the tool says "unknown format" (re-check).
+- [ ] Gem prices on Standard look odd for some gems (Stage 5 `priceOwn` matching; e.g. a level 20 gem priced at 5 div).
+- [ ] PoB marks some passives "unknown" (e.g. ascendancy notables in the fixture); they are reported as not modelled.
+- [ ] A budget item set ("league start", "early maps") generated inside the new build, and the Overview start screen.
+- [ ] Options window shows no interview answers yet (they are kept when it saves); a small UI line could come with Stage 12.
 
 ---
 

@@ -58,11 +58,11 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
-| 15 | Install, portable version & updater | ✅ ready for 0.3.0 |
+| 15 | Install, portable version & updater | ✅ 0.3.0 |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → **15** → 2 → 3 → 4 → 5 → 9 → 7 → 6
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → **2** → 3 → 4 → 5 → 9 → 7 → 6
 → 8 → 10 → 11 → 12/13 → 14.
 - **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
   instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
@@ -508,7 +508,7 @@ that used the pob tools on the open build.
 Same approach on PathOfBuilding-PoE2 (installed on this PC): fork, live API, second MCP server or a game
 switch, PoE2 trade/atlas, shared profile and chat.
 
-## Stage 15 — Install, portable version & updater ✅ (2026-11-13, to be released in 0.3.0)
+## Stage 15 — Install, portable version & updater ✅ (2026-11-13, released in 0.3.0)
 
 **Why:** players install from a release zip, so they need to know when a new version is out and update
 with one click, without losing builds or settings. Some players don't want an installer at all: they
@@ -775,6 +775,10 @@ The player always runs two sessions:
 - **Repo-control session** ("Git repo release setup"): reviews the diff, runs `tools\check-secrets.ps1`, pushes
   the forks first and then the root (so submodule pointers always resolve), keeps CHANGELOG in order and
   publishes the release when a stage is finished (steps below). It tells the working session what was pushed.
+- **`main` and `agent` only move when a release ships**, so the public README never describes features no release
+  has. "Push only" work goes to backup branches `stage-N` on origin (both repos). Several working sessions may
+  share one checkout: each commits only its own hunks. If stages finish out of commit order, the repo-control
+  session reorders them in a separate git worktree before releasing, so each release contains only its own stage.
 
 ## Releases
 **Every finished stage gets a GitHub release** (done by the repo-control session). When a stage's "Done when" is met:
@@ -788,3 +792,4 @@ The player always runs two sessions:
 |---|---|
 | 0.1.0 (2026-11-13) | 0 Foundation, 1 Player profile |
 | 0.2.0 (2026-11-13) | 16 Own MCP server (agent-mcp) |
+| 0.3.0 (2026-11-13) | 15 Install, portable version & updater |

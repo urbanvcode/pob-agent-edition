@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-13
+
+Stage 15: install, portable version and updater. Based on **Path of Building Community v2.67.2** (same as 0.2.0). From this version on, PoB Agent Edition tells you when a newer version is out.
+
 ### Added
 - **Portable version** (Stage 15): a second download, `PoB-Agent-Edition-<version>-win64-portable.zip`. Unzip it and double-click `Start PoB Agent Edition.cmd`: no installer, no shortcuts, no registry changes, and no Node.js to install (it brings its own, the official Node.js 24 LTS). `Connect AI apps.cmd` connects Claude Desktop, Claude Code and Codex; `Disconnect AI apps.cmd` removes the entry again; `mcp-config.txt` has the entry for connecting by hand.
 - **Portable data mode**: with `portable.txt` in the folder (`Connect AI apps.cmd` asks), builds and settings stay inside the folder under `UserData`, for USB sticks or players who want nothing outside the folder.
@@ -15,6 +19,10 @@ Each release also lists the official Path of Building Community version it is ba
 ### Changed
 - The window title and the footer show the Agent Edition version and the official PoB version it is based on, e.g. `v0.3.0 (PoB 2.67.2)`.
 - `Install.cmd` has `-Portable` and `-Quiet` modes (used by `Connect AI apps.cmd` and the updater).
+
+### Fixed
+- `Install.cmd` now adds the `pob` entry for Claude Code when there is no `claude` command (Claude Code inside the Claude desktop app). Windows PowerShell broke the helper, so the entry was silently missing; run `Install.cmd` again if your AI app doesn't see the `pob` tools.
+- The installer no longer stops when Windows reports no Start menu or Desktop folder.
 
 ## [0.2.0] - 2026-11-13
 
@@ -90,6 +98,7 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/urbanvcode/pob-agent-edition/releases/tag/v0.1.0

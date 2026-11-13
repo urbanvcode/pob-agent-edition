@@ -588,6 +588,16 @@ than to pob-mcp.
   charges, flasks), and errors say what to do next. The agent guide is sent as server instructions (AGENTS.md
   stays the human copy).
 - **Budget:** all tool definitions together ≤ 5,000 tokens (a test fails above it).
+- **Credit to pob-mcp, always** (player's rule): our server grew out of [ianderse/pob-mcp](https://github.com/ianderse/pob-mcp),
+  and it keeps that credit even after pob-mcp is removed, whether code was ported or only ideas were taken:
+  - `agent-mcp/README.md` and the root README's "Credits" section: "Based on / inspired by pob-mcp by
+    ianderse (GPL-3.0)" with the link.
+  - `THIRD_PARTY_NOTICES.md` keeps a pob-mcp row (what was ported, its licence).
+  - Every file that contains ported code keeps a header comment naming the original file in pob-mcp and
+    its GPL-3.0 licence. GPL-3.0 requires keeping those copyright notices.
+  - `agent-mcp/package.json` names pob-mcp in `description` or `contributors`.
+  - The release notes for the switch say where it came from and thank the author.
+  - Calculation and game-data credit stays with Path of Building Community (unchanged).
 
 ### Steps
 1. Inventory: list every pob-mcp tool, mark keep, merge or drop, and record the actual use (AGENTS.md
@@ -601,12 +611,14 @@ than to pob-mcp.
 5. Run side by side: the installer registers the new server as `pob` and the old one as `pob-legacy`
    (opt-in), and the AGENTS.md workflows are checked on both. Close the parity gaps.
 6. Remove the `pob-mcp` submodule, then update the installer, `build-release.ps1`, README, THIRD_PARTY_NOTICES
-   (keep the credit to ianderse/pob-mcp for ported code) and the Advisor card path.
-7. Release (minor version) with a changelog note telling players to rerun `Install.cmd`.
+   and the Advisor card path. Check every item of "Credit to pob-mcp, always" above before you remove it.
+7. Release (minor version) with a changelog note telling players to rerun `Install.cmd`; it credits pob-mcp.
 
 **Done when:** every AGENTS.md workflow (profile, diagnose, plan_upgrades, atlas, save as new file) works
 on the new server in Claude Code, Claude Desktop and Codex; tool definitions ≤ 5,000 tokens; the PoB
-window no longer reads anything from `pob-mcp/`; the submodule is gone and a release is published.
+window no longer reads anything from `pob-mcp/`; the submodule is gone and a release is published;
+pob-mcp is credited in the README, THIRD_PARTY_NOTICES, `agent-mcp/README.md`, the ported files' headers
+and the release notes.
 
 ## Stage X — Cross-cutting (ongoing)
 - **Testing**: headless tests per feature; real-window checks via second instance on port 31338 +

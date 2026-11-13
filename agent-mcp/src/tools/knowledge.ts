@@ -117,12 +117,9 @@ export function knowledgeTools(provided?: Knowledge): Tool[] {
   const kb = () => (provided ??= new Knowledge());
   return [
     tool("kb_lookup",
-      "Cited game facts for a topic (mechanic, unique, gem, term): glossary with PoE2 comparison, PoB data, poewiki, poedb, GGG patch notes. Each fact has source, URL, game version and date; outdated or conflicting ones are flagged. Use before stating any game fact. With claim: checks the statement (supported / contradicted / not found).",
+      "Cited game facts (mechanic, item, gem, term): glossary with PoE2 comparison, PoB data, poewiki, poedb, GGG notes, each with source, link, version, date and flags. Use before stating any fact. claim: check a statement.",
       {
-        query: S.str("Topic or exact name, e.g. Spell Suppression, Hyrri's Ire"),
-        claim: S.str("Statement about the topic to check"),
-        source: S.enum(SOURCES_ARG, "Default auto; poe2 = Path of Exile 2 wiki"),
-        refresh: S.bool("Re-read instead of using the cache"),
+        query: S.str(), claim: S.str(), source: S.enum(SOURCES_ARG, "poe2 = PoE2 wiki"), refresh: S.bool(),
       },
       ["query"],
       async (_ctx, args) => wrap(async () => {
@@ -137,11 +134,9 @@ export function knowledgeTools(provided?: Knowledge): Tool[] {
       })),
 
     tool("kb_patch",
-      "Official GGG patch notes with links: what changed in a version or league (default: the live league), filtered by text, or only the lines naming the open build's gems, uniques, keystones, notables and ascendancy (build: true).",
+      "GGG patch notes with links for a version (default live league), filtered by text; build: true = only lines naming the open build's gems, uniques, passives, ascendancy.",
       {
-        version: S.str("e.g. 3.30 (league) or 3.30.0b (one patch)"),
-        filter: S.str("Text or section, e.g. Winter Orb, Ascendancy"),
-        build: S.bool("Only what names things in the open build"),
+        version: S.str("3.30 or 3.30.0b"), filter: S.str(), build: S.bool(),
       },
       [],
       async ({ pob }, args) => wrap(async () => {

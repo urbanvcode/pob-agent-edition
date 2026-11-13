@@ -81,26 +81,26 @@ test("guide tools: import, compare, accept, next steps, card; the build is left 
   const notable = /Notables \(\d+\): ([^,\n]+)/.exec(await ok("build_summary", { parts: ["tree"] }))[1].trim();
   const nodeId = new RegExp(`^(\\d+) ${escape(notable)} \\[notable`, "m").exec(await ok("tree_search", { query: notable, type: "notable" }))?.[1];
   assert.ok(nodeId, `no id for ${notable}`);
-  await ok("edit_tree", { ops: [{ op: "dealloc", nodes: [Number(nodeId)] }] });
+  await ok("edit", { ops: [{ op: "dealloc", nodes: [Number(nodeId)] }] });
   const skills = await ok("build_summary", { parts: ["skills"] });
   const mainSkill = /main skill ([^\n]+)/.exec(skills)[1].trim();
   const main = /^(\d+) \[MAIN[^\]]*\]: (.*)$/m.exec(skills);
   const last = main[2].split(" | ").map((g) => /^(\d+)\.(.+?) \d+\/\d+/.exec(g)).find((m) => m && m[2].trim() !== mainSkill);
   const gem = last[2].trim();
-  await ok("edit_skills", { ops: [{ op: "remove_gem", group: Number(main[1]), gem: Number(last[1]) }] });
+  await ok("edit", { ops: [{ op: "remove_gem", group: Number(main[1]), gem: Number(last[1]) }] });
   await ok("save_build", { name: "occ-player" });
 
-  await fails("guide_compare", {}, /No guide imported yet/);
-  await fails("guide_import", { source: "https://mobalytics.gg/poe/builds/x" }, /Mobalytics/);
-  const imported = await ok("guide_import", { source: `Early: ${code}\nEnd: ${code}`, name: "Occultist Vortex" });
+  await fails("guide", {}, /No guide imported yet/);
+  await fails("guide", { source: "https://mobalytics.gg/poe/builds/x" }, /Mobalytics/);
+  const imported = await ok("guide", { source: `Early: ${code}\nEnd: ${code}`, name: "Occultist Vortex" });
   assert.match(imported, /Saved the guide as "Guide - Occultist Vortex"/);
   assert.match(imported, /Stages \(2\): 1 Early \(\d+ pts\) \| 2 End/);
   assert.match(imported, /Your open build was not changed/);
   assert.ok(fs.existsSync(path.join(builds, "Guide - Occultist Vortex.xml")));
-  assert.match(await ok("guide_import", { source: code, name: "Occultist Vortex" }), /"Guide - Occultist Vortex \(2\)"/, "a second import must not overwrite the first");
+  assert.match(await ok("guide", { source: code, name: "Occultist Vortex" }), /"Guide - Occultist Vortex \(2\)"/, "a second import must not overwrite the first");
 
   const before = await ok("stats");
-  const cmp = await ok("guide_compare", { guide: "Occultist Vortex", stage: "End" });
+  const cmp = await ok("guide", { guide: "Occultist Vortex", stage: "End" });
   assert.match(cmp, /stage 2\/2 "End" \(chosen\)/);
   const [, have, total] = /Matched: passives (\d+)\/(\d+)/.exec(cmp);
   assert.ok(Number(have) < Number(total), "the removed notable should be missing");
@@ -111,16 +111,16 @@ test("guide tools: import, compare, accept, next steps, card; the build is left 
   assert.match(cmp, /FOCUS: (Cap your resistances first|Defence is behind|Damage is behind|Damage and defence are even) \(.*vs the guide stage: DPS \d+%/);
   assert.equal(await ok("stats"), before, "guide_compare must leave the build as it was");
 
-  const acc = await ok("guide_compare", { accept: [gem] });
+  const acc = await ok("guide", { accept: [gem] });
   assert.match(acc, /stage 2\/2 "End" \(remembered\)/);
   assert.doesNotMatch(acc, new RegExp(`add ${escape(gem)}:`));
   assert.match(acc, new RegExp(`Accepted deviations \\(not flagged\\): ${escape(gem)}`));
-  assert.match(await ok("guide_compare", { notes: true }), /GUIDE NOTES[\s\S]*Guide imported by PoB Agent Edition/);
-  assert.match(await ok("guide_compare", { stage: "auto" }), /\(detected\); closest stage/);
-  await fails("guide_compare", { stage: "Nope" }, /No stage "Nope"\. Stages: 1 Early, 2 End/);
+  assert.match(await ok("guide", { notes: true }), /GUIDE NOTES[\s\S]*Guide imported by PoB Agent Edition/);
+  assert.match(await ok("guide", { stage: "auto" }), /\(detected\); closest stage/);
+  await fails("guide", { stage: "Nope" }, /No stage "Nope"\. Stages: 1 Early, 2 End/);
 
-  await ok("profile_set", { playMode: "ssf" });
-  const next = await ok("guide_next_steps", { limit: 3 });
+  await ok("profile", { playMode: "ssf" });
+  const next = await ok("guide", { next: true, limit: 3 });
   assert.match(next, /Mode: ssf/);
   assert.match(next, /1\) PASSIVES[\s\S]*\n1\. .*: DPS [+-][\d.]+%/);
   assert.match(next, /2\) SSF TARGETS/);
@@ -130,15 +130,15 @@ test("guide tools: import, compare, accept, next steps, card; the build is left 
   assert.equal(card.stage, "Early", "stage auto went back to detection");
   assert.ok(card.next.length >= 1 && card.match.passives[1] > 0);
   assert.equal(await ok("stats"), before, "guide_next_steps must leave the build as it was");
-  await ok("profile_set", { playMode: "trade" });
+  await ok("profile", { playMode: "trade" });
 
   // Levelling (below maps): campaign rules, no respec counting, gems by level.
   await ok("set_config", { values: { level: 40 } });
-  const lv = await ok("guide_compare", { stage: "End" });
+  const lv = await ok("guide", { stage: "End" });
   assert.match(lv, /LEVELLING mode \(campaign rules\)/);
   assert.match(lv, /Act 5 and Act 10 each lower your resistances by 30%/);
   assert.doesNotMatch(lv, /Orb of Regret/);
-  assert.match(await ok("guide_next_steps", {}), /levelling \(no budget ranking\)/);
+  assert.match(await ok("guide", { next: true }), /levelling \(no budget ranking\)/);
 });
 
 test("PoB's Sync character button: paced requests, import, history; refusals and pauses (offline)", async () => {

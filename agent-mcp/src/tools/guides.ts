@@ -32,7 +32,7 @@ function findGuide(dir: string, name: string): string {
   }
   const hit = guideFiles(dir).find((g) => g.name.toLowerCase().includes(clean.toLowerCase()));
   if (hit) return hit.file;
-  throw new ToolError(`No guide "${name}" in ${dir}. Guides: ${guideFiles(dir).map((g) => g.name).join(", ") || "none yet (use guide_import)"}.`);
+  throw new ToolError(`No guide "${name}" in ${dir}. Guides: ${guideFiles(dir).map((g) => g.name).join(", ") || "none yet (use guide { source })"}.`);
 }
 
 // --- the guide build, read in the side engine (never the player's window) ------------
@@ -90,7 +90,7 @@ async function analyse({ pob }: Context, args: Args): Promise<Analysis> {
   else if (state.last && fs.existsSync(buildFile(dir, state.last))) file = buildFile(dir, state.last);
   else {
     const newest = guideFiles(dir)[0];
-    if (!newest) throw new ToolError("No guide imported yet. Ask the player for the guide's PoB link or code, then guide_import.");
+    if (!newest) throw new ToolError("No guide imported yet. Ask the player for the guide's PoB link or code, then guide { source }.");
     file = newest.file;
   }
   const guideName = path.basename(file, ".xml");
@@ -404,7 +404,7 @@ function nextStepsText(a: Analysis, r: Awaited<ReturnType<typeof rankSteps>>): s
   }
   if (r.negative.length) L.push("", `Guide items that lower your numbers right now (they need the rest of the guide first, or config such as kills/flasks): ${r.negative.map((s) => `${s.text.split(" with ")[0]} (${gainText(s.gain)})`).join(" | ")}`);
   if (r.notes.length) L.push("", ...r.notes);
-  L.push("", "Not happy with a guide choice? guide_compare with accept stops flagging it.");
+  L.push("", "Not happy with a guide choice? guide with accept stops flagging it.");
   return L.join("\n");
 }
 
@@ -472,8 +472,8 @@ export const guideTools: Tool[] = [
         `Saved the guide as "${name}" (${file}). Your open build was not changed.`,
         `${meta.ascendancy ?? meta.className}, level ${meta.level}, main skill ${ks.mainSkill ?? "?"}.`,
         `Stages (${meta.stages.length}): ${meta.stages.map((s: any) => `${s.index} ${s.title} (${s.points} pts)`).join(" | ")}`,
-        notes ? `Guide notes (start; guide_compare with notes: true shows all):\n${notes.slice(0, 700)}${notes.length > 700 ? " ..." : ""}` : "The guide has no notes.",
-        "Next: guide_compare (it detects the stage your character is at).",
+        notes ? `Guide notes (start; guide with notes: true shows all):\n${notes.slice(0, 700)}${notes.length > 700 ? " ..." : ""}` : "The guide has no notes.",
+        "Next: guide (it detects the stage your character is at).",
       ].join("\n");
     }),
 

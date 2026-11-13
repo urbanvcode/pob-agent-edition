@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Changed
+- **The AI uses fewer, simpler PoB tools** (26 instead of 42): tools that did similar jobs are now one tool each, for example one `suggest` for passives, anoints, support gems and jewels, one `guide` for importing, comparing and next steps, one `atlas`, one `prices` (item prices, currency rates, leagues) and one `edit` for items, gems and passives. Everything they did still works the same way. The tool list your AI apps load at the start of every conversation is about a third smaller (3,050 instead of 4,750 tokens) and the AI's rule sheet about half (680 instead of 1,200), which leaves room for the coming stages (economy, crafting, levelling, farming, build creation) without making conversations heavier. AI apps that still use the old tool names keep working.
+- **AI chat with "AI may edit" off is stricter**: the PoB tools themselves now refuse anything that would change, open or save a build, including keeping a simulated change, not only the edit tools being hidden.
+
 ### Security
 - **AI chat with Codex is locked down to the PoB tools**, like Claude Code. In 0.8.0 the chat's Codex still had its own read-only shell, could open local image files, and could see the apps connected to your ChatGPT account (for example Gmail or GitHub). A prompt injection, such as text from a fetched web page, could in principle have led it to read files such as `AgentEdition.json` (your POESESSID and API key). Now the chat starts Codex with its shell, command runner, image viewer, connected apps, plugins, browser, computer control, web search, memories and hooks switched off, still in its read-only sandbox and outside any project folder. Checked on 2026-11-14: asked to read a dummy secret file, Codex and a helper agent it started could not; writing a file was blocked; PoB questions still work. Tests now fail if the chat's Codex or Claude Code ever gets a shell, file, web or app tool back.
 

@@ -46,7 +46,7 @@ export const atlasTools: Tool[] = [
     { add: S.list(S.str()), remove: S.list(S.str()), replace: S.list(S.str(), "The complete new node list"), link: S.str() }, [],
     async ({ pob }, args) => {
       const params = { add: ids(args.add), remove: ids(args.remove), replace: ids(args.replace), link: typeof args.link === "string" && args.link ? args.link : undefined };
-      if (!params.add && !params.remove && !params.replace && !params.link) throw new ToolError("Give add, remove, replace (lists of atlas node ids from atlas_search) or link.");
+      if (!params.add && !params.remove && !params.replace && !params.link) throw new ToolError("Give add, remove, replace (lists of atlas node ids from atlas { query }) or link.");
       const r = (await (await pob.link()).call("atlas_edit", params)).result;
       const lines = [`Atlas updated: ${r.pointsUsed} / ${r.pointsTotal} points used.`];
       const added = Array.isArray(r.added) ? r.added.length : 0, removed = Array.isArray(r.removed) ? r.removed.length : 0;
@@ -71,7 +71,7 @@ export const adviceTools: Tool[] = [
         const how = s.effect ? `mastery effect ${s.effect}` : String(s.type).toLowerCase();
         return `${i + 1}. ${s.name} [id ${s.id}, ${how}, ${s.points} point${s.points === 1 ? "" : "s"}]: DPS ${pct(s.dpsPct)} | EHP ${pct(s.ehpPct)}${life}\n   ${(s.stats ?? []).filter((x: string) => x.trim()).join("; ")}`;
       });
-      return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit_tree (alloc, or mastery with the effect id); preview first with what_if."].join("\n");
+      return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit (alloc, or mastery with the effect id); preview first with what_if."].join("\n");
     }),
 
   tool("anoint", "Best amulet anointments: simulates every anointable notable in PoB and lists the top ones with their oil recipes.",
@@ -90,11 +90,11 @@ export const adviceTools: Tool[] = [
       return [head, ...lines, `Config assumptions: ${res.assumptions}`].join("\n");
     }),
 
-  tool("affixes", "Item affix data from PoB's mod tables. query: tiers of a rollable prefix/suffix (ranges, item level, which items roll it), or crafting-bench mods with bench: true. slot or item_text: classify an item's mods instead (prefix or suffix, tier, bench crafts, open slots).",
+  tool("affixes", "PoB mod tables. query: tiers of a prefix/suffix (ranges, ilvl, item types); bench: true for bench crafts. slot or item_text: classify an item's mods (tier, bench, open prefixes/suffixes).",
     {
-      query: S.str("Stat text, e.g. \"maximum life\""), item: S.str("Item tag (\"ring\", \"body_armour\", \"bow\") or with bench an item class (\"Ring\")"),
+      query: S.str(), item: S.str("tag: ring, body_armour; bench: class Ring"),
       type: S.enum(["Prefix", "Suffix"]), bench: S.bool(), limit: S.num(),
-      slot: S.str("Classify the item equipped here"), item_text: S.str("Classify this item text"),
+      slot: S.str(), item_text: S.str(),
     }, [],
     async ({ pob }, args) => {
       if (args.slot || args.item_text) {

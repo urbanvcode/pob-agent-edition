@@ -115,10 +115,10 @@ export async function statusText(pob: Pob): Promise<string> {
 const VIEWS = ["OVERVIEW", "GUIDE", "ATLAS", "TREE", "SKILLS", "ITEMS", "CALCS", "CONFIG", "NOTES", "IMPORT", "PARTY", "COMPARE"];
 
 export const sessionTools: Tool[] = [
-  tool("status", "What PoB has open: live window or headless, build, unsaved changes, tab, player profile line. Call after profile_get.", {}, [],
+  tool("status", "What PoB has open: live window or headless, build, unsaved changes, tab, profile line, update notice.", {}, [],
     async ({ pob }) => statusText(pob)),
 
-  tool("list_builds", "Saved builds in the Builds folder, newest first.", { filter: S.str("Text the name must contain") }, [],
+  tool("list_builds", "Saved builds, newest first.", { filter: S.str() }, [],
     async ({ pob }, args) => {
       const dir = await currentBuildsDir(pob);
       const filter = typeof args.filter === "string" ? args.filter.toLowerCase() : "";
@@ -129,8 +129,8 @@ export const sessionTools: Tool[] = [
         ...(builds.length > shown.length ? [`... ${builds.length - shown.length} more; use filter.`] : [])].join("\n");
     }),
 
-  tool("open_build", "Open a saved build by name, or import a PoB export code. In the live window this replaces what is open: refused when there are unsaved changes unless discard_unsaved is true (ask the player first).",
-    { name: S.str("Build name from list_builds"), code: S.str("PoB export code or build XML"), discard_unsaved: S.bool() }, [],
+  tool("open_build", "Open a saved build (name) or import a PoB code. Live: refused with unsaved changes unless discard_unsaved (ask the player first).",
+    { name: S.str(), code: S.str(), discard_unsaved: S.bool() }, [],
     async ({ pob }, args) => {
       if (!args.name && !args.code) throw new ToolError("Give name (from list_builds) or code (a PoB export code).");
       const state = await liveState(pob);
@@ -157,8 +157,8 @@ export const sessionTools: Tool[] = [
       return `Loaded "${name}" in the headless engine (PoB Agent Edition is not open, so the player sees nothing).\nFile: ${file}`;
     }),
 
-  tool("save_build", "Save the open build. Always pass a new name for AI changes, e.g. \"<build> - AI <change>\"; never overwrite the player's file unless they asked (then overwrite: true). note records what was changed in the build's notes. export_code returns a PoB share code instead of saving.",
-    { name: S.str("New build name"), overwrite: S.bool("Player asked to overwrite"), note: S.str("Added to the build notes"), export_code: S.bool() }, [],
+  tool("save_build", 'Save the open build under a new name ("<build> - AI <change>"); overwrite: true only if the player asked. note: added to the build notes. export_code: return a share code instead.',
+    { name: S.str(), overwrite: S.bool(), note: S.str(), export_code: S.bool() }, [],
     async ({ pob }, args) => {
       const link = await pob.link();
       if (args.export_code === true) {
@@ -206,7 +206,7 @@ export const sessionTools: Tool[] = [
   tool("open_options", "Open PoB's Options window (Agent profile, POESESSID) for the player.", {}, [],
     async ({ pob }) => {
       const link = await pob.link(false);
-      if (link.kind !== "live") return "No PoB window is open. Ask the player to start PoB Agent Edition; the profile can also be changed with profile_set.";
+      if (link.kind !== "live") return "No PoB window is open. Ask the player to start PoB Agent Edition; the profile can also be changed with the profile tool.";
       await link.call("open_options");
       return "Options is open in the PoB window (Agent profile section; the POESESSID field is there too).";
     }),
@@ -224,7 +224,7 @@ export function profileTools(checkLeague: (league: string) => Promise<{ league: 
       {
         playMode: S.enum(["trade", "ssf", "mixed"]), hardcore: S.bool(), league: S.str("\"\" = current challenge league"),
         currency: { type: "object", properties: { chaos: S.num(), divine: S.num(), other: S.str() } },
-        goals: S.list(S.str(), "Replaces all goals"), add_goals: S.list(S.str()), remove_goals: S.list(S.str()),
+        goals: S.list(S.str(), "replaces all"), add_goals: S.list(S.str()), remove_goals: S.list(S.str()),
         experience: S.enum(["poe2", "new", "poe1"]), explanationMode: S.enum(["teach", "concise", "deep"]), reset_learned: S.bool(),
       }, [],
       async (_ctx, args) => {

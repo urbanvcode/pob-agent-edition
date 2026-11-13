@@ -4,16 +4,18 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import { AGENT_GUIDE } from "./guide.js";
 import { VERSION } from "./paths.js";
 import { Pob, ToolError } from "./pob.js";
-import type { Context, Tool } from "./registry.js";
-import { allTools } from "./tools/index.js";
+import { runChecked, type Context, type Tool } from "./registry.js";
+import { ALIASES, allTools, internalTools } from "./tools/index.js";
 import { TradeApiClient } from "./trade/client.js";
 
 export function createTools(): { tools: Tool[]; context: Context } {
   const trade = new TradeApiClient({
     maxRequestsPerCall: parseInt(process.env.POE_TRADE_MAX_REQUESTS_PER_CALL || "16", 10) || 16,
   });
-  const context: Context = { pob: new Pob(), trade };
-  return { tools: allTools(trade), context };
+  const internal = internalTools(trade);
+  const aliases = new Map(ALIASES.map((name) => [name, internal.find((t) => t.name === name)!] as const).filter(([, t]) => t));
+  const context: Context = { pob: new Pob(), trade, aliases };
+  return { tools: allTools(trade, internal), context };
 }
 
 /** What clients see in tools/list. */
@@ -22,11 +24,11 @@ export function toolDefinitions(tools: Tool[]) {
 }
 
 export async function runTool(tools: Tool[], context: Context, name: string, args: Record<string, unknown>): Promise<{ text: string; isError: boolean }> {
-  const found = tools.find((t) => t.name === name);
+  const found = tools.find((t) => t.name === name) ?? context.aliases?.get(name);
   if (!found) return { text: `Unknown tool "${name}". Tools: ${tools.map((t) => t.name).join(", ")}.`, isError: true };
   try {
     if (found.trade) context.trade.beginCall();
-    return { text: await found.run(context, args ?? {}), isError: false };
+    return { text: await runChecked(found, context, args ?? {}), isError: false };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     // ToolError messages already say what to do next; anything else is unexpected.

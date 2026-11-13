@@ -127,7 +127,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
     if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
     if (extra.length) L.push(`   ${extra.join(" | ")}`);
     if (Array.isArray(s.ops) && s.ops.length) L.push(`   what_if ops: ${JSON.stringify(s.ops)}`);
-    else if (s.lever === "anoint") L.push(`   oils: ${(s.recipe ?? []).join(", ")} (edit_items or the anoint tool)`);
+    else if (s.lever === "anoint") L.push(`   oils: ${(s.recipe ?? []).join(", ")} (edit, or suggest { kind: "anoint" })`);
   });
   if (r.more > 0) L.push(`(${r.more} more; raise limit)`);
   const under = (Array.isArray(r.undercount) ? r.undercount : []) as any[];
@@ -143,8 +143,8 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
     for (const x of scaling.filter((x: any) => Math.abs(x.score) >= 0.05).slice(0, 10)) L.push(`- ${x.stat}: ${gainText(x.gain, goal)}`);
   }
   const ex = explanations(allTags, mode, learned);
-  if (ex.length) L.push("", `Mechanics (${mode} mode; explain these, then profile_mark_learned):`, ...ex);
-  L.push("", "Try one with what_if (the ops above), apply with edit_tree / edit_skills / edit_items / set_config, then save_build under a new name. Jewels: suggest_jewels.");
+  if (ex.length) L.push("", `Mechanics (${mode} mode; explain these, then profile { learned }):`, ...ex);
+  L.push("", "Try one with what_if (the ops above), apply with edit, then save_build under a new name. Jewels: suggest { kind: jewel }.");
   return { text: L.join("\n"), tags: allTags };
 }
 
@@ -167,8 +167,8 @@ async function pushAdvisor(ctx: Context, r: any): Promise<boolean> {
 
 export function optimiseTools(planUpgrades?: Tool): Tool[] {
   return [
-    tool("optimise", "Goal-based min-maxing in PoB. Sets temporary config for the goal (restored after), simulates passives within N points with paths, respecs, masteries, supports and gem levels, auras/heralds/curses, flasks, anoints, pantheon/bandit; ranks by gain per cost with the mechanic behind each, lists config you may be under-counting and a scaling report. weakest = goal from diagnose. budget_chaos adds gear via plan_upgrades.",
-      { goal: S.enum([...GOALS]), points: S.num("Path length, default 6"), levers: S.list(S.enum([...LEVERS]), "Default all"), budget_chaos: S.num(), limit: S.num() }, [],
+    tool("optimise", "Goal-based min-maxing simulated with the goal's config (restored after): passives within points (paths), respecs, masteries, gems, auras/curses, flasks, anoint, pantheon/bandit. Ranked by gain per cost with the mechanic, plus under-counted config and a scaling report. weakest: goal from diagnose; budget_chaos adds plan_upgrades.",
+      { goal: S.enum([...GOALS]), points: S.num("default 6"), levers: S.list(S.enum([...LEVERS])), budget_chaos: S.num(), limit: S.num() }, [],
       async (ctx, args) => {
         const { profile } = getProfile();
         const link = await ctx.pob.link();
@@ -186,7 +186,7 @@ export function optimiseTools(planUpgrades?: Tool): Tool[] {
           try { parts.push("", "GEAR (plan_upgrades):", await planUpgrades.run(ctx, { budget_chaos: Number(args.budget_chaos), focus })); }
           catch (e) { parts.push("", `Gear search failed: ${e instanceof Error ? e.message : String(e)}`); }
         } else {
-          parts.push("", profile.playMode === "ssf" ? "Gear (SSF): look for the stats at the top of the scaling report; suggest_jewels and affixes show what can roll." : `Gear: plan_upgrades { budget_chaos, focus: "${focus}" } (or call optimise with budget_chaos).`);
+          parts.push("", profile.playMode === "ssf" ? "Gear (SSF): look for the stats at the top of the scaling report; suggest { kind: jewel } and affixes show what can roll." : `Gear: plan_upgrades { budget_chaos, focus: "${focus}" } (or call optimise with budget_chaos).`);
         }
         return parts.join("\n");
       }, { trade: true }),

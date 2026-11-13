@@ -44,15 +44,19 @@ export function modelFor(req: ChatRequest): string {
   return /^[\w.:\-\[\]]{1,80}$/.test(m) ? m : DEFAULT_MODELS[req.backend] ?? DEFAULT_MODELS.claude;
 }
 
-/** Tools that change the open build, load or save builds. Off unless the panel allows edits. */
-export const EDIT_TOOLS = ["edit_items", "edit_skills", "edit_tree", "set_config", "atlas_edit", "save_build", "open_build", "restore", "guide_import", "character_sync"];
+/**
+ * Tools that always change, load or save builds: hidden unless the panel allows edits. Tools with a
+ * writing mode (snapshot restore, atlas changes, guide import, character sync, what_if keep) stay
+ * visible for their reading modes; the server refuses their writes (POB_READ_ONLY=1, see serverEnv).
+ */
+export const EDIT_TOOLS = ["edit", "set_config", "save_build", "open_build"];
 
 export function chatRules(allowEdits: boolean): string {
   return [
     "You are the AI chat panel inside PoB Agent Edition (Path of Building for Path of Exile 1). The player reads your reply in a narrow side panel: keep it short and plain. Use short paragraphs, '-' lists and **bold**; no tables, no code blocks, no images.",
-    "Work on the build open in the PoB window with the pob tools (profile_get once, then diagnose / stats / what_if). Numbers come from PoB, game facts from kb_lookup. Follow the pob server's rules.",
+    "Work on the build open in the PoB window with the pob tools (profile once, then diagnose / stats / what_if). Numbers come from PoB, game facts from kb_lookup. Follow the pob server's rules.",
     "Links: write [[node:Exact Node Name]], [[item:Exact Item Name]] and [[gem:Exact Gem Name]] for things in this build or tree. The panel makes them clickable: they highlight in PoB.",
-    'Suggested changes: put each on its own line as [[apply:Short label|{"ops":[...]}]] with the same ops edit_items / edit_skills / edit_tree / what_if take, JSON on one line (node ids from tree_search, slots from build_summary). Check it with what_if first. The player clicks Preview (PoB simulates it) and then Apply.',
+    'Suggested changes: put each on its own line as [[apply:Short label|{"ops":[...]}]] with the same ops edit / what_if take, JSON on one line (node ids from tree_search, slots from build_summary). Check it with what_if first. The player clicks Preview (PoB simulates it) and then Apply.',
     allowEdits
       ? "The player allowed edits in this chat: when they ask you to change something you may use the edit tools; changes stay in the window and are never saved over their build file (save_build only with a new name)."
       : "Edits are off in this chat: you cannot change, open or save builds. Offer apply lines instead, and say the player can switch on 'AI may edit' in the panel.",
@@ -88,6 +92,7 @@ const SERVER = path.resolve(here, "..", "index.js");
 export function serverEnv(req: ChatRequest): Record<string, string> {
   const env: Record<string, string> = {};
   if (req.port) { env.POB_AGENT_PORT = String(req.port); env.POB_LIVE = "only"; }
+  if (!req.allowEdits) env.POB_READ_ONLY = "1";
   return env;
 }
 

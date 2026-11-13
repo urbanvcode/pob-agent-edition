@@ -845,7 +845,8 @@ than to pob-mcp.
 - **Output rules:** numbers first, compact text, every result names its config assumptions (boss,
   charges, flasks), and errors say what to do next. The agent guide is sent as server instructions (AGENTS.md
   stays the human copy).
-- **Budget:** all tool definitions together ≤ 5,000 tokens (a test fails above it).
+- **Budget:** all tool definitions together ≤ 5,000 tokens (a test fails above it). Split per stage since
+  2026-11-14: see "Budget note" below.
 - **Credit to pob-mcp, always** (player's rule): our server grew out of [ianderse/pob-mcp](https://github.com/ianderse/pob-mcp),
   and it keeps that credit even after pob-mcp is removed, whether code was ported or only ideas were taken:
   - `agent-mcp/README.md` and the root README's "Credits" section: "Based on / inspired by pob-mcp by
@@ -926,6 +927,47 @@ Loose ends:
 - [ ] `suggest_jewels` needs an allocated jewel socket (except for cluster notables). `suggest_gems` freezes the
   PoB window for a few seconds while it simulates about 100 supports.
 - [ ] `open_build` takes PoB codes but does not fetch pobb.in / pastebin links (Stage 3).
+
+### Budget note (2026-11-14): room for Stages 5-8 and 11
+Every tool definition and the agent guide are loaded into the AI's context in every conversation. After Stages
+2-4, 9 and 10 the server had 42 tools at about **4,744 of 5,000 tokens** and the guide at its **1,200-token**
+cap, with five stages still to add tools. Freed (same features, same handlers):
+- **Merged overlapping tools** into one name with a mode, routed to the original handlers (`routed()` in
+  `agent-mcp/src/registry.ts`, list in `src/tools/index.ts`): `profile` (get / set / learned), `character`
+  (sync / history), `edit` (items, skills, tree, config ops), `snapshot` (+ `restore: true`), `suggest`
+  (`kind`: passives, anoint, gems, jewel kinds), `guide` (import / compare / next), `prices` (item price,
+  currency rates, leagues), `atlas` (get / search / change), `set_view` (+ `OPTIONS`).
+- **Old names still work** as hidden aliases (not in the tool list, so they cost nothing): `profile_get`,
+  `profile_set`, `profile_mark_learned`, `open_options`, `character_sync`, `character_history`, `edit_items`,
+  `edit_skills`, `edit_tree`, `restore`, `suggest_passives`, `anoint`, `suggest_gems`, `suggest_jewels`,
+  `guide_import`, `guide_compare`, `guide_next_steps`, `leagues`, `currency`, `price_check`, `atlas_get`,
+  `atlas_search`, `atlas_edit`.
+- **Shorter descriptions and parameter docs**; defaults and examples that results already show were dropped.
+- **Guide**: the play-mode, hardcore and explanation-mode rules live in `profile`'s "How to answer" (they were
+  in both); details moved into tool descriptions and results.
+- **Chat read-only mode** is now enforced by the server too (`POB_READ_ONLY=1` when "AI may edit" is off):
+  merged tools have reading and writing modes, so hiding tool names alone was not enough. `what_if { keep }`
+  is now refused there as well (it was a gap).
+
+| | Before | After |
+|---|---|---|
+| Tools | 42 | 26 |
+| Tool definitions (chars / 4) | 4,744 | 3,056 (test cap 3,100) |
+| Agent guide | 1,200 (cap 1,200) | 676 (cap 950) |
+
+**Allocation for the remaining stages** (tool definitions; guide text about 50 tokens each):
+
+| Stage | Tools | Guide |
+|---|---|---|
+| 5 Economy | 400 | 50 |
+| 6 Crafting | 350 | 50 |
+| 7 Levelling | 350 | 50 |
+| 8 Farming | 350 | 50 |
+| 11 Create a build | 450 | 50 |
+| **Total** | 3,100 + 1,900 = **5,000** | 676 + 250 = about 926 (cap 950) |
+
+Each stage raises `TOOL_BUDGET` in `agent-mcp/tests/unit.test.mjs` by its own share only (and `GUIDE_BUDGET` stays
+950). Prefer a new mode on an existing tool (`prices`, `suggest`, `guide`, `character`) over a new name.
 
 **Done when:** every AGENTS.md workflow (profile, diagnose, plan_upgrades, atlas, save as new file) works
 on the new server in Claude Code, Claude Desktop and Codex; tool definitions ≤ 5,000 tokens; the PoB

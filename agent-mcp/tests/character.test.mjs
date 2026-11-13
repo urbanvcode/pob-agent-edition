@@ -159,5 +159,5 @@ test("character_sync: second sync lists what changed; character_history shows th
 
 test("character tools are in the server's tool list", () => {
   const names = createTools().tools.map((t) => t.name);
-  assert.ok(names.includes("character_sync") && names.includes("character_history"));
+  assert.ok(names.includes("character"));
 });

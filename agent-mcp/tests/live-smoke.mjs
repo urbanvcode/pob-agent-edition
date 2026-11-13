@@ -29,7 +29,7 @@ if (!/Build: /.test(status)) {
   console.log("Open a build in the PoB window first, then run this again.");
   process.exit(1);
 }
-await step("profile_get", {}, (t) => assert.match(t, /How to answer/));
+await step("profile", {}, (t) => assert.match(t, /How to answer/));
 await step("build_summary", {}, (t) => assert.match(t, /SKILLS[\s\S]*ITEMS[\s\S]*TREE[\s\S]*Config assumptions:/));
 const before = await step("stats", {}, (t) => assert.match(t, /Config assumptions:/));
 await step("diagnose", {}, (t) => assert.match(t, /1\. RESISTANCES[\s\S]*2\. SURVIVABILITY[\s\S]*3\. RECOVERY AND MANA[\s\S]*4\. DAMAGE/));
@@ -38,9 +38,9 @@ await step("what_if", { ops: [{ op: "config", values: { enemyIsBoss: "Uber" } },
 await step("stats", {}, (t) => assert.equal(t, before, "what_if changed the build"));
 await step("status", {}, (t) => assert.equal(/UNSAVED/.test(t), /UNSAVED/.test(status), "what_if changed the unsaved flag"));
 await step("tree_search", { query: "life", limit: 3 }, (t) => assert.match(t, /^\d+ /m));
-await step("suggest_passives", { max_points: 2, limit: 3 });
-await step("atlas_get", {}, (t) => assert.match(t, /Atlas tree/));
-await step("atlas_search", { query: "essence", limit: 3 });
+await step("suggest", { kind: "passives", points: 2, limit: 3 });
+await step("atlas", {}, (t) => assert.match(t, /Atlas tree/));
+await step("atlas", { query: "essence", limit: 3 });
 {
   // Saving without a name must never overwrite the player's file.
   const r = await runTool(tools, context, "save_build", {});
@@ -49,7 +49,7 @@ await step("atlas_search", { query: "essence", limit: 3 });
   console.log(`${refused ? "ok  " : "FAIL"} save_build without a name is refused`);
 }
 if (process.env.TRADE === "1") {
-  await step("leagues", {}, (t) => assert.match(t, /Standard/));
+  await step("prices", { leagues: true }, (t) => assert.match(t, /Standard/));
   await step("plan_upgrades", { slots: ["Ring 1"], budget_chaos: 20, max_results: 3 }, (t) => assert.match(t, /instant buyout only/));
 }
 

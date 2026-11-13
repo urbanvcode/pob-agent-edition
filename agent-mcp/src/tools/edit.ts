@@ -1,4 +1,4 @@
-/** Edit and simulate: edit_items, edit_skills, edit_tree, set_config, what_if, snapshot, restore, compare. */
+/** Edit and simulate: edit (edit_items, edit_skills, edit_tree as aliases), set_config, what_if, snapshot, restore, compare. */
 import fs from "fs";
 import path from "path";
 import { deltaLines, n, type Stats } from "../format.js";
@@ -123,9 +123,12 @@ function compareText(a: Side, b: Side): string {
   return L.join("\n");
 }
 
-const OPS = S.list(S.obj(), "Ops, applied in order");
+const OPS = S.list(S.obj());
 
 export const editTools: Tool[] = [
+  tool("edit", 'Change the open build; returns before/after stats. Ops in order. Items: {op:"equip",slot,text|id}, {op:"unequip",slot}, {op:"flask",index,active}, {op:"item_set",id}. Skills (numbers from build_summary): {op:"main_skill",group}, {op:"add_group",gems:[{name,level?,quality?}]}, {op:"remove_group",group}, {op:"group_enabled",group,enabled}, {op:"add_gem",group,name}, {op:"remove_gem",group,gem}, {op:"gem",group,gem,level?,quality?,enabled?}. Tree (ids from tree_search): {op:"alloc"|"dealloc",nodes}, {op:"mastery",node,effect}, {op:"spec",index|create}. {op:"config",values}.',
+    { ops: OPS }, ["ops"], async (ctx, args) => applyEdit(ctx, opList(args, [...ITEM_OPS, ...SKILL_OPS, ...TREE_OPS, "config"], "edit"))),
+
   tool("edit_items", 'Change gear in the open build. Ops: {op:"equip",slot,text} (PoB/in-game item text) or {op:"equip",slot,id} (item already in the build), {op:"unequip",slot}, {op:"flask",index:1-5,active}, {op:"item_set",id}. Returns before/after stats.',
     { ops: OPS }, ["ops"], async (ctx, args) => applyEdit(ctx, opList(args, ITEM_OPS, "edit_items"))),
 
@@ -135,8 +138,8 @@ export const editTools: Tool[] = [
   tool("edit_tree", 'Change the passive tree. Node ids come from tree_search. Ops: {op:"alloc",nodes:[ids]} (takes the shortest path too), {op:"dealloc",nodes:[ids]} (also drops nodes that depended on them), {op:"mastery",node,effect}, {op:"spec",index} or {op:"spec",create:"title",copy_from?} to switch or add a tree spec.',
     { ops: OPS }, ["ops"], async (ctx, args) => applyEdit(ctx, opList(args, TREE_OPS, "edit_tree"))),
 
-  tool("set_config", 'Read or change PoB\'s Configuration (enemy, charges, conditions, bandit, character level). search finds option keys; values sets them, e.g. {"enemyIsBoss":"Pinnacle","usePowerCharges":true,"level":92}.',
-    { search: S.str("Find option keys by text"), values: S.obj() }, [],
+  tool("set_config", 'PoB Configuration (enemy, charges, conditions, bandit, level). search: find option keys; values: set them, e.g. {"enemyIsBoss":"Pinnacle","level":92}.',
+    { search: S.str(), values: S.obj() }, [],
     async (ctx, args) => {
       const link = await ctx.pob.link();
       if (!args.values || !Object.keys(args.values).length) {
@@ -157,7 +160,7 @@ export const editTools: Tool[] = [
       return lines.join("\n");
     }),
 
-  tool("what_if", "Simulate changes without keeping them: applies any ops from edit_items / edit_skills / edit_tree plus {op:\"config\",values}, returns before/after stats, then rolls back. keep: true leaves the changes in (only if every op worked).",
+  tool("what_if", "Simulate edit ops: before/after stats, then roll back. keep: true leaves them in (only if every op worked).",
     { ops: OPS, keep: S.bool() }, ["ops"],
     async ({ pob }, args) => {
       const ops = opList(args, null, "what_if");
@@ -167,7 +170,7 @@ export const editTools: Tool[] = [
       if (!res.kept) {
         text += res.rolledBack
           ? `\nRolled back: the build is as it was.${args.keep === true ? " (keep was ignored because an op failed.)" : ""}`
-          : `\nWARNING: the roll back did not restore the build exactly (${res.rollbackProblem}). Tell the player; Ctrl+Z in PoB or restore a snapshot fixes it.`;
+          : `\nWARNING: the roll back did not restore the build exactly (${res.rollbackProblem}). Tell the player; Ctrl+Z in PoB or snapshot { name, restore: true } fixes it.`;
       }
       return text;
     }),
@@ -180,7 +183,7 @@ export const editTools: Tool[] = [
       const file = snapshotFile(name);
       fs.writeFileSync(file, String(xml), "utf8");
       snapshots.set(name, { file, build: stats.name, at: Date.now() });
-      return `Snapshot "${name}" taken of ${stats.name} (Combined DPS ${n(stats.stats.CombinedDPS)}, EHP ${n(stats.stats.TotalEHP)}). restore brings it back; compare with "snapshot:${name}".`;
+      return `Snapshot "${name}" taken of ${stats.name} (Combined DPS ${n(stats.stats.CombinedDPS)}, EHP ${n(stats.stats.TotalEHP)}). snapshot with restore: true brings it back; compare with "snapshot:${name}".`;
     }),
 
   tool("restore", "Put a snapshot back as the open build (the window keeps its file name and shows unsaved changes).", { name: S.str() }, ["name"],
@@ -193,8 +196,8 @@ export const editTools: Tool[] = [
       return `Restored snapshot "${args.name}" (Combined DPS ${n(stats.stats.CombinedDPS)}, EHP ${n(stats.stats.TotalEHP)}).`;
     }),
 
-  tool("compare", 'Compare two builds: stats, tree, items, gems. Each side is "current", "snapshot:<name>" or a saved build name. The other build is calculated separately; the window is not touched.',
-    { a: S.str('Default "current"'), b: S.str() }, ["b"],
+  tool("compare", 'Compare two builds (stats, tree, items, gems) without touching the window. Each side: "current" (default a), "snapshot:<name>" or a saved build name.',
+    { a: S.str(), b: S.str() }, ["b"],
     async ({ pob }, args) => {
       const a = await loadSide(pob, typeof args.a === "string" ? args.a : "current");
       const b = await loadSide(pob, String(args.b));

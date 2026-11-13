@@ -223,7 +223,7 @@ function currencyText(p: PlayerProfile): string {
 
 /** One line for live_status and other tool outputs. */
 export function profileSummaryLine(p: PlayerProfile): string {
-  return `Player profile: ${PLAY_MODES[p.playMode]} ${p.hardcore ? "Hardcore" : "Softcore"} | explanations: ${EXPLANATION_MODES[p.explanationMode]} | league: ${p.league || "current league (not set)"} | currency: ${currencyText(p)}${p.goals.length ? ` | goals: ${p.goals.join(", ")}` : ""}. Call profile_get once per conversation before advising.`;
+  return `Player profile: ${PLAY_MODES[p.playMode]} ${p.hardcore ? "Hardcore" : "Softcore"} | explanations: ${EXPLANATION_MODES[p.explanationMode]} | league: ${p.league || "current league (not set)"} | currency: ${currencyText(p)}${p.goals.length ? ` | goals: ${p.goals.join(", ")}` : ""}. Call profile once per conversation before advising.`;
 }
 
 /** How the AI should answer for this profile. Returned by profile_get. */
@@ -241,11 +241,11 @@ export function answerRules(p: PlayerProfile): string[] {
       break;
   }
   if (p.hardcore) {
-    rules.push("HARDCORE: one death moves the character to the softcore league for good. Put defences before damage: fix resistances, max hit, EHP, recovery and ailment protection first; flag risky choices (low max hit, dangerous map mods, mechanics that remove a defence layer) and give the safe option. Trade searches must use the Hardcore league (e.g. 'Hardcore' or 'Hardcore <league>'; check leagues).");
+    rules.push("HARDCORE: one death moves the character to the softcore league for good. Put defences before damage: fix resistances, max hit, EHP, recovery and ailment protection first; flag risky choices (low max hit, dangerous map mods, mechanics that remove a defence layer) and give the safe option. Trade searches must use the Hardcore league (e.g. 'Hardcore' or 'Hardcore <league>'; check prices { leagues: true }).");
   }
   switch (p.explanationMode) {
     case "teach":
-      rules.push(`TEACH: the first time a PoE1 mechanic matters, explain it in 1-3 sentences${p.experience === "poe2" ? " and compare it with PoE2 (what is similar, what differs)" : ""}, then call profile_mark_learned with the topic. Do not re-explain topics in learnedTopics; just use the term.`);
+      rules.push(`TEACH: the first time a PoE1 mechanic matters, explain it in 1-3 sentences${p.experience === "poe2" ? " and compare it with PoE2 (what is similar, what differs)" : ""}, then call profile { learned: [topic] }. Do not re-explain topics in learnedTopics; just use the term.`);
       break;
     case "concise":
       rules.push("CONCISE: actions and numbers only. Each recommendation gets at most one short line of why. No mechanic explanations unless asked.");
@@ -259,7 +259,7 @@ export function answerRules(p: PlayerProfile): string[] {
   else rules.push("EXPERIENCE: experienced PoE1 player - skip basics, use normal PoE1 terms.");
   if (!p.league) rules.push("LEAGUE: not set - trade tools use the current challenge league automatically; ask the player if unsure.");
   if (p.goals.length) rules.push(`GOALS: prioritise advice towards: ${p.goals.join("; ")}.`);
-  rules.push("Change the profile (profile_set) only when the player asks or states a fact (e.g. 'I have 300c now', 'I'm playing SSF').");
+  rules.push("Change the profile (profile with fields) only when the player asks or states a fact (e.g. 'I have 300c now', 'I'm playing SSF').");
   return rules;
 }
 

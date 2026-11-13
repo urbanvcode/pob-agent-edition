@@ -124,8 +124,8 @@ export function bossText(res: any): string {
 }
 
 export const readTools: Tool[] = [
-  tool("build_summary", "The open build at a glance: class, skill groups with gems, items per slot (with ids), tree (points, keystones, notables), config in use.",
-    { parts: S.list(S.enum(["skills", "items", "tree", "config", "notes"]), "Default: all; [\"notes\"] alone returns the full build notes"), detail: S.bool("Add item mods and mastery choices") }, [],
+  tool("build_summary", 'The open build: class, skill groups and gems, items per slot (ids), tree, config. parts ["notes"]: full notes; detail: item mods, masteries.',
+    { parts: S.list(S.enum(["skills", "items", "tree", "config", "notes"]), ), detail: S.bool() }, [],
     async ({ pob }, args) => {
       const link = await pob.link();
       const { summary } = await link.call("summary");
@@ -138,8 +138,8 @@ export const readTools: Tool[] = [
       return summaryText(summary, parts, args.detail === true);
     }),
 
-  tool("stats", "PoB's calculated numbers for the open build. No arguments: the key offence and defence stats. match: every stat whose name contains the text (e.g. \"Leech\", \"Impale\", \"MaximumHitTaken\").",
-    { match: S.str(), fields: S.list(S.str(), "Exact PoB output names") }, [],
+  tool("stats", "PoB's numbers for the open build: key stats; match: every stat containing the text (\"Leech\", \"MaximumHitTaken\"); fields: exact names.",
+    { match: S.str(), fields: S.list(S.str()) }, [],
     async ({ pob }, args) => {
       const link = await pob.link();
       if (!args.match && !(Array.isArray(args.fields) && args.fields.length)) {
@@ -153,8 +153,8 @@ export const readTools: Tool[] = [
       return [`Main skill: ${res.mainSkill ?? "none"}`, ...keys.map((k) => `${k}: ${typeof stats[k] === "number" ? n(stats[k], 2) : stats[k]}`), ASSUME(res.assumptions)].join("\n");
     }),
 
-  tool("diagnose", "Full health check in one call, in priority order: resistances, max hit and EHP, recovery and mana, damage, plus a list of findings (uncapped resists, empty slots, unspent points, unmet requirements). boss adds a boss check: how hard each of that boss's skills hits this character and how many hits it survives.",
-    { boss: S.str("shaper, maven, sirus, exarch, eater, atziri, cortex or all; prefix \"uber \" for the uber version") }, [],
+  tool("diagnose", "Health check in priority order: resists, max hit, EHP, recovery, mana, damage, plus findings (empty slots, unspent points, requirements). boss: each boss skill's hit and hits survived.",
+    { boss: S.str("shaper, maven, sirus, exarch, eater, atziri, cortex, all; \"uber \" prefix") }, [],
     async ({ pob }, args) => {
       const link = await pob.link();
       const { diagnosis } = await link.call("diagnose");
@@ -163,7 +163,7 @@ export const readTools: Tool[] = [
       return `${text}\n\n${bossText(await link.call("boss_check", { boss: String(args.boss) }))}`;
     }),
 
-  tool("tree_search", "Find passive tree nodes by name or stat text: id, stats, points needed to reach it, mastery effect ids. Use before edit_tree.",
+  tool("tree_search", "Find passive nodes by name or stat: id, stats, path cost, mastery effect ids.",
     { query: S.str(), type: S.enum(["keystone", "notable", "mastery", "jewel", "ascendancy", "normal"]), limit: S.num() }, ["query"],
     async ({ pob }, args) => {
       const link = await pob.link();

@@ -58,7 +58,7 @@ export async function resolveLeague(trade: TradeApiClient, given: unknown): Prom
   const profile = getProfile().profile;
   if (profile.league) return { league: profile.league };
   const league = challengeLeague(await pcLeagues(trade), profile.hardcore);
-  if (!league) throw new ToolError("Could not work out the current league. Call leagues and pass league.");
+  if (!league) throw new ToolError("Could not work out the current league. Call prices { leagues: true } and pass league.");
   return { league, note: `League not set in the profile; using the current challenge league "${league}".` };
 }
 
@@ -113,13 +113,13 @@ export function tradeTools(): Tool[] {
         return ids.map((id) => `- ${id}${id === current && !/^(Standard|Hardcore)$/.test(id) ? " (current challenge league)" : ""}${id === profile.league ? " (profile league)" : ""}`).join("\n");
       }, { trade: true }),
 
-    tool("trade_search", "Search pathofexile.com trade for instant-buyout listings, cheapest first. Stat filters are given as text and matched to trade stats. With slot, each result is simulated in the open build (DPS/EHP change). League defaults to the profile.",
+    tool("trade_search", "Instant-buyout trade listings, cheapest first. stats: text filters matched to trade stats. slot: simulate each result there (DPS/EHP). League: profile default.",
       {
-        name: S.str("Unique or exact item name"), type: S.str("Base type (\"Vaal Regalia\") or category (\"ring\", \"body armour\", \"bow\")"),
+        name: S.str(), type: S.str("base or category: ring, bow"),
         rarity: S.enum(["unique", "rare", "magic", "normal"]),
-        stats: S.list({ type: "object", properties: { text: S.str("e.g. \"+# total maximum Life\""), min: S.num(), max: S.num() }, required: ["text"] }),
-        max_price: S.num(), currency: S.str("Default chaos"), min_links: S.num(),
-        slot: S.str("Simulate results in this gear slot"), league: S.str(), limit: S.num("Default 5, max 10"),
+        stats: S.list({ type: "object", properties: { text: S.str(), min: S.num(), max: S.num() }, required: ["text"] }),
+        max_price: S.num(), currency: S.str(), min_links: S.num(),
+        slot: S.str(), league: S.str(), limit: S.num("max 10"),
       }, [],
       async ({ trade, pob }, args) => {
         if (!args.name && !args.type && !(Array.isArray(args.stats) && args.stats.length)) throw new ToolError("Give at least one of name, type or stats.");
@@ -191,10 +191,10 @@ export function tradeTools(): Tool[] {
         return lines.join("\n");
       }, { trade: true }),
 
-    tool("plan_upgrades", "Cheap gear upgrades for the open build: searches instant-buyout listings per slot, simulates each item in PoB and ranks by gain per chaos. focus \"resists\" finds gear that caps the resistances that are short. Shows in the window's Overview > Advisor card. League defaults to the profile.",
+    tool("plan_upgrades", 'Cheap gear upgrades: instant-buyout listings per slot, simulated, ranked by gain per chaos. focus "resists": caps short resistances. Fills the Overview Advisor card.',
       {
-        budget_chaos: S.num("Per item; default 50"), focus: S.enum(["balanced", "dps", "defence", "resists"]),
-        slots: S.list(S.str(), "Default: armour, belt, amulet, ring"), league: S.str(), max_results: S.num(),
+        budget_chaos: S.num("per item, default 50"), focus: S.enum(["balanced", "dps", "defence", "resists"]),
+        slots: S.list(S.str()), league: S.str(), max_results: S.num(),
       }, [],
       async ({ trade, pob }, args) => {
         const link = await pob.link();
@@ -240,7 +240,7 @@ export function tradeTools(): Tool[] {
         try {
           rates = await currencyRates(league);
         } catch (e) {
-          throw new ToolError(`Could not load currency rates for ${league} from poe.ninja (${e instanceof Error ? e.message : String(e)}). Try again later; price_check on "Divine Orb" also works.`);
+          throw new ToolError(`Could not load currency rates for ${league} from poe.ninja (${e instanceof Error ? e.message : String(e)}). Try again later; prices { name: "Divine Orb" } also works.`);
         }
         const main = ["Divine Orb", "Exalted Orb", "Mirror of Kalandra", "Orb of Annulment", "Vaal Orb", "Orb of Alchemy", "Orb of Fusing", "Chromatic Orb", "Jeweller's Orb", "Orb of Regret", "Orb of Scouring", "Regal Orb", "Gemcutter's Prism", "Orb of Alteration"];
         const search = typeof args.search === "string" ? args.search.toLowerCase() : "";

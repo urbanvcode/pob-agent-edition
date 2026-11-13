@@ -6,7 +6,8 @@ Path of Exile 1 build in **PoB Agent Edition**. It is part of
 
 - **Live first.** It talks to the PoB Agent Edition window on `127.0.0.1:31337` (this PC only). Edits show
   up in the window at once. When PoB is closed it starts a headless PoB and works on saved build files.
-- **42 focused tools**, about 4,750 tokens of tool definitions (a test fails above 5,000).
+- **26 focused tools**, about 3,050 tokens of tool definitions (a test fails above 3,100; the rest of the
+  5,000-token cap is reserved for Stages 5-8 and 11, see ROADMAP.md › Stage 16 budget note).
 - **PoB does the maths.** Every number is PoB's own calculation; every result names the config it used.
 - **Account safety.** Instant-buyout listings only, 1 trade request per 2 seconds, inside every limit
   pathofexile.com publishes, 16 requests per question, no whispers, no game-client access. The POESESSID
@@ -29,14 +30,21 @@ License: GPL-3.0-or-later (see `LICENSE` at the repository root).
 
 | Group | Tools |
 |---|---|
-| Profile | `profile_get`, `profile_set`, `profile_mark_learned` |
-| Session | `status`, `list_builds`, `open_build`, `save_build`, `set_view`, `open_options` |
+| Profile | `profile` (read; fields = change; `learned` = topics explained) |
+| Session | `status`, `list_builds`, `open_build`, `save_build`, `set_view` (`OPTIONS` opens Options) |
+| Character | `character` (sync; `history: true` = timeline) |
 | Read | `build_summary`, `stats`, `diagnose`, `tree_search` |
-| Edit and simulate | `edit_items`, `edit_skills`, `edit_tree`, `set_config`, `what_if`, `snapshot`, `restore`, `compare` |
-| Advice | `suggest_gems`, `suggest_passives`, `suggest_jewels`, `anoint`, `affixes` |
-| Trade | `leagues`, `trade_search`, `plan_upgrades`, `currency`, `price_check` |
-| Atlas | `atlas_get`, `atlas_search`, `atlas_edit` |
+| Edit and simulate | `edit` (item, skill, tree and config ops), `set_config`, `what_if`, `snapshot` (`restore: true`), `compare` |
+| Advice | `suggest` (`kind`: passives, anoint, gems, jewel, abyss, watchers_eye, cluster), `affixes`, `optimise` |
+| Guides | `guide` (`source` = import, default = compare, `next: true` = next steps) |
+| Trade | `trade_search`, `plan_upgrades`, `prices` (item price, currency rates, `leagues: true`) |
+| Atlas | `atlas` (read; `query` = search; `add`/`remove`/`replace`/`link` = change) |
 | Knowledge | `kb_lookup`, `kb_patch` |
+
+Merged tools route to the original handlers, and the 0.8.0 names (`profile_get`, `edit_tree`, `suggest_gems`,
+`atlas_get`, `guide_compare`, `currency`, ...) still work as hidden aliases (`ALIASES` in `src/tools/index.ts`).
+When the PoB chat panel runs with "AI may edit" off, the server starts with `POB_READ_ONLY=1` and refuses every
+call that would change, open or save a build (tools mark this with `writes`).
 
 The working rules for the AI (diagnosis order, profile, trade safety, saving) are sent as server
 instructions (`src/guide.ts`); `AGENTS.md` at the repository root is the human-readable copy.
@@ -102,6 +110,7 @@ Run it by hand: `node build/index.js` (speaks MCP on stdin/stdout).
 | `POB_DIRECTORY` | `Documents/Path of Building/Builds` | Builds folder (the installer sets it) |
 | `POB_LIVE` | `auto` | `auto`: the window when open, else headless. `only`: never headless. `off`: always headless |
 | `POB_AGENT_PORT` | `31337` | Port of the PoB window's live API |
+| `POB_READ_ONLY` | off | `1`: refuse calls that change, open or save a build (the chat panel with edits off) |
 | `POB_PATH`, `POB_CMD` | found next to this folder | PoB's `src` folder and the LuaJIT executable |
 | `POB_AGENT_SETTINGS` | `<user folder>/AgentEdition.json` | Profile and POESESSID file |
 | `POB_AGENT_CACHE` | `<user folder>/AgentCache` | Snapshots and the knowledge cache |
@@ -117,5 +126,10 @@ Run it by hand: `node build/index.js` (speaks MCP on stdin/stdout).
 1. If PoB has to do something new, add a handler to `PathOfBuilding/src/Agent/Handlers/Tools.lua`.
 2. Add the tool to a file in `src/tools/`: short description, minimal schema, numbers-first text output,
    errors that say what to do next, and the config assumptions in the result.
-3. Add a contract test in `tests/contract.test.mjs` and the name to the list in `tests/unit.test.mjs`.
-4. Mention it in `src/guide.ts` and `AGENTS.md` if the AI should reach for it unprompted.
+3. Make it public in `src/tools/index.ts`. If it overlaps an existing tool, add a mode to that tool with
+   `routed(...)` instead of a new name (every definition costs tokens in every conversation). Mark tools
+   that change, open or save a build in `WRITES`.
+4. Add a contract test in `tests/contract.test.mjs` and the name to the list in `tests/unit.test.mjs`.
+   Stay inside your stage's share of the token budget (ROADMAP.md › Stage 16 budget note) and raise
+   `TOOL_BUDGET` in `tests/unit.test.mjs` by that share only.
+5. Mention it in `src/guide.ts` (about 50 tokens per stage) and `AGENTS.md` if the AI should reach for it unprompted.

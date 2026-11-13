@@ -62,15 +62,15 @@ test("session: status, list_builds, open_build", async () => {
   assert.match(status, /Build: occ-vortex/);
   assert.match(status, /Player profile:/);
   assert.match(await ok("set_view", { view: "TREE" }), /headless/);
-  assert.match(await ok("open_options"), /No PoB window/);
+  assert.match(await ok("set_view", { view: "OPTIONS" }), /No PoB window/);
 });
 
 test("profile tools", async () => {
-  assert.match(await ok("profile_get"), /No profile saved yet[\s\S]*How to answer/);
-  assert.match(await ok("profile_set", { explanationMode: "deep", currency: { chaos: 250 } }), /Profile updated: explanationMode, currency[\s\S]*DEEP DIVE/);
-  await fails("profile_set", { playMode: "x" }, /playMode must be one of/);
-  assert.match(await ok("profile_mark_learned", { topics: ["flasks"] }), /Marked as explained: flasks/);
-  await ok("profile_set", { explanationMode: "teach" });
+  assert.match(await ok("profile"), /No profile saved yet[\s\S]*How to answer/);
+  assert.match(await ok("profile", { explanationMode: "deep", currency: { chaos: 250 } }), /Profile updated: explanationMode, currency[\s\S]*DEEP DIVE/);
+  await fails("profile", { playMode: "x" }, /playMode must be one of/);
+  assert.match(await ok("profile", { learned: ["flasks"] }), /Marked as explained: flasks/);
+  await ok("profile", { explanationMode: "teach" });
 });
 
 test("read: build_summary, stats, diagnose, tree_search", async () => {
@@ -137,21 +137,21 @@ test("edit tools change the build and report before/after", async () => {
   assert.match(cfg, /Combined DPS: [\d,.]+ -> [\d,.]+ \(\+/);
   assert.match(await ok("set_config", { search: "boss" }), /enemyIsBoss \(list: None \| Boss \| Pinnacle \| Uber\) = None/);
 
-  const items = await ok("edit_items", { ops: [{ op: "equip", slot: "Ring 1", text: "Rarity: RARE\nTest Ring\nTwo-Stone Ring\n+80 to maximum Life\n+40% to Chaos Resistance" }] });
+  const items = await ok("edit", { ops: [{ op: "equip", slot: "Ring 1", text: "Rarity: RARE\nTest Ring\nTwo-Stone Ring\n+80 to maximum Life\n+40% to Chaos Resistance" }] });
   assert.match(items, /ok equip: .*name=Test Ring, Two-Stone Ring/);
   assert.match(items, /Chaos res %: \d+ -> \d+ \(\+\d+\)/);
   assert.match(items, /save_build with a new name/);
-  await fails("edit_items", { ops: [{ op: "alloc", nodes: [1] }] }, /edit_items does not do "alloc"/);
+  await fails("edit", { ops: [{ op: "nope" }] }, /edit does not do "nope"/);
 
-  const skills = await ok("edit_skills", { ops: [{ op: "add_gem", group: 5, name: "Nonexistent Gem" }, { op: "gem", group: 5, gem: 6, level: 20 }] });
+  const skills = await ok("edit", { ops: [{ op: "add_gem", group: 5, name: "Nonexistent Gem" }, { op: "gem", group: 5, gem: 6, level: 20 }] });
   assert.match(skills, /FAILED add_gem: unknown gem "Nonexistent Gem"/);
   assert.match(skills, /ok gem: .*level=20; name=Vortex/);
-  assert.match(await ok("edit_skills", { ops: [{ op: "add_group", label: "Test", gems: [{ name: "Frostbite", level: 20 }] }] }), /ok add_group: .*gems=Frostbite/);
+  assert.match(await ok("edit", { ops: [{ op: "add_group", label: "Test", gems: [{ name: "Frostbite", level: 20 }] }] }), /ok add_group: .*gems=Frostbite/);
 
-  const tree = await ok("edit_tree", { ops: [{ op: "dealloc", nodes: [21460] }] });
+  const tree = await ok("edit", { ops: [{ op: "dealloc", nodes: [21460] }] });
   assert.match(tree, /ok dealloc: .*pointsFreed=\d+; removed=Breath of Rime/);
-  assert.match(await ok("edit_tree", { ops: [{ op: "alloc", nodes: [21460] }] }), /ok alloc: allocated=Breath of Rime; pointsSpent=\d+/);
-  assert.match(await ok("edit_tree", { ops: [{ op: "dealloc", nodes: [99999] }] }), /FAILED dealloc: unknown passive node id 99999[\s\S]*Nothing was changed\./);
+  assert.match(await ok("edit", { ops: [{ op: "alloc", nodes: [21460] }] }), /ok alloc: allocated=Breath of Rime; pointsSpent=\d+/);
+  assert.match(await ok("edit", { ops: [{ op: "dealloc", nodes: [99999] }] }), /FAILED dealloc: unknown passive node id 99999[\s\S]*Nothing was changed\./);
 
   // Saving: never over the player's file by accident.
   await fails("save_build", {}, /would overwrite the player's file/);
@@ -166,17 +166,17 @@ test("edit tools change the build and report before/after", async () => {
   assert.match(cmp, /Gems only in A: Frostbite/);
   await fails("compare", { b: "missing build" }, /No build named/);
 
-  assert.match(await ok("restore", { name: "start" }), /Restored snapshot "start"/);
+  assert.match(await ok("snapshot", { name: "start", restore: true }), /Restored snapshot "start"/);
   assert.equal((await ok("stats")).replace(/^.*\n/, ""), base.replace(/^.*\n/, ""));
-  await fails("restore", { name: "nope" }, /No snapshot named "nope"/);
+  await fails("snapshot", { name: "nope", restore: true }, /No snapshot named "nope"/);
   assert.match(await ok("compare", { a: "occ-vortex - AI test", b: "occ-vortex" }), /Ring 1: Test Ring/);
 });
 
 test("advice: suggest_passives, anoint, affixes", async () => {
-  const s = await ok("suggest_passives", { max_points: 3, limit: 3, focus: "defence" });
+  const s = await ok("suggest", { kind: "passives", points: 3, limit: 3, focus: "defence" });
   assert.match(s, /Passive suggestions \(defence, within 3 points/);
   assert.match(s, /1\. .* \[id \d+, .*\]: DPS [+-][\d.]+% \| EHP \+[\d.]+%/);
-  const a = await ok("anoint", { limit: 3 });
+  const a = await ok("suggest", { kind: "anoint", limit: 3 });
   assert.match(a, /Anoint options for Amulet/);
   assert.match(a, /1\. .*: DPS [+-][\d.]+% \| EHP [+-][\d.]+% \| oils: \w+, \w+, \w+/);
   const tiers = await ok("affixes", { query: "to maximum life", item: "ring", type: "Prefix", limit: 3 });
@@ -187,7 +187,7 @@ test("advice: suggest_passives, anoint, affixes", async () => {
 
 test("suggest_gems: values the current supports, ranks replacements, leaves the build alone", async () => {
   const before = await ok("stats");
-  const s = await ok("suggest_gems", { limit: 5 });
+  const s = await ok("suggest", { kind: "gems", limit: 5 });
   assert.match(s, /Support gems for Vortex \(group 5\): [\d,]+ DPS/);
   assert.match(s, /Current supports, weakest first/);
   const losses = [...s.matchAll(/^- gem \d+ .*: (-[\d.]+)%/gm)].map((m) => Number(m[1]));
@@ -199,12 +199,12 @@ test("suggest_gems: values the current supports, ranks replacements, leaves the 
   assert.match(s, /\d+ of \d+ fitting supports beat the current setup/);
   // Supports that turn the skill into something else are kept out of the ranking.
   assert.ok(!/^\d+\. Cast when/m.test(s));
-  assert.match(await ok("suggest_gems", { add: true, awakened: false, limit: 3 }), /as an extra link/);
-  assert.ok(!/^\d+\. Awakened/m.test(await ok("suggest_gems", { awakened: false, limit: 8 })));
-  assert.match(await ok("suggest_gems", { limit: 8 }), /^\d+\. Awakened/m);
-  await fails("suggest_gems", { group: 99 }, /no skill group 99/);
+  assert.match(await ok("suggest", { kind: "gems", add: true, awakened: false, limit: 3 }), /as an extra link/);
+  assert.ok(!/^\d+\. Awakened/m.test(await ok("suggest", { kind: "gems", awakened: false, limit: 8 })));
+  assert.match(await ok("suggest", { kind: "gems", limit: 8 }), /^\d+\. Awakened/m);
+  await fails("suggest", { kind: "gems", group: 99 }, /no skill group 99/);
   // Another group can be checked without changing which skill is the main one.
-  assert.match(await ok("suggest_gems", { group: 1, limit: 2 }), /Support gems for Flame Dash \(group 1\)/);
+  assert.match(await ok("suggest", { kind: "gems", group: 1, limit: 2 }), /Support gems for Flame Dash \(group 1\)/);
   assert.equal(await ok("stats"), before);
 });
 
@@ -236,13 +236,13 @@ test("affixes: classify an item's mods", async () => {
 });
 
 test("suggest_jewels: jewel mods, Watcher's Eye and cluster notables", async () => {
-  const j = await ok("suggest_jewels", { limit: 4, focus: "defence" });
+  const j = await ok("suggest", { kind: "jewel", limit: 4, focus: "defence" });
   assert.match(j, /Jewel mods for this build \(jewel, defence; \d+ simulated; each mod alone at its best tier and top roll, compared with a blank jewel in Jewel \d+\)/);
   assert.match(j, /1\. .* \[(prefix|suffix); [\w/]+\]: DPS [+-][\d.]+% \| EHP \+[\d.]+%/);
-  const c = await ok("suggest_jewels", { kind: "cluster", limit: 3 });
+  const c = await ok("suggest", { kind: "cluster", limit: 3 });
   assert.match(c, /1\. [\w' ]+: .*: DPS [+-][\d.]+% \| EHP [+-][\d.]+%/);
-  assert.match(await ok("suggest_jewels", { kind: "abyss", limit: 2, focus: "dps" }), /Murderous|Searching|Hypnotic|Ghastly|No mod of this kind/);
-  assert.match(await ok("suggest_jewels", { kind: "watchers_eye", limit: 2 }), /Jewel mods for this build \(watchers_eye/);
+  assert.match(await ok("suggest", { kind: "abyss", limit: 2, focus: "dps" }), /Murderous|Searching|Hypnotic|Ghastly|No mod of this kind/);
+  assert.match(await ok("suggest", { kind: "watchers_eye", limit: 2 }), /Jewel mods for this build \(watchers_eye/);
 });
 
 test("save_build: export code and a note in the build notes", async () => {
@@ -259,14 +259,50 @@ test("save_build: export code and a note in the build notes", async () => {
 });
 
 test("atlas tools", async () => {
-  const get = await ok("atlas_get");
+  const get = await ok("atlas");
   assert.match(get, /Atlas tree [\d.]+: 0 \/ \d+ points/);
-  const found = await ok("atlas_search", { query: "expedition", limit: 3 });
+  const found = await ok("atlas", { query: "expedition", limit: 3 });
   const id = /^\[([^\]]+)\]/m.exec(found)?.[1];
   assert.ok(id, `no atlas node id in:\n${found}`);
-  assert.match(await ok("atlas_edit", { add: [id] }), /Atlas updated: [1-9]\d* \/ \d+ points used/);
-  assert.match(await ok("atlas_get"), /Points per mechanic: .*Expedition/i);
+  assert.match(await ok("atlas", { add: [id] }), /Atlas updated: [1-9]\d* \/ \d+ points used/);
+  assert.match(await ok("atlas"), /Points per mechanic: .*Expedition/i);
   await fails("atlas_edit", {}, /Give add, remove, replace/);
+});
+
+test("merged tools: old names still work (hidden), each mode routes to the right handler", async () => {
+  const listed = tools.map((t) => t.name);
+  for (const old of ["profile_get", "atlas_get", "atlas_search", "suggest_passives", "edit_tree", "restore", "currency", "leagues", "guide_compare"]) {
+    assert.ok(!listed.includes(old), `${old} must not be in the tool list`);
+  }
+  assert.equal(await ok("atlas_get"), await ok("atlas"));
+  assert.match(await ok("profile_get"), /How to answer/);
+  assert.match(await ok("open_options"), /No PoB window/);
+  await fails("edit_items", { ops: [{ op: "alloc", nodes: [1] }] }, /edit_items does not do "alloc"/);
+  assert.match(await ok("edit_tree", { ops: [{ op: "dealloc", nodes: [99999] }] }), /FAILED dealloc: unknown passive node id 99999/);
+  assert.match(await ok("suggest_passives", { max_points: 2, limit: 2 }), /Config assumptions/);
+  await fails("suggest", { kind: "nope" }, /kind must be one of: passives, anoint, gems/);
+  assert.match(await ok("profile", { learned: ["leech"], explanationMode: "teach" }), /Marked as explained: leech[\s\S]*Profile updated|Marked as explained: leech[\s\S]*No changes/);
+  assert.match(await ok("character", { history: true }), /No character synced yet/);
+});
+
+test("read-only server (chat with edits off) refuses writes, keeps reads", async () => {
+  process.env.POB_READ_ONLY = "1";
+  try {
+    const before = await ok("stats");
+    for (const [name, args] of [
+      ["edit", { ops: [{ op: "dealloc", nodes: [21460] }] }], ["edit_tree", { ops: [{ op: "dealloc", nodes: [21460] }] }],
+      ["what_if", { ops: [{ op: "dealloc", nodes: [21460] }], keep: true }], ["set_config", { values: { level: 90 } }],
+      ["snapshot", { name: "start", restore: true }], ["atlas", { add: ["1"] }], ["save_build", { name: "x" }],
+      ["open_build", { name: "occ-vortex" }], ["guide", { source: "x" }], ["character", { account: "Sample#0000" }],
+    ]) await fails(name, args, /Edits are off in this chat/);
+    assert.equal(await ok("stats"), before);
+    assert.match(await ok("what_if", { ops: [{ op: "dealloc", nodes: [21460] }] }), /Rolled back/);
+    assert.match(await ok("atlas"), /Atlas tree/);
+    assert.match(await ok("set_config", { search: "boss" }), /enemyIsBoss/);
+    assert.match(await ok("snapshot", { name: "ro" }), /Snapshot "ro" taken/);
+  } finally {
+    delete process.env.POB_READ_ONLY;
+  }
 });
 
 test("import a PoB export code as a new build", async () => {

@@ -30,32 +30,37 @@ const defs = toolDefinitions(tools);
 /** Rough token count: characters / 4 (the usual estimate for English + JSON). */
 const tokens = (value) => Math.ceil(JSON.stringify(value).length / 4);
 
-test("tool definitions stay within the 5,000 token budget", () => {
+// Hard cap 5,000 tokens. Stages 5-8 and 11 have room reserved (ROADMAP.md, Stage 16 budget note):
+// 5: 400, 6: 350, 7: 350, 8: 350, 11: 450 tokens of tool definitions, about 50 of guide text each.
+// Raise TOOL_BUDGET by a stage's share when that stage adds its tools.
+const TOOL_BUDGET = 3100, GUIDE_BUDGET = 950;
+test("tool definitions stay within the budget (3,100 now, 5,000 with every reserved stage)", () => {
   const total = tokens(defs);
-  assert.ok(total <= 5000, `tool definitions are about ${total} tokens (budget 5,000)`);
+  assert.ok(total <= TOOL_BUDGET, `tool definitions are about ${total} tokens (budget ${TOOL_BUDGET})`);
+  assert.ok(TOOL_BUDGET + 400 + 350 + 350 + 350 + 450 <= 5000);
 });
 
 test("agent guide stays short", () => {
-  assert.ok(Math.ceil(AGENT_GUIDE.length / 4) <= 1200, "agent guide is over 1,200 tokens");
+  const total = Math.ceil(AGENT_GUIDE.length / 4);
+  assert.ok(total <= GUIDE_BUDGET, `agent guide is about ${total} tokens (budget ${GUIDE_BUDGET})`);
 });
 
 test("the agreed tool list is complete and nothing else is exposed", () => {
   const expected = [
-    "profile_get", "profile_set", "profile_mark_learned",
-    "status", "list_builds", "open_build", "save_build", "set_view", "open_options",
-    "character_sync", "character_history",
+    "profile", "status", "list_builds", "open_build", "save_build", "set_view",
+    "character",
     "build_summary", "stats", "diagnose", "tree_search",
-    "edit_items", "edit_skills", "edit_tree", "set_config", "what_if", "snapshot", "restore", "compare",
-    "suggest_passives", "anoint", "affixes", "suggest_gems", "suggest_jewels", "optimise",
-    "guide_import", "guide_compare", "guide_next_steps",
-    "leagues", "trade_search", "plan_upgrades", "currency", "price_check",
-    "atlas_get", "atlas_search", "atlas_edit",
+    "edit", "set_config", "what_if", "snapshot", "compare",
+    "suggest", "affixes", "optimise",
+    "guide",
+    "trade_search", "plan_upgrades", "prices",
+    "atlas",
     "kb_lookup", "kb_patch",
   ];
   assert.deepEqual(defs.map((d) => d.name), expected);
   for (const d of defs) {
     assert.equal(d.inputSchema.type, "object");
-    assert.ok(d.description.length >= 20 && d.description.length <= 460, `${d.name}: description length ${d.description.length}`);
+    assert.ok(d.description.length >= 20 && d.description.length <= (d.name === "edit" ? 600 : 460), `${d.name}: description length ${d.description.length}`);
   }
 });
 
@@ -64,7 +69,7 @@ test("the guide and tool texts only name tools that exist", () => {
   const old = ["live_status", "lua_get_stats", "get_build_issues", "analyze_defenses", "live_save_build", "live_set_view", "lua_load_build", "get_leagues", "live_open_build"];
   const text = AGENT_GUIDE + JSON.stringify(defs);
   for (const name of old) assert.ok(!text.includes(name), `old tool name ${name} is still mentioned`);
-  for (const name of ["profile_get", "status", "diagnose", "what_if", "save_build", "plan_upgrades", "atlas_get"]) {
+  for (const name of ["profile", "status", "diagnose", "what_if", "save_build", "plan_upgrades", "atlas", "optimise", "suggest", "guide", "character", "kb_lookup", "edit"]) {
     assert.ok(names.has(name) && AGENT_GUIDE.includes(name), `${name} missing from guide or tools`);
   }
 });

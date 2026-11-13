@@ -77,7 +77,7 @@ test("edit tools are off unless the panel allows them", () => {
   assert.ok(off.includes("--strict-mcp-config") && off[off.indexOf("--tools") + 1] === "", "built-in tools off, only the pob server");
   assert.ok(!claudeArgs({ backend: "claude", message: "hi", allowEdits: true }, "m", "r").includes("--disallowedTools"));
   const cx = codexArgs({ backend: "codex", message: "hi", port: 31345 }).join(" ");
-  assert.match(cx, /disabled_tools=\["edit_items"/);
+  assert.match(cx, /disabled_tools=\["edit"/);
   assert.match(cx, /--ignore-user-config/);
   assert.match(cx, /POB_AGENT_PORT="31345", POB_LIVE="only"/);
   assert.match(cx, /sandbox_mode="read-only"/);
@@ -223,7 +223,7 @@ test("API backend: streams text, routes tool use to the pob MCP server, keeps th
     assert.equal(requests.length, 2);
     assert.equal(requests[0].key, KEY);
     const tools = requests[0].json.tools.map((t) => t.name);
-    assert.ok(tools.includes("diagnose") && !tools.includes("edit_items") && !tools.includes("save_build"), "edit tools hidden by default");
+    assert.ok(tools.includes("diagnose") && !tools.includes("edit") && !tools.includes("save_build"), "edit tools hidden by default");
     assert.equal(requests[0].json.model, "claude-sonnet-5-5", "the API backend defaults to Sonnet, not Opus");
     const toolResult = requests[1].json.messages.at(-1).content[0];
     assert.equal(toolResult.type, "tool_result");

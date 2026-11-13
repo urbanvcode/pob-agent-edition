@@ -90,7 +90,7 @@ test("formatOptimise: ranked list, under-counting, scaling report, explanations"
 test("optimise tool: every goal simulated in PoB, build and config put back", async () => {
   await ok("list_builds");
   await ok("open_build", { name: "occ-vortex" });
-  await ok("profile_set", { explanationMode: "teach" });
+  await ok("profile", { explanationMode: "teach" });
   const before = await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] });
   const config = await ok("stats", { match: "enemy" });
 
@@ -119,11 +119,11 @@ test("optimise tool: every goal simulated in PoB, build and config put back", as
   const weak = await ok("optimise", { levers: ["passives"] });
   assert.match(weak, /^Optimiser: (tankiness|balanced|single target \/ bossing) \(fix weakest: /);
 
-  await ok("profile_set", { playMode: "ssf", hardcore: true });
+  await ok("profile", { playMode: "ssf", hardcore: true });
   const hc = await ok("optimise", { goal: "bossing", levers: ["passives", "respec"] });
   assert.doesNotMatch(hc, /side effect: costs [\d.]+% EHP/, "hardcore never trades defence away for damage");
   assert.match(hc, /Gear \(SSF\)/);
-  await ok("profile_set", { playMode: "trade", hardcore: false });
+  await ok("profile", { playMode: "trade", hardcore: false });
 
   assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] }), before, "the build is exactly as before");
   assert.equal(await ok("stats", { match: "enemy" }), config, "the temporary goal config is restored");

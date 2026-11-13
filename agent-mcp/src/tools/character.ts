@@ -37,13 +37,13 @@ export function characterTools(client = new CharacterClient()): Tool[] {
         if (!character) {
           const list = await client.characters(account.replace(/^(.*)-(\d{4})$/, "$1#$2"), realm);
           const names = list.sort((a, b) => b.level - a.level).slice(0, 15).map((c) => `${c.name} (${c.level} ${c.class}, ${c.league})`);
-          return `Which character? ${account} has: ${names.join(", ")}. Call character_sync again with character.`;
+          return `Which character? ${account} has: ${names.join(", ")}. Call character again with character.`;
         }
         // Polite: no second download of the same character within a minute.
         const prevFile = listHistories().find((h) => h.history.character.toLowerCase() === character.toLowerCase() && h.history.realm === realm);
         const prevAt = prevFile?.history.entries.at(-1)?.at;
         if (prevAt && Date.now() - Date.parse(prevAt) < MIN_RESYNC_MS) {
-          throw new ToolError(`${prevFile!.history.character} was synced ${Math.round((Date.now() - Date.parse(prevAt)) / 1000)} s ago; use character_history, or sync again in a minute.`);
+          throw new ToolError(`${prevFile!.history.character} was synced ${Math.round((Date.now() - Date.parse(prevAt)) / 1000)} s ago; use character { history: true }, or sync again in a minute.`);
         }
 
         // Where the import goes: the character's own build file.
@@ -100,7 +100,7 @@ export function characterTools(client = new CharacterClient()): Tool[] {
           ...(diff ? [`CHANGES since ${day(before!.at)} UTC:`, ...diffText(diff)] : ["First sync: this is the baseline. The next sync lists what changed."]),
           "",
           `PoB recalculated everything from the imported character; config kept (bandit, pantheon and resistance penalty set by PoB's importer). Config assumptions: ${entry.assumptions ?? "?"}`,
-          `History: ${history.entries.length} sync(s); character_history shows the timeline, the Overview "Progress" card draws it.`,
+          `History: ${history.entries.length} sync(s); character { history: true } shows the timeline, the Overview "Progress" card draws it.`,
         ];
         return lines.join("\n");
       }),
@@ -109,7 +109,7 @@ export function characterTools(client = new CharacterClient()): Tool[] {
       { character: S.str("Default: last synced"), limit: S.num() }, [],
       async (_ctx, args) => {
         const all = listHistories();
-        if (!all.length) return "No character synced yet. Use character_sync (account Name#1234 + character).";
+        if (!all.length) return "No character synced yet. Use character (account Name#1234 + character).";
         const want = typeof args.character === "string" ? args.character.trim().toLowerCase() : lastSynced()?.character.toLowerCase();
         const hit = all.find((h) => h.history.character.toLowerCase() === want) ?? (args.character ? undefined : all[0]);
         if (!hit) throw new ToolError(`No history for "${args.character}". Synced: ${all.map((h) => h.history.character).join(", ")}.`);

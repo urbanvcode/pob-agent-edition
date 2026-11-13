@@ -11,9 +11,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
-    "test": "npm run build && node --test tests/unit.test.mjs tests/contract.test.mjs tests/character.test.mjs tests/guide.test.mjs",
+    "test": "npm run build && node --test tests/unit.test.mjs tests/knowledge.test.mjs tests/contract.test.mjs tests/character.test.mjs tests/guide.test.mjs",
     "test:unit": "npm run build && node --test tests/unit.test.mjs",
-    "test:live": "npm run build && node tests/live-smoke.mjs"
+    "test:live": "npm run build && node tests/live-smoke.mjs",
+    "test:kb": "npm run build && node tests/knowledge-eval.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

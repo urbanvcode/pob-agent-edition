@@ -50,6 +50,7 @@ test("the agreed tool list is complete and nothing else is exposed", () => {
     "guide_import", "guide_compare", "guide_next_steps",
     "leagues", "trade_search", "plan_upgrades", "currency", "price_check",
     "atlas_get", "atlas_search", "atlas_edit",
+    "kb_lookup", "kb_patch",
   ];
   assert.deepEqual(defs.map((d) => d.name), expected);
   for (const d of defs) {

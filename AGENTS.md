@@ -51,6 +51,15 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - `guide_next_steps { budget }` ranks actions by gain per cost (passive points, chaos), respecting trade/SSF and the currency on hand; trade links are instant-buyout searches. Both update the Overview's Guide card.
 - When the player deliberately differs (another unique, gem or passive), `guide_compare { accept: [...] }` stops flagging it.
 
+## Facts: look up, cite, never guess (Stage 9)
+- Before stating a game fact (a mechanic, an item, a gem, a patch change) call `kb_lookup { query }`. Your own memory may be outdated or mix in PoE2: it only tells you what to look up, it is never the answer.
+- Every fact comes with its source, link, game version and date. Cite them, and quote numbers and wording exactly. If nothing is found, say it could not be verified and how to check; don't fill the gap.
+- Source ranking when they disagree: game data > official GGG > PoB data > poedb > poewiki. Pass on the flags: "may be outdated" (written before the current patch) and "sources disagree". PoE2 facts (`source: "poe2"`, or the glossary's comparison) are always labelled and only used for comparisons.
+- `kb_lookup { query, claim }` checks a statement: supported / contradicted / not found, with the sentence it rests on.
+- `kb_patch` reads GGG's official patch notes: `{ version: "3.30" }` a league, `{ filter }` a text or section, `{ build: true }` only the lines naming the open build's gems, uniques, keystones, notables and ascendancy. General changes can affect a build without naming its parts: say what was and wasn't checked.
+- "Is this good for my build?" is not a fact from a text: simulate it (`what_if`). Numbers for the player's build always come from PoB.
+- Fetching is polite: robots.txt is obeyed, requests are paced and capped per question, pages are cached (`AgentCache\knowledge`). If a site asks for a pause, say so; don't retry.
+
 ## Trade rules (account safety)
 - Instant buyout only. Never whisper, auto-buy or touch the game client — the user clicks the buyout.
 - Requests are paced (1 per 2 s), kept inside every limit pathofexile.com publishes, and capped at 16 per question. If the site asks for a pause, tell the user; don't retry in a loop.

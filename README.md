@@ -8,6 +8,14 @@ PoB Agent Edition is a Path of Building Community fork with a built-in AI connec
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue)
 ![Game: Path of Exile 1](https://img.shields.io/badge/game-Path%20of%20Exile%201-brown)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
+![Status: public beta](https://img.shields.io/badge/status-public%20beta-orange)
+
+> **Public beta.** Everything in the latest release is tested, but few people have used it yet, so please [report problems](https://github.com/urbanvcode/pob-agent-edition/issues/new/choose).
+> Known limits:
+> - Windows only.
+> - The 3.30 passive trees are an early preview taken from Path of Building's next update.
+> - Each download is about 630 MB (Path of Building's own tree and game data), and updates download the whole zip again; smaller updates are planned.
+> - The atlas tree share links have not been checked against pathofexile.com yet.
 
 ![PoB Agent Edition Overview dashboard with AI Advisor card](docs/images/overview.png)
 

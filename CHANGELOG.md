@@ -14,6 +14,10 @@ Each release also lists the official Path of Building Community version it is ba
 ### Changed
 - `tools\update-pob.ps1`: preview markers can name text a release must contain (`<path> contains "<text>"`), and `-Check` also works while the PoB folder has uncommitted changes. Checked on 2026-11-13: official Path of Building is still v2.67.2 and GGG's atlas export is unchanged.
 
+### Fixed
+- **Guide tab crash** (0.6.1): opening the Guide tab with a guide imported stopped PoB with "attempt to index global 'build'" when no AI app had talked to the window yet. The tab and the Sync character button now always work on their own build.
+- The Guide tab now saves your stage choice, kept differences and the Overview card on a fresh install too (it could not create its `AgentCache` folder there).
+
 ## [0.6.1] - 2026-11-13
 
 Guide mode 2 (follow-up to Stage 3). Based on **Path of Building Community v2.67.2** (same as 0.6.0).

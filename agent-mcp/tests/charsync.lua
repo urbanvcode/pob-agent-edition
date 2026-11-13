@@ -44,6 +44,8 @@ launch = {
 local imported
 launch.agentServer = { handlers = {
 	character_import = function(params)
+		-- PoB's handlers work on the global build: the sync must set it (0.6.1 did not).
+		if build == nil or build.buildName ~= params.name then error("character_import ran without the build set") end
 		imported = params
 		return { ok = true, state = { level = params.character.level, className = params.character.class, stats = { CombinedDPS = 1000, TotalEHP = 5000, Life = 3000 },
 			items = { { slot = "Helmet", name = "Test Helm", mods = "abc" } }, gems = { { name = "Frenzy", level = 20, quality = 0 } }, nodes = { 1, 2, 3 }, named = {} } }
@@ -60,7 +62,18 @@ f:write(dkjson.encode({ last = { account = "Tester#1234", realm = "pc", characte
 f:close()
 
 local Sync = dofile(src .. "/Agent/CharacterSync.lua")
-local build = { buildName = char.name .. " - synced", importTab = {}, modFlag = false }
+local playerBuild = { buildName = char.name .. " - synced", importTab = {}, modFlag = false }
+build = nil -- as in the window when no AI request has run
+local function wrap(other, fn, ...)
+	local saved = build
+	build = other
+	local ok, res = pcall(fn, ...)
+	build = saved
+	if not ok then return { ok = false, error = tostring(res) } end
+	return res
+end
+launch.agentServer.handlers._withBuild = wrap
+local build = playerBuild
 
 local function fail(msg) io.stderr:write("FAIL: " .. msg .. "\n") os.exit(1) end
 

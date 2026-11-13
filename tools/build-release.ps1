@@ -15,7 +15,8 @@
 
   Lighter releases (Stage 17):
   - Tree packs: Ruthless, "alternate" and older passive trees are left out of both zips. PoB downloads one
-    when a build needs it, from the fork's commit on raw.githubusercontent.com, checked against
+    when a build needs it, from the fork's release tag agent-edition-v<version> on raw.githubusercontent.com
+    (created and pushed with -Publish), checked against
     PathOfBuilding\src\TreeData\packs.json (size + SHA256 of every file). The fork commit must be pushed
     first (checked with -Publish).
   - Manifest: release-manifest.json (path, size, SHA256 of every file) goes into both zips and next to them
@@ -148,9 +149,15 @@ if (-not $NoPacks) {
     $originUrl = (& git -C $pobRepo remote get-url origin).Trim()
     $om = [regex]::Match($originUrl, 'github\.com[:/]([^/]+/[^/]+?)(\.git)?$')
     if (-not $om.Success) { throw "PathOfBuilding's origin ($originUrl) is not a GitHub repository: tree packs need one." }
+    # Players download packs from a release tag on the fork: a tag keeps the commit reachable even if
+    # the fork's branch is rebased later (a bare commit link then returns 404).
+    $packTag = "agent-edition-v$Version"
     if ($Publish) {
         & git -C $pobRepo fetch origin --quiet
         if (-not (& git -C $pobRepo branch -r --contains $pobCommit)) { throw "PathOfBuilding $pobCommit is not pushed to origin: players could not download tree packs. Push the fork first." }
+        & git -C $pobRepo rev-parse -q --verify "refs/tags/$packTag" *> $null
+        if ($LASTEXITCODE -ne 0) { Run git @('-C', $pobRepo, 'tag', '-a', $packTag, '-m', "PoB Agent Edition v$Version (tree packs)", $pobCommit) }
+        Run git @('-C', $pobRepo, 'push', 'origin', "refs/tags/$packTag")
     }
     Write-Host "Tree packs: keeping $($keep -join ', '); $($packIds.Count) versions become packs (fork $($om.Groups[1].Value) @ $($pobCommit.Substring(0, 9)))"
     # raw.githubusercontent.com serves the files as committed (LF), so hash an LF export, not the CRLF one.
@@ -187,7 +194,8 @@ if (-not $NoPacks) {
     $packsDoc = [ordered]@{
         version = 1
         release = $Version
-        source = "https://raw.githubusercontent.com/$($om.Groups[1].Value)/$pobCommit/src/TreeData/"
+        source = "https://raw.githubusercontent.com/$($om.Groups[1].Value)/refs/tags/$packTag/src/TreeData/"
+        commit = $pobCommit
         packs = $packs
     }
     [IO.File]::WriteAllText((Join-Path $treeDir 'packs.json'), ($packsDoc | ConvertTo-Json -Depth 6 -Compress), (Utf8NoBom))

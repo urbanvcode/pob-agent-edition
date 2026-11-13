@@ -47,7 +47,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 1 | Player profile & explanation modes | ✅ |
 | 2 | Character import & progress sync | ✅ 0.4.0 |
 | 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1) |
-| 4 | Optimiser (goal-based min-maxing) | ⬜ |
+| 4 | Optimiser (goal-based min-maxing) | ✅ (0.7.0) |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
 | 6 | Crafting helper | ⬜ |
 | 7 | Levelling coach | ⬜ |
@@ -270,7 +270,7 @@ Loose ends / ideas:
 
 ---
 
-## Stage 4 — Optimiser (goal-based min-maxing) ⬜
+## Stage 4 — Optimiser (goal-based min-maxing) ✅ (2026-11-13, for 0.7.0)
 
 **Why:** "How do I increase damage?", "I'm weak at single target", "I keep dying" — answered with PoB maths.
 
@@ -303,6 +303,33 @@ Loose ends / ideas:
 3. Gem/aura/curse/flask/anoint levers.
 4. Marginal-value "scaling report".
 5. Advisor tabs + MCP `improve_build {goal, points, budget}` + explanations.
+
+**Built (2026-11-13):** one MCP tool, `optimise { goal, points, levers, budget_chaos, limit }` (about 220 tokens; named
+`optimise` instead of `improve_build`), on `PathOfBuilding/src/Agent/Handlers/Optimise.lua`.
+1. ✅ Goals: `bossing` (enemyIsBoss = Pinnacle, Uber kept; metric = main-skill CombinedDPS minus culling), `clear`
+   (enemyIsBoss = None; DPS + 0.5 x movement speed + 0.25 x area), `tankiness` (0.5 x EHP + 0.5 x weakest max hit + 2 per
+   point of uncapped resistance), `balanced`, `weakest` (from `diagnose`: uncapped resists or survivability -> tankiness,
+   0 DPS -> bossing; hardcore -> tankiness). Temporary config is set inside one capture/restore, so it is always put back.
+   Tested on the OCC Vortex fixture (no LA Deadeye fixture in the repo; the player's builds are not used by tests).
+2. ✅ Passives within N points (shared `passiveOptions` with `suggest_passives`), allocated mastery effect swaps, respecs:
+   each allocated node's dependants removed (`removeNodes`), cheapest losses per point matched with the best target their
+   points can buy, simulated together, cost = Orbs of Regret.
+3. ✅ Levers: `suggest_gems` (swaps + levels), quality to 20, auras/heralds/curses as a new group (blocked when the mana
+   or life to reserve is missing), equipped flasks switched off (under-counting), plain utility flasks in an empty slot,
+   anoints against the current anoint, pantheon and bandit, shown config checkboxes that are off (under-counting).
+4. ✅ Scaling report: 19 standard stat lines simulated as a passive.
+5. ✅ Advisor tabs (Items / Passives / Gems / Other; `set_advisor { tab, select }`), mechanic tags from the stat text
+   mapped to glossary terms; teach mode prints the unlearned glossary entries with source and version, deep mode all.
+   Gear: `budget_chaos` runs `plan_upgrades` (Stage 5 hook); SSF gets the scaling report.
+
+Tests: `tests/optimise.test.mjs` (unit + every goal headless, build and config unchanged afterwards); live window on a
+second instance: card tabs filled, build and view unchanged. A full run is about 950 simulations in 11-16 s.
+
+Loose ends / ideas:
+- Cluster and timeless jewels are not searched by `optimise` (pointer to `suggest_jewels`); flask mods are not searched.
+- Gem prices (awakened supports) and oil prices come with Stage 5; until then "buy" items are ranked as one change.
+- Anoints use the fast calculation (no full DPS) for speed; numbers can differ slightly from `what_if`.
+- Weapon swap / alternative setups for bossing vs clear are not built.
 
 **Done when:** "I'm weak at single target" returns ranked, simulated changes across passives/gems/gear/
 config with before/after numbers and explanations at the chosen level.
@@ -569,22 +596,70 @@ that used the pob tools on the open build.
 
 ## Stage 11 — Create a build ⬜
 
+**Why:** the player wants to find or design a build that fits how they like to play, including new builds that a
+patch makes possible and ideas nobody plays yet. It must stay honest about what is proven, what is theorycraft and
+what things really cost.
+
 ### Features
-- **Discover**: poe.ninja build data for the league → popular skills/ascendancies, cost tiers, difficulty,
-  league-start friendliness; filters from profile (budget, playstyle, SSF-viable).
-- **From a guide**: Stage 3 import with stages and the levelling plan (Stage 7).
-- **From a popular character**: import a top character, then make a cheaper/staged version
-  (Optimiser + Economy to swap expensive items for affordable ones, keeping key mechanics).
-- **Adapt** a known build (e.g. "make it tankier", "SSF version") — no blind from-scratch trees.
-- Output: build with specs per stage, item sets per budget, notes explaining the build.
+- **Preference interview (first step):** before suggesting anything, ask a short set of questions and save the
+  answers in the player profile (shared by every AI app):
+  - playstyle: melee, ranged, spells, minions, totems/traps/mines, DoT vs hits; fast clear vs boss killer;
+    tanky vs glass cannon;
+  - feel: how many buttons, big slow hits vs fast small ones, "something new" vs "proven";
+  - practical: budget, league start or mid-league, trade/SSF/mixed, Hardcore, time per week;
+  - exclusions: skills, ascendancies or mechanics the player doesn't want.
+  Answers can be changed later; every suggestion says which preferences it matches.
+- **Discover:** poe.ninja build data for the league → popular skills/ascendancies, cost tiers, difficulty,
+  league-start friendliness; filtered by the interview answers.
+- **From a guide:** Stage 3 import with stages and the levelling plan (Stage 7).
+- **From a popular character:** import a top character, then make a cheaper/staged version (Optimiser +
+  Economy swap expensive items for affordable ones, keeping key mechanics).
+- **Adapt** a known build (e.g. "make it tankier", "SSF version").
+- **Theorycraft mode (experimental, clearly labelled):** new and unique builds from the data we have.
+  - *Patch opportunities:* the knowledge engine (`kb_patch`, Stage 9) lists what a patch changed (buffed skills
+    and supports, new or changed uniques and gems, mechanic changes, ascendancy changes), each with its citation,
+    and checks which of them few players use yet (poe.ninja usage).
+  - *Original ideas:* the player (or the AI) picks core pieces (a skill, key uniques, an ascendancy, a mechanic
+    such as "life to ES conversion with low life"), or asks "what synergies does this new unique enable?".
+  - *Build it from data, not guesses:* start from the nearest real build using the same skill or mechanic as a
+    template where one exists; then the Optimiser (Stage 4) searches the tree, supports, auras, flasks and gear,
+    simulating every step in PoB. Several candidate setups are compared on DPS, EHP, weakest max hit and cost.
+  - *Honesty:* every theorycraft build is marked "theorycraft, not tested by players". If PoB doesn't model a
+    new mechanic yet (or a stat isn't supported), it says so instead of showing numbers that leave it out.
+    Facts about mechanics come from `kb_lookup`, numbers only from PoB.
+- **Current prices:** every item, gem and unique in a suggestion shows today's price (poe.ninja for uniques,
+  gems and currency; instant-buyout trade listings for rares), with the league and the time it was checked. Each
+  build shows a total cost per stage (league start, early maps, endgame), and prices are refreshed on request.
+- **"Close enough" items instead of exact ones:** exact rares and crafted items are almost never for sale, so
+  each rare in a build becomes a *target*:
+  - the stats that matter for this build, ranked by how much each one is worth (simulated in PoB), with "must
+    have" and "nice to have" and acceptable ranges (e.g. 70+ life, 2 resists, any open suffix);
+  - a weighted instant-buyout trade search for items that meet the must-haves, each result simulated in the
+    build and ranked by gain per chaos against the target ("92% of the target for 15c");
+  - for items that are crafted in the guide or build: a "craft it" option (Stage 6) with steps and expected cost,
+    shown next to "buy the closest", and in SSF only the craft and farm options;
+  - uniques with variable rolls get a "good enough roll" range instead of perfect rolls.
+- **Output:** a PoB build with a tree, gems and item sets per stage and per budget, notes explaining how it works
+  and why each choice was made, prices with their date, and the targets for every rare.
 
 ### Steps
-1. poe.ninja builds data client (league, skill, ascendancy, items, cost).
-2. Recommendation + profile filters.
-3. Character→build import + "budget version" generator.
-4. MCP `build_discover`, `build_create`; Overview onboarding when no build is open.
+1. Preference interview + profile fields (shared schema in `Settings.lua` / `profile.ts`).
+2. poe.ninja builds data client (league, skill, ascendancy, items, cost) + recommendation with the filters.
+3. Character→build import + "budget version" generator (with Stages 4 and 5).
+4. Price layer: poe.ninja + instant-buyout trade, cached with time and league; cost per stage.
+5. Item targets: stat weights from PoB simulation, must-have/nice-to-have ranges, weighted trade search with
+   per-result simulation, "craft it" hook (Stage 6), roll ranges for uniques.
+6. Theorycraft mode: patch-opportunity finder (Stage 9), template matching, Optimiser search, candidate
+   comparison, "not modelled by PoB" detection and labels.
+7. MCP tools (inside the 5,000-token budget; merge where possible) + an Overview start screen when no build
+   is open.
 
-**Done when:** "cheap bow league starter" → 3 options with cost/difficulty → one opened as a staged build.
+**Done when:**
+- "cheap bow league starter" → the interview → 3 options with cost and difficulty → one opened as a staged build
+  with today's prices;
+- every rare has a target, and the trade search finds close items with their simulated gain;
+- "what's new in 3.30 for minions?" → cited patch opportunities → a theorycraft build marked as such, with PoB
+  numbers and any unmodelled parts named.
 
 ---
 

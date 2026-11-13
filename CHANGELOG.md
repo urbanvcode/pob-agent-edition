@@ -16,9 +16,15 @@ Each release also lists the official Path of Building Community version it is ba
 - **Options > AI chat backend** with a **Sign in** button (opens the CLI's own sign-in window: `claude auth login` / `codex login`) and an optional **Anthropic API key** field. The key stays in `AgentEdition.json` on this PC, is never shown again, and is only sent to api.anthropic.com. Claude Code and Codex are found on PATH, in their usual install folders or inside the Claude / Codex desktop apps.
 - **3.30 unique changes (preview)** from Path of Building's open pull request #10438 by Can Uysal: Pre 3.30.0 versions of Steelworm, Malachai's Loop, Shavronne's Wrappings, The Hallowed Monarch, Shadowstitch and Rotmother's Mutiny, and Steelworm's "8 Steel Shards" projectile bonus now counts (new config option "Consumed 8 Steel Shards Recently?"). Like the 3.30 tree preview, it is removed automatically once an official Path of Building release includes it.
 - **Hide panel** button in the Guide tab: hides the guide panel on the left so the tree uses the whole width; **Show panel** brings it and the Analyse results back. The choice is remembered.
+- **Smaller downloads** (Stage 17): the zips are about 247 MB (installer, was 632 MB) and 280 MB (portable, was 665 MB). Ruthless, "alternate" and older passive trees (about 514 MB unpacked) are no longer in the zip: when you open a build that uses one, PoB asks and downloads just that tree (3-25 MB) from GitHub, checks every file, and keeps it for next time. The AI's tools download it on their own. Offline, PoB says which tree is missing and how big it is instead of failing.
+- **Small updates** (Stage 17): from 0.7.0 on, **Update now** downloads only the files that changed (a few MB when only our code changed; the 0.7.0 test update was 0.3 MB instead of 247 MB). Every file is checked against the release's manifest; if anything doesn't match, the updater falls back to the full zip on its own. Passive trees you downloaded are kept across updates and rollbacks. `tools\update.ps1 -Full` forces the full zip.
+- `tools\measure.ps1`: download sizes, disk use per folder, RAM and CPU of the PoB window, the AI server and the headless engine, and the size of caches and backups, with a before/after comparison.
 
 ### Changed
 - `tools\update-pob.ps1`: preview markers can name text a release must contain (`<path> contains "<text>"`), and `-Check` also works while the PoB folder has uncommitted changes. Checked on 2026-11-13: official Path of Building is still v2.67.2 and GGG's atlas export is unchanged.
+- **Less CPU and memory in the background** (Stage 17): PoB in the background now runs at about 3 frames a second when nothing happens (10 while the AI is working, 1 when minimised, full speed when focused or under the mouse) and tidies up its memory once it goes quiet. Measured with a build loaded: unfocused 5.9% -> 2.6% of a CPU core, minimised 0.6-2%.
+- The AI server shuts its background PoB engine down after 5 idle minutes (frees about 315 MB each) and brings the build back exactly as it was, unsaved changes included, on the next question. `POB_AGENT_IDLE_MINUTES` changes the wait (0 = never).
+- The AI server keeps its caches within limits: web pages for facts 50 MB / 60 days, snapshots 100 files / 90 days, item icons 50 MB, the answers log 2 MB. Character history keeps its existing limits (200 entries, 30 build copies per character).
 
 ### Security
 - The chat never touches the game client and trade stays instant-buyout only. The CLIs run with their built-in command, file and web tools switched off, only the pob tools (edit tools only when you allow them), in their read-only sandbox, outside any project folder, and pinned to this PoB window. No POESESSID, API key or build file path is passed to a backend; Cancel ends the backend and everything it started.
@@ -27,6 +33,8 @@ Each release also lists the official Path of Building Community version it is ba
 ### Fixed
 - **Guide tab crash** (0.6.1): opening the Guide tab with a guide imported stopped PoB with "attempt to index global 'build'" when no AI app had talked to the window yet. The tab and the Sync character button now always work on their own build.
 - The Guide tab now saves your stage choice, kept differences and the Overview card on a fresh install too (it could not create its `AgentCache` folder there).
+- **Minimised PoB used a full CPU core and kept growing until it crashed** (0.6.x, with a build loaded): it now idles at 1 frame a second when minimised, and its memory stays flat.
+- The release `.sha256` files end in LF, so `sha256sum -c` works on Linux and macOS too.
 
 ## [0.6.1] - 2026-11-13
 

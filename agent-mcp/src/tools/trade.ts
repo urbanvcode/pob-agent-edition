@@ -16,6 +16,7 @@ import type { TradeApiClient } from "../trade/client.js";
 import { priceInChaos, tradeItemToPoBText } from "../trade/itemText.js";
 import type { ItemListing, StatFilter, TradeQuery, TradeStatsData } from "../trade/types.js";
 import { currencyRates } from "../trade/ninja.js";
+import { budgetPlanText, sellText } from "../economy/run.js";
 import { evaluateCandidate, formatPlan, INSTANT_BUYOUT, planResistFix, planUpgrades, ratesOrChaosOnly, tradeUrl, type TestStats } from "../trade/upgrades.js";
 
 const CATEGORY: Record<string, string> = {
@@ -191,12 +192,21 @@ export function tradeTools(): Tool[] {
         return lines.join("\n");
       }, { trade: true }),
 
-    tool("plan_upgrades", 'Cheap gear upgrades: instant-buyout listings per slot, simulated, ranked by gain per chaos. focus "resists": caps short resistances. Fills the Overview Advisor card.',
+    tool("plan_upgrades", 'Cheap gear upgrades: instant-buyout listings per slot, simulated, ranked by gain per chaos. focus "resists": caps short resistances. budget: one total ("3 div + 150c", "all" = on hand) = best set of buys across slots, simulated together, resists/attributes kept, save-for, what to sell; SSF: rares to keep. Fills the Advisor card.',
       {
-        budget_chaos: S.num("per item, default 50"), focus: S.enum(["balanced", "dps", "defence", "resists"]),
+        budget_chaos: S.num("per item, default 50"), budget: S.str("total"), focus: S.enum(["balanced", "dps", "defence", "resists"]),
         slots: S.list(S.str()), league: S.str(), max_results: S.num(),
       }, [],
-      async ({ trade, pob }, args) => {
+      async (ctx, args) => {
+        const { trade, pob } = ctx;
+        const slots = Array.isArray(args.slots) ? args.slots.map(String) : undefined;
+        const setFocus = (["balanced", "dps", "defence"].includes(args.focus) ? args.focus : undefined) as "balanced" | "dps" | "defence" | undefined;
+        // Total budget (Stage 5): the best set of buys; SSF needs no league or trade at all.
+        if (args.budget !== undefined && args.focus !== "resists") {
+          if (getProfile().profile.playMode === "ssf") return budgetPlanText(ctx, { league: "", budget: args.budget, focus: setFocus, slots });
+          const { league, note } = await resolveLeague(trade, args.league);
+          return budgetPlanText(ctx, { league, leagueNote: note, budget: args.budget, focus: setFocus, slots });
+        }
         const link = await pob.link();
         const { league, note } = await resolveLeague(trade, args.league);
         const budget = Math.max(1, Number(args.budget_chaos) || 50);
@@ -256,6 +266,12 @@ export function tradeTools(): Tool[] {
           lines.push(`Profile currency on hand: ${p.currency.chaos}c + ${p.currency.divine} div = about ${n(worth)}c${divine ? ` (${n(worth / divine, 1)} div)` : ""}${p.currency.other ? `, plus: ${p.currency.other}` : ""}`);
         }
         return lines.join("\n");
+      }, { trade: true }),
+
+    tool("price_own", "internal: what the build's own items and gems are worth (poe.ninja).", { league: S.str() }, [],
+      async (ctx, args) => {
+        const { league, note } = await resolveLeague(ctx.trade, args.league);
+        return sellText(ctx, league, note);
       }, { trade: true }),
 
     tool("price_check", "What an item costs now: the cheapest instant-buyout listings for a name (uniques, gems, bases). League defaults to the profile.",

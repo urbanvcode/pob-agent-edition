@@ -42,6 +42,13 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - `suggest { kind }` simulates every option for one lever in PoB: `gems` (support gems), `passives` (tree), `anoint` (amulet), `jewel` / `abyss` / `watchers_eye` / `cluster` (jewel mods, Watcher's Eye, cluster notables). `affixes` gives affix tiers and crafting-bench mods and classifies an item's mods (open prefixes/suffixes).
 - "Can I do <boss>?": `diagnose { boss }`. It uses PoB's boss skill presets; PoB has no boss life data, so judge damage separately and say so.
 
+## Economy: budgets, trade and SSF (Stage 5)
+- "I have 3 div": `plan_upgrades { budget: "3 div + 150c" }` (`"all"` = currency on hand). Best SET of buys across slots for the total (rates from poe.ninja, cached per league), simulated together in PoB; a set that breaks resists, attribute requirements or mana (hardcore: lowers EHP) is repaired. Also "save for" items and what the replaced items sell for. Mixed: [SSF] craft/farm alternatives; SSF: which rares to keep per slot (no trade).
+- `prices { own: true }`: what the build's uniques and gems are worth on poe.ninja (unused ones first); rares are priced by hand.
+- Price sanity: bait/price-fixing and stale listings are set aside; a gem is never priced above a better version of itself.
+- Without a trade login the site refuses weighted searches; plan_upgrades then searches "2 of the stats worth most, cheapest first" and still simulates every listing.
+- `optimise { budget_chaos }` now spends it as one total via the set planner.
+
 ## Optimiser (Stage 4)
 - "I'm weak at single target", "I keep dying", "more damage": `optimise { goal }` with goal `bossing` (pinnacle boss, single-target DPS without culling), `clear` (no boss, DPS + movement speed + area), `tankiness` (EHP + weakest max hit + uncapped resists), `balanced`, or `weakest` (picked from `diagnose`). The goal's config is temporary and restored afterwards.
 - It simulates passives within `points` (default 6, with paths), respecs (net gain per Orb of Regret), mastery effects, support swaps and gem levels/quality, auras/heralds/curses, utility flasks, anoints, pantheon and bandit, ranks them by gain per cost (a point, a regret or one change = 1), and lists config the player may be under-counting (only if true in their fights), what does not fit the reserved mana, and a scaling report (what +1 step of each stat is worth). Each suggestion carries `what_if` ops and its mechanic; explain it per the explanation mode (teach: the glossary lines it returns, then `profile { learned }`). Hardcore drops changes that cost defence for another goal.

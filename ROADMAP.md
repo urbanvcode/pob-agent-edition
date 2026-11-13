@@ -48,7 +48,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 2 | Character import & progress sync | ✅ 0.4.0 |
 | 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1; Guide tab fixes and Hide panel: 0.8.0) |
 | 4 | Optimiser (goal-based min-maxing) | ✅ 0.8.0 |
-| 5 | Economy: budgets, trade and SSF | ⬜ |
+| 5 | Economy: budgets, trade and SSF | ✅ (built 2026-11-14, not released yet) |
 | 6 | Crafting helper | ⬜ |
 | 7 | Levelling coach | ⬜ |
 | 8 | Farming & money advisor | ⬜ |
@@ -336,7 +336,7 @@ config with before/after numbers and explanations at the chosen level.
 
 ---
 
-## Stage 5 — Economy: budgets, trade and SSF ⬜
+## Stage 5 — Economy: budgets, trade and SSF ✅ (2026-11-14)
 
 ### Features
 - **Budget input**: "3 div + 150c", or from profile/character sync; converted with poe.ninja rates
@@ -358,6 +358,33 @@ config with before/after numbers and explanations at the chosen level.
 4. SSF/mixed outputs (hooks to Stages 6/8).
 
 **Done when:** "I have 3 div" → a plan ≤ budget with combined gain; SSF profile → craft/farm plan instead.
+
+**Built (2026-11-14):** no new tool (78 tokens): `plan_upgrades { budget }` and `prices { own: true }`; engine in
+`agent-mcp/src/economy/` and `PathOfBuilding/src/Agent/Handlers/Economy.lua`.
+1. ✅ Budget parser (`"3 div + 150c"`, `"1.5k"`, `"20 ex, 2 div"`, `"all"` = profile currency incl. `other`); poe.ninja rates
+   and unique/gem prices cached per league in memory and on disk (`AgentCache/economy`, 30 min / 2 h; an older copy up to
+   3 days is used and said when poe.ninja is down). The guide planner uses the same parser.
+2. ✅ Set planner: one PoB-weighted search per slot (price <= the total, 2 trade requests per slot, limits unchanged),
+   knapsack with one item per slot, the set simulated together (`what_if`, rolled back), repaired when resistances,
+   attribute requirements or mana break (hardcore: EHP loss), a few swap improvements (max 30 simulations), "save for" =
+   better items that did not fit. Price sanity: bait / price-fixing (< 50% of the median), wishful (> 300%) and stale
+   (> 14 days) listings set aside; buy warnings for a unique far below its peers or listed > 30 days ago.
+3. ✅ Own items: uniques (name, base, 5L/6L) and gems (level/quality; never above a strictly better version) from
+   poe.ninja, no trade requests; rares "price by hand"; "sell after buying" for what the plan replaces.
+4. ✅ SSF: per slot the stats a top roll is worth most for (PoB's weights x the item class's roll range, from
+   `Data/QueryMods.lua`) with "alone beats the current item" thresholds; mixed adds [SSF] craft (Stage 6) / farm
+   (Stage 8) hooks. `optimise { budget_chaos }` spends it as one total through the set planner.
+
+Found on the way: logged out, pathofexile.com refuses every weighted search ("Query is too complex", even 2 stats), which
+broke `plan_upgrades` for players without a POESESSID. Logged out it now uses a count search ("2 of the 8 stats worth
+most", cheapest first) and the resist search a count group; PoB simulates every listing as before.
+
+Tests: `tests/economy.test.mjs` (12, offline: fake poe.ninja and trade site, headless fixture). Real check (few polite
+requests): planner and prices work on Standard; Covens returned no listings at the time.
+
+Loose ends / ideas:
+- Rares are not auto-priced (would need a pseudo-stat search per item); the AI Advisor card with a set plan is not
+  checked in a window yet; guide uniques above the budget stay in `guide { next: true }`.
 
 ---
 

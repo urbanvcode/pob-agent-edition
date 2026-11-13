@@ -182,8 +182,11 @@ export function optimiseTools(planUpgrades?: Tool): Tool[] {
         if (res.rollbackProblem) parts.push(`WARNING: the build may not be exactly as before (${res.rollbackProblem}).`);
         if (await pushAdvisor(ctx, res).catch(() => false)) parts.push("Also in PoB Agent Edition > Overview > AI Advisor (Passives / Gems / Other tabs).");
         const focus = res.reason && /resist/.test(res.reason) ? "resists" : focusFor(String(res.goal));
-        if (Number(args.budget_chaos) > 0 && profile.playMode !== "ssf" && planUpgrades) {
-          try { parts.push("", "GEAR (plan_upgrades):", await planUpgrades.run(ctx, { budget_chaos: Number(args.budget_chaos), focus })); }
+        if (Number(args.budget_chaos) > 0 && planUpgrades) {
+          // Stage 5: budget_chaos is the total for gear; the best set of buys is simulated together (SSF: rares to keep).
+          const gear = focus !== "resists" ? { budget: Number(args.budget_chaos), focus }
+            : profile.playMode === "ssf" ? { budget: Number(args.budget_chaos), focus: "defence" } : { budget_chaos: Number(args.budget_chaos), focus };
+          try { parts.push("", "GEAR (plan_upgrades):", await planUpgrades.run(ctx, gear)); }
           catch (e) { parts.push("", `Gear search failed: ${e instanceof Error ? e.message : String(e)}`); }
         } else {
           parts.push("", profile.playMode === "ssf" ? "Gear (SSF): look for the stats at the top of the scaling report; suggest { kind: jewel } and affixes show what can roll." : `Gear: plan_upgrades { budget_chaos, focus: "${focus}" } (or call optimise with budget_chaos).`);

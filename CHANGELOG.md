@@ -6,6 +6,15 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **Shopping plan for your whole budget** (Stage 5): tell the AI "I have 3 div and 150c" (or let it use the currency in your profile) and it works out the best combination of items to buy across all your gear slots, not just the best single item. PoB tries the whole set on your build at once, because gains overlap, and makes sure the set doesn't drop a resistance below the cap or leave you short on strength, dexterity or intelligence for your gear. You also get "save for" items that beat what fits now, and roughly what the items you replace will sell for. Instant buyout only; you still click buy yourself.
+- **What your items are worth**: ask the AI what to sell and it prices your uniques and gems from poe.ninja (unused ones first), without any trade-site requests.
+- **Solo Self-Found and mixed players**: instead of purchases, SSF gets a list per slot of what a rare must roll to be worth keeping (for example "+60 to maximum Life alone beats your ring"), worked out by PoB for your build; mixed players see both. Crafting and farming help follow in later stages.
+- **Fairer prices**: listings far cheaper than the rest (often bait or price-fixing), far more expensive, or weeks old are set aside, and currency rates are remembered for a while so repeat questions are quicker and still work when poe.ninja is down.
+
+### Fixed
+- **Gear upgrade searches without a trade login**: the trade site refuses PoB's weighted searches unless you are logged in (POESESSID in Options), so upgrade and resistance searches found nothing. They now fall back to a simpler search that the site accepts, and PoB still tests every listing on your build.
+
 ### Changed
 - **The AI uses fewer, simpler PoB tools** (26 instead of 42): tools that did similar jobs are now one tool each, for example one `suggest` for passives, anoints, support gems and jewels, one `guide` for importing, comparing and next steps, one `atlas`, one `prices` (item prices, currency rates, leagues) and one `edit` for items, gems and passives. Everything they did still works the same way. The tool list your AI apps load at the start of every conversation is about a third smaller (3,050 instead of 4,750 tokens) and the AI's rule sheet about half (680 instead of 1,200), which leaves room for the coming stages (economy, crafting, levelling, farming, build creation) without making conversations heavier. AI apps that still use the old tool names keep working.
 - **AI chat with "AI may edit" off is stricter**: the PoB tools themselves now refuse anything that would change, open or save a build, including keeping a simulated change, not only the edit tools being hidden.

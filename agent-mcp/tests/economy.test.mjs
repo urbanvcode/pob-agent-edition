@@ -305,4 +305,18 @@ test("budget plan text: trade uses the profile budget; SSF makes no trade reques
   assert.match(sold, /What your items are worth/);
   assert.match(sold, /no trade request was made/);
 });
+
+test("public tools: plan_upgrades { budget } in SSF and prices { own: true } (no trade request)", async () => {
+  setProfile({ playMode: "ssf", league: "Testleague", currency: { chaos: 60, divine: 0 } });
+  const plan = await ok("plan_upgrades", { budget: "all", slots: ["Belt"] });
+  assert.match(plan, /SSF plan/);
+  assert.match(plan, /Belt \(now: Kraken Snare\)/);
+  setProfile({ playMode: "trade", league: "Testleague", currency: { chaos: 60, divine: 0 } });
+  const own = await ok("prices", { own: true });
+  assert.match(own, /What your items are worth/);
+  assert.match(own, /Concentrated Effect 21\/0 \[Body Armour\]: ~60c/);
+  const bad = await runTool(tools, context, "plan_upgrades", { budget: "3 bananas" });
+  assert.equal(bad.isError, true);
+  assert.match(bad.text, /not known/);
+});
 });

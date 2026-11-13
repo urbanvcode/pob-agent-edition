@@ -134,10 +134,11 @@ export function allTools(trade: TradeApiClient, internal: Tool[] = internalTools
     });
 
   const prices = routed("prices",
-    "Prices, profile league by default. name: cheapest instant-buyout listings (unique, gem, base). No name: poe.ninja currency rates in chaos and the worth of the currency on hand. leagues: true lists trade leagues.",
-    { name: S.str(), type: S.str("base type"), search: S.str("currency filter"), leagues: S.bool(), league: S.str() }, [],
+    "Prices, profile league by default. name: cheapest instant-buyout listings (unique, gem, base). No name: poe.ninja currency rates in chaos and the worth of the currency on hand. leagues: true lists trade leagues. own: true = what the build's items and gems are worth (what to sell).",
+    { name: S.str(), type: S.str("base type"), search: S.str("currency filter"), leagues: S.bool(), own: S.bool(), league: S.str() }, [],
     (a) => {
       if (a.leagues === true) return [get("leagues"), {}];
+      if (a.own === true) return [get("price_own"), { league: a.league }];
       if (has(a, "name")) return [get("price_check"), { name: a.name, type: a.type, league: a.league }];
       return [get("currency"), { league: a.league, search: a.search }];
     }, { trade: true });

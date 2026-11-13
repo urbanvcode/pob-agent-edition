@@ -45,7 +45,6 @@ Write-Host "Checking GGG's atlas tree export..."
 
 $branch = (RepoGit rev-parse --abbrev-ref HEAD).Trim()
 if ($branch -ne 'agent') { throw "PathOfBuilding is on '$branch', expected 'agent'." }
-if (RepoGit status --porcelain) { throw "PathOfBuilding has uncommitted changes; commit or stash them first." }
 
 $current = (RepoGit describe --tags --abbrev=0 HEAD).Trim()
 
@@ -67,12 +66,25 @@ if ($installed) { Write-Host "Your installed PoB      : v$installed" }
 
 # Preview commits = upstream work taken early (e.g. a new tree before PoB released it).
 # They carry "[upstream-preview: <path>]" and are dropped once a release contains <path>.
+# For changes to files that already exist (e.g. uniques), the marker names text the release must contain:
+# [upstream-preview: <path> contains "<text>"].
 $ourCommits = @(RepoGit rev-list --reverse "$current..agent")
 $previews = foreach ($c in $ourCommits) {
     $msg = (RepoGit log -1 --format=%B $c) -join "`n"
     if ($msg -match '\[upstream-preview:\s*([^\]]+)\]') {
-        [pscustomobject]@{ Commit = $c; Path = $Matches[1].Trim(); Title = (RepoGit log -1 --format=%s $c) }
+        $spec = $Matches[1].Trim(); $text = $null
+        if ($spec -match '^(.+?)\s+contains\s+"([^"]+)"$') { $spec = $Matches[1]; $text = $Matches[2] }
+        [pscustomobject]@{ Commit = $c; Path = $spec; Text = $text; Title = (RepoGit log -1 --format=%s $c) }
     }
+}
+# True when release $ref already has the preview's path (and its text, if the marker names one).
+function Test-PreviewInRelease($preview, $ref) {
+    if ($preview.Text) {
+        & git -C $Repo grep -q -F -e $preview.Text $ref -- $preview.Path 2>$null
+    } else {
+        & git -C $Repo cat-file -e "${ref}:$($preview.Path)" 2>$null
+    }
+    return ($LASTEXITCODE -eq 0)
 }
 foreach ($p in $previews) { Write-Host "Preview in use         : $($p.Title)" -ForegroundColor DarkYellow }
 
@@ -85,6 +97,7 @@ if ($Check) {
     Write-Host "Update available: $current -> $Tag (run without -Check to apply)." -ForegroundColor Yellow
     exit 0
 }
+if (RepoGit status --porcelain) { throw "PathOfBuilding has uncommitted changes; commit or stash them first." }
 
 $running = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Repo\*" }
 if ($running) { Write-Host "Note: PoB Agent Edition is running; restart it after the update." -ForegroundColor Yellow }
@@ -102,8 +115,7 @@ RepoGit checkout -q --detach $Tag
 foreach ($c in $ourCommits) {
     $preview = $previews | Where-Object { $_.Commit -eq $c }
     if ($preview) {
-        & git -C $Repo cat-file -e "${Tag}:$($preview.Path)" 2>$null
-        if ($LASTEXITCODE -eq 0) {
+        if (Test-PreviewInRelease $preview $Tag) {
             Write-Host "  dropping preview (now official in $Tag): $($preview.Title)" -ForegroundColor Green
             continue
         }

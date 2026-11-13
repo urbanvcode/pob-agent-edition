@@ -56,7 +56,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ⬜ |
 | 11 | Create a build | ⬜ |
 | 12 | UI polish | ⬜ |
-| 13 | Data freshness | ⬜ |
+| 13 | Data freshness | ✅ |
 | 14 | PoE2 edition | 💭 |
 | 15 | Install, portable version & updater | ✅ 0.3.0 |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
@@ -595,11 +595,36 @@ that used the pob tools on the open build.
 4. Charts: DPS/EHP history (Stage 2), scaling report (Stage 4).
 5. Fixes from real-mouse testing; accessibility (font size, contrast).
 
-## Stage 13 — Data freshness ⬜
-1. 3.30 **uniques** preview from PoB PR #10438 (same preview mechanism as the tree).
-2. When PoB releases 3.30: `tools/update-pob.ps1` drops the tree preview automatically.
-3. Atlas: `tools/update-atlas.ps1` (run by update-pob).
-4. League data files for Stages 7/8 (strategies, thresholds) reviewed each league.
+## Stage 13 — Data freshness ✅ (2026-11-13)
+1. ✅ 3.30 **uniques** preview from PoB PR #10438: one `PathOfBuilding` commit "Preview: 3.30 uniques from
+   PoB PR #10438" (Steelworm, Malachai's Loop, Shavronne's Wrappings, The Hallowed Monarch, Shadowstitch,
+   Rotmother's Mutiny; Steelworm's 8-shard wording now parses). The PR is based on PoB's `dev`, so only its own
+   lines were taken onto 2.67.2 (ModCache: only the lines it adds or removes); `src/Export/Uniques` (exporter
+   input, not loaded by PoB) was left out. Its files all exist in 2.67.2 already, so the marker names text:
+   `[upstream-preview: src/Data/Uniques/body.lua contains "Pre 3.30.0"]`; `update-pob.ps1` now understands
+   `<path> contains "<text>"` as well as a bare `<path>`.
+2. ✅ Checked 2026-11-13: newest official PoB is still **v2.67.2** (our base), PRs #10437 (trees) and #10438
+   (uniques) are open, so both previews stay. No rebase was needed. (#10437 has one more commit since ours,
+   "Satisfy cspell", a spelling-list change only.)
+3. ✅ Atlas: GGG's export is unchanged ("3.30.0 preview 2", 2026-11-12), the one in `TreeData/Atlas/3_30`.
+4. ✅ Checklist below.
+
+### Each league: data review checklist
+Run at league launch and again after the first big patch (PoB usually ships the league's data within days).
+1. `tools\update-pob.ps1 -Check`: newer official PoB? It also runs the atlas check. If yes, message the
+   repo-control session first (the update rebases `agent`), then run it: previews whose path or text the release
+   has are dropped, the rest are kept and listed.
+2. If PoB has no release yet: look for open PoB PRs with the new tree or uniques (`gh pr list -R
+   PathOfBuildingCommunity/PathOfBuilding -S "3.NN"`) and take them as `[upstream-preview: ...]` commits (one per
+   PR, only the PR's own lines, credited by name). Never extract game files ourselves (GGG's terms).
+3. `tools\update-atlas.ps1 -Check`, then without `-Check` if GGG published new atlas data; restart PoB.
+4. Knowledge (Stage 9): `npm run test:kb` in agent-mcp (patch notes for the new version, glossary quotes still on
+   their pages); fix glossary entries the league changed.
+5. League data of Stages 7/8 (strategies, thresholds), once they exist: read the league's patch notes
+   (`kb_patch`) and update or flag every entry the league changed.
+6. Smoke test: open a build of each common archetype in PoB, `diagnose`, and compare a few numbers with the
+   previous release; `npm test` in agent-mcp.
+7. Add a CHANGELOG line ("Data: 3.NN trees / uniques / atlas") and the base version in the release notes.
 
 ## Stage 14 — PoE2 edition 💭
 Same approach on PathOfBuilding-PoE2 (installed on this PC): fork, live API, second MCP server or a game

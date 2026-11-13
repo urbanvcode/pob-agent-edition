@@ -53,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File tools\update-pob.ps1
 
 The script re-applies our commits on the newest official release tag (from the `upstream` remote), runs a compile check and the agent-mcp tests, and keeps a backup branch. This rewrites `agent`, so push it with `git -C PathOfBuilding push --force-with-lease origin agent`, then commit the new submodule pointer here.
 
-Preview commits (upstream work taken early) carry `[upstream-preview: <path>]` in the message and are dropped automatically once an official release contains `<path>`.
+Preview commits (upstream work taken early) carry `[upstream-preview: <path>]` in the message and are dropped automatically once an official release contains `<path>`. When the preview only changes files that already exist (uniques, for example), the marker names text the release must contain: `[upstream-preview: <path> contains "<text>"]`. `ROADMAP.md` › Stage 13 has the checklist for each new league.
 
 The atlas tree comes from GGG's export: `tools\update-atlas.ps1` (`-Check` first).
 

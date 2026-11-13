@@ -6,6 +6,12 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **3.30 unique changes (preview)** from Path of Building's open pull request #10438 by Can Uysal: Pre 3.30.0 versions of Steelworm, Malachai's Loop, Shavronne's Wrappings, The Hallowed Monarch, Shadowstitch and Rotmother's Mutiny, and Steelworm's "8 Steel Shards" projectile bonus now counts (new config option "Consumed 8 Steel Shards Recently?"). Like the 3.30 tree preview, it is removed automatically once an official Path of Building release includes it.
+
+### Changed
+- `tools\update-pob.ps1`: preview markers can name text a release must contain (`<path> contains "<text>"`), and `-Check` also works while the PoB folder has uncommitted changes. Checked on 2026-11-13: official Path of Building is still v2.67.2 and GGG's atlas export is unchanged.
+
 ## [0.6.1] - 2026-11-13
 
 Guide mode 2 (follow-up to Stage 3). Based on **Path of Building Community v2.67.2** (same as 0.6.0).

@@ -665,11 +665,23 @@ Open a new chat in the repo folder and say, for example:
 > Read ROADMAP.md and AGENTS.md. We're doing **Stage 16** (own MCP server). Plan it, ask me anything
 > unclear, then build it step by step.
 
-At the end of each chat: tick finished steps here, note new loose ends/ideas, add user-facing changes to
-`CHANGELOG.md` under "Unreleased", commit, push, and update the status table.
+At the end of each chat: tick finished steps here, note new loose ends/ideas, write the user-facing
+changes for `CHANGELOG.md` "Unreleased", commit locally, and update the status table. **Don't push**:
+message the repo-control session (see below).
+
+## Sessions: one working session + one repo-control session
+The player always runs two sessions:
+- **Working session** (one per stage): builds the stage and commits locally. Submodules (`PathOfBuilding`,
+  `pob-mcp`) commit on `agent`, the root on `main`, and it commits only its own files. It **never pushes, tags or
+  publishes**. When a piece of work is done and tested, it messages the repo-control session with:
+  the commits (repo + short hash + one line each), the tests and their results, the CHANGELOG "Unreleased" lines,
+  and "push only" or "stage finished".
+- **Repo-control session** ("Git repo release setup"): reviews the diff, runs `tools\check-secrets.ps1`, pushes
+  the forks first and then the root (so submodule pointers always resolve), keeps CHANGELOG in order and
+  publishes the release when a stage is finished (steps below). It tells the working session what was pushed.
 
 ## Releases
-**Every finished stage gets a GitHub release.** When a stage's "Done when" is met:
+**Every finished stage gets a GitHub release** (done by the repo-control session). When a stage's "Done when" is met:
 1. Run `tools\check-secrets.ps1`, then push both forks (`agent`) and the root (`main`).
 2. Move "Unreleased" in `CHANGELOG.md` to `## [0.N.0] - <date>` (one minor version per stage; fixes in
    between are patch releases, e.g. 0.2.1). Name the stage in the section's first line.

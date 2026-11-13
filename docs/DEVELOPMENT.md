@@ -33,6 +33,8 @@ git -C pob-mcp remote add upstream https://github.com/ianderse/pob-mcp.git
 
 ## Making changes
 
+The maintainer works with two AI sessions per roadmap stage: a working session that commits locally, and a repo-control session that reviews, scans, pushes and releases (see `ROADMAP.md` › "Sessions"). Human contributors use normal pull requests.
+
 1. Commit inside the submodule on its `agent` branch and push it (`git -C pob-mcp push origin agent`).
 2. In the root repo, commit the new submodule pointer (`git add pob-mcp`) together with a line in `CHANGELOG.md` under **Unreleased**.
 3. Keep `pob-mcp/src/server/agentGuide.ts` and `AGENTS.md` in sync.

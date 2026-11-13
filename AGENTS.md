@@ -51,6 +51,9 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Show before/after numbers; switch the window to the relevant tab (`live_set_view`).
 
 ## Developing this project
+- **Two sessions per stage:** one **working session** does the stage, and one **repo-control session** ("Git repo release setup") owns git pushes and releases.
+  - Working session: commit locally (submodules on `agent`, root on `main`, only your own files), but **never push, tag or publish**. When work is done and tested, message the repo-control session with the commits (repo + hash + one line each), the tests and their results, the CHANGELOG "Unreleased" lines, and whether the stage is finished.
+  - Repo-control session: review the diff, run `tools\check-secrets.ps1`, push the forks first and then the root (submodule pointers), update CHANGELOG, and publish the release when a stage is finished.
 - **Every finished stage is released on GitHub**: changelog → new minor version → `tools\build-release.ps1 -Version x.y.z -Publish` (steps in ROADMAP.md › Releases). Add user-facing changes to `CHANGELOG.md` under "Unreleased" as you go.
 - Always credit the projects we build on, even after replacing them: Path of Building Community, and [ianderse/pob-mcp](https://github.com/ianderse/pob-mcp) for our MCP server (README credits, THIRD_PARTY_NOTICES, a header in every ported file, release notes). Details: ROADMAP.md › Stage 16 › "Credit to pob-mcp, always".
 - The repos are public: never commit secrets, personal paths or a personal e-mail (commits use the GitHub no-reply address); run `tools\check-secrets.ps1` before pushing.

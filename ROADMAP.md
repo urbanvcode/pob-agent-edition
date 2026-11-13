@@ -48,13 +48,13 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 2 | Character import & progress sync | ✅ 0.4.0 |
 | 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1; Guide tab fixes and Hide panel: 0.8.0) |
 | 4 | Optimiser (goal-based min-maxing) | ✅ 0.8.0 |
-| 5 | Economy: budgets, trade and SSF | ✅ (built 2026-11-14, not released yet) |
-| 6 | Crafting helper | ✅ (built 2026-11-14, not released yet) |
-| 7 | Levelling coach | ✅ (next release) |
-| 8 | Farming & money advisor | ✅ (built 2026-11-14, not released yet) |
+| 5 | Economy: budgets, trade and SSF | ✅ 0.9.0 |
+| 6 | Crafting helper | ✅ 0.9.0 |
+| 7 | Levelling coach | ✅ 0.9.0 |
+| 8 | Farming & money advisor | ✅ 0.9.0 |
 | 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ 0.6.0 |
 | 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ✅ 0.8.0 |
-| 11 | Create a build | ✅ (built 2026-11-14, not released yet) |
+| 11 | Create a build | ✅ 0.9.0 |
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ✅ 0.7.0 |
 | 14 | PoE2 edition | 💭 |
@@ -63,8 +63,8 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 17 | Lighter: smaller downloads and updates, less memory, disk and CPU | ✅ 0.8.0 |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → **5** → 9 ✅ → 7 → 6
-→ 8 → 10 → 11 → 12/13 → 14.
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → 5 ✅ → 9 ✅ → 7 ✅ → 6 ✅
+→ 8 ✅ → 10 ✅ → 11 ✅ → 13 ✅ → 17 ✅ → **12 (UI polish, with the player at the screen)** → 14 (PoE2, idea).
 - **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
   instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
 - **15 second:** the repo is public now, so players need the update reminder. Its AI part (`update_check`)
@@ -336,7 +336,7 @@ config with before/after numbers and explanations at the chosen level.
 
 ---
 
-## Stage 5 — Economy: budgets, trade and SSF ✅ (2026-11-14)
+## Stage 5 — Economy: budgets, trade and SSF ✅ (2026-11-14, released in 0.9.0)
 
 ### Features
 - **Budget input**: "3 div + 150c", or from profile/character sync; converted with poe.ninja rates
@@ -388,7 +388,7 @@ Loose ends / ideas:
 
 ---
 
-## Stage 6 — Crafting helper ✅ (2026-11-14)
+## Stage 6 — Crafting helper ✅ (2026-11-14, released in 0.9.0)
 
 ### Features
 - **Target item** from: guide item, Optimiser suggestion, or "a ring with life, 2 res, crit multi".
@@ -442,7 +442,7 @@ Loose ends / ideas:
 
 ---
 
-## Stage 7 — Levelling coach ✅ (2026-11-14, not released yet)
+## Stage 7 — Levelling coach ✅ (2026-11-14, released in 0.9.0)
 
 ### Features
 - **Act-by-act plan** (from guide leveling spec or generated): passives per level range, gems to take from
@@ -509,7 +509,7 @@ Loose ends:
 
 ---
 
-## Stage 8 — Farming & money advisor ✅ (2026-11-14)
+## Stage 8 — Farming & money advisor ✅ (2026-11-14, released in 0.9.0)
 
 ### Features
 - **Build capability check**: what content the build can do safely (map tiers, mods to avoid, bosses,
@@ -748,7 +748,7 @@ that used the pob tools on the open build.
 
 ---
 
-## Stage 11 — Create a build ✅ (2026-11-14, not released yet)
+## Stage 11 — Create a build ✅ (2026-11-14, released in 0.9.0)
 
 **Why:** the player wants to find or design a build that fits how they like to play, including new builds that a
 patch makes possible and ideas nobody plays yet. It must stay honest about what is proven, what is theorycraft and
@@ -1379,3 +1379,4 @@ The player always runs two sessions:
 | 0.6.1 (2026-11-13) | 3 follow-up: Guide mode 2 (Guide tab, priorities, levelling, sync button) |
 | 0.7.0 (2026-11-13) | 13 Data freshness (3.30 uniques preview); roadmap: Stage 11 interview, theorycraft, prices, item targets |
 | 0.8.0 (2026-11-13) | 4 Optimiser, 10 AI chat inside PoB, 17 Lighter, Guide tab fixes (one combined release, by the player's choice) |
+| 0.9.0 (2026-11-14) | 5 Economy, 6 Crafting, 7 Levelling, 8 Farming & money, 11 Create a build; tool cleanup (27 tools); Codex chat locked to the PoB tools (one combined release, built while the player was away) |

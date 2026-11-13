@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-14
+
+One release for five new helpers: economy (Stage 5), crafting (Stage 6), levelling (Stage 7), farming and money (Stage 8) and build creation (Stage 11), plus a simpler tool list for the AI and a safer AI chat with Codex. Based on **Path of Building Community v2.67.2** (same as 0.8.0), with the 3.30 passive tree and unique previews. **After updating, restart your AI app** so it loads the new tools.
+
 ### Added
 - **Shopping plan for your whole budget** (Stage 5): tell the AI "I have 3 div and 150c" (or let it use the currency in your profile) and it works out the best combination of items to buy across all your gear slots, not just the best single item. PoB tries the whole set on your build at once, because gains overlap, and makes sure the set doesn't drop a resistance below the cap or leave you short on strength, dexterity or intelligence for your gear. You also get "save for" items that beat what fits now, and roughly what the items you replace will sell for. Instant buyout only; you still click buy yourself.
 - **What your items are worth**: ask the AI what to sell and it prices your uniques and gems from poe.ninja (unused ones first), without any trade-site requests.
@@ -34,7 +38,7 @@ Each release also lists the official Path of Building Community version it is ba
 - **Gear upgrade searches without a trade login**: the trade site refuses PoB's weighted searches unless you are logged in (POESESSID in Options), so upgrade and resistance searches found nothing. They now fall back to a simpler search that the site accepts, and PoB still tests every listing on your build.
 
 ### Changed
-- **The AI uses fewer, simpler PoB tools** (26 instead of 42): tools that did similar jobs are now one tool each, for example one `suggest` for passives, anoints, support gems and jewels, one `guide` for importing, comparing and next steps, one `atlas`, one `prices` (item prices, currency rates, leagues) and one `edit` for items, gems and passives. Everything they did still works the same way. The tool list your AI apps load at the start of every conversation is about a third smaller (3,050 instead of 4,750 tokens) and the AI's rule sheet about half (680 instead of 1,200), which leaves room for the coming stages (economy, crafting, levelling, farming, build creation) without making conversations heavier. AI apps that still use the old tool names keep working.
+- **The AI uses fewer, simpler PoB tools** (26 instead of 42, plus the new `build_create` = 27): tools that did similar jobs are now one tool each, for example one `suggest` for passives, anoints, support gems and jewels, one `guide` for importing, comparing and next steps, one `atlas`, one `prices` (item prices, currency rates, leagues) and one `edit` for items, gems and passives. Everything they did still works the same way. The tool list your AI apps load at the start of every conversation is about a third smaller (3,050 instead of 4,750 tokens) and the AI's rule sheet about half (680 instead of 1,200), which leaves room for the coming stages (economy, crafting, levelling, farming, build creation) without making conversations heavier. AI apps that still use the old tool names keep working.
 - **AI chat with "AI may edit" off is stricter**: the PoB tools themselves now refuse anything that would change, open or save a build, including keeping a simulated change, not only the edit tools being hidden.
 
 ### Security
@@ -239,7 +243,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.0...v0.6.1

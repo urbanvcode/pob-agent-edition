@@ -52,7 +52,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 6 | Crafting helper | ⬜ |
 | 7 | Levelling coach | ⬜ |
 | 8 | Farming & money advisor | ⬜ |
-| 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ |
+| 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ 0.6.0 |
 | 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ⬜ |
 | 11 | Create a build | ⬜ |
 | 12 | UI polish | ⬜ |
@@ -63,7 +63,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 17 | Lighter: smaller downloads and updates, less memory, disk and CPU | ⬜ |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → 3 ✅ → **4** → 5 → 9 → 7 → 6
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → 3 ✅ → **4** → 5 → 9 ✅ → 7 → 6
 → 8 → 10 → 11 → 12/13 → 14.
 - **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
   instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
@@ -389,7 +389,7 @@ setup, investment and estimated profit.
 
 ---
 
-## Stage 9 — PoE knowledge engine (accurate, current, cited) ✅ (2026-11-13)
+## Stage 9 — PoE knowledge engine (accurate, current, cited) ✅ (2026-11-13, released in 0.6.0)
 
 **Goal:** the AI "understands PoE in and out" **without guessing**. Every factual claim comes from a
 current, named source; if no source supports it, the AI says it doesn't know (and how to find out).
@@ -945,3 +945,4 @@ The player always runs two sessions:
 | 0.3.0 (2026-11-13) | 15 Install, portable version & updater |
 | 0.4.0 (2026-11-13) | 2 Character import & progress sync |
 | 0.5.0 (2026-11-13) | 3 Guide mode |
+| 0.6.0 (2026-11-13) | 9 PoE knowledge engine |

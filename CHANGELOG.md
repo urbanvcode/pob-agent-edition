@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-13
+
+Stage 9: PoE knowledge engine. Based on **Path of Building Community v2.67.2** (same as 0.5.0).
+
 ### Added
 - **Knowledge engine** (Stage 9): the AI now looks game facts up instead of answering from memory. Every fact it gets carries its source, a link, the game version it describes and the date it was read, so answers can be checked. Sources, highest first: GGG's official patch notes, Path of Building's data, poedb, poewiki. When they disagree, or when a wiki page was last edited before the current league, the answer says so.
 - `kb_lookup`: facts about a mechanic, unique item, gem or term. It can also check a statement ("the block cap is 75%": supported, contradicted or not found, with the sentence it rests on) and fetch the Path of Exile 2 side for a comparison, always labelled as PoE2.
@@ -132,7 +136,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.2.0...v0.3.0

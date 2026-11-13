@@ -56,8 +56,9 @@ function Ok($msg) { Say "  [ok] $msg" Green }
 function Warn($msg) { Say "  [!]  $msg" Yellow }
 function Fwd($p) { $p -replace '\\', '/' }
 
-$StartMenuLnk = Join-Path ([Environment]::GetFolderPath('Programs')) "$AppName.lnk"
-$DesktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) "$AppName.lnk"
+# Empty when Windows reports no such folder (some managed or portable setups): then no shortcut there
+$StartMenuLnk = if ([Environment]::GetFolderPath('Programs')) { Join-Path ([Environment]::GetFolderPath('Programs')) "$AppName.lnk" } else { $null }
+$DesktopLnk = if ([Environment]::GetFolderPath('Desktop')) { Join-Path ([Environment]::GetFolderPath('Desktop')) "$AppName.lnk" } else { $null }
 
 # --- AI app config locations ------------------------------------------------------------
 $ClaudeDesktopConfigs = @()
@@ -75,13 +76,21 @@ $HasClaudeCli = [bool](Get-Command claude -ErrorAction SilentlyContinue)
 # Claude Code inside the Claude desktop app has no `claude` command; its user config is this file
 $ClaudeCodeConfig = Join-Path $env:USERPROFILE '.claude.json'
 
+# Runs JavaScript with node from a temp file. `node -e <code>` is not used: Windows PowerShell 5.1
+# (Install.cmd) strips the double quotes inside native arguments, which breaks the code.
+function Invoke-NodeScript($code) {
+    $tmp = Join-Path $env:TEMP ("pob-agent-install-" + [guid]::NewGuid().ToString("N") + ".cjs")
+    [IO.File]::WriteAllText($tmp, $code, (New-Object Text.UTF8Encoding $false))
+    try { & $NodeCmd $tmp } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+}
+
 # Sets (or with no entry: removes) mcpServers.pob in Claude Code's config. Done with Node so the
 # large file is rewritten exactly (PowerShell 5.1's JSON round trip changes it).
 function Set-ClaudeCodePob($entryJson) {
     $env:POB_CC_FILE = $ClaudeCodeConfig
     $env:POB_CC_ENTRY = $entryJson
     $js = 'const fs=require("fs");const f=process.env.POB_CC_FILE;const j=JSON.parse(fs.readFileSync(f,"utf8"));j.mcpServers=j.mcpServers||{};if(process.env.POB_CC_ENTRY){j.mcpServers.pob=JSON.parse(process.env.POB_CC_ENTRY)}else{delete j.mcpServers.pob}fs.writeFileSync(f,JSON.stringify(j,null,2));'
-    & $NodeCmd -e $js
+    Invoke-NodeScript $js
     $ok = $LASTEXITCODE -eq 0
     $env:POB_CC_FILE = $null; $env:POB_CC_ENTRY = $null
     return $ok
@@ -92,7 +101,7 @@ function Test-ClaudeCodePob($entryPath) {
     $env:POB_CC_FILE = $ClaudeCodeConfig
     $env:POB_CC_ARG = $entryPath
     $js = 'const j=JSON.parse(require("fs").readFileSync(process.env.POB_CC_FILE,"utf8"));const p=j.mcpServers&&j.mcpServers.pob;process.exit(p&&p.args&&p.args[0]===process.env.POB_CC_ARG?0:1);'
-    & $NodeCmd -e $js
+    Invoke-NodeScript $js
     $ok = $LASTEXITCODE -eq 0
     $env:POB_CC_FILE = $null; $env:POB_CC_ARG = $null
     return $ok
@@ -131,7 +140,7 @@ function Remove-CodexPob($text) {
 # --- Uninstall ------------------------------------------------------------------------------
 if ($Uninstall) {
     Say "Removing $AppName integration..." Cyan
-    foreach ($l in @($StartMenuLnk, $DesktopLnk)) { if (Test-Path $l) { Remove-Item $l -Force; Ok "removed $l" } }
+    foreach ($l in @($StartMenuLnk, $DesktopLnk)) { if ($l -and (Test-Path $l)) { Remove-Item $l -Force; Ok "removed $l" } }
     foreach ($cfg in $ClaudeDesktopConfigs) {
         if (Test-Path $cfg) {
             $j = Read-JsonFile $cfg
@@ -203,7 +212,7 @@ Ok "MCP server: $McpEntry"
 
 # --- Shortcuts ------------------------------------------------------------------------------
 $shell = New-Object -ComObject WScript.Shell
-$targets = @($StartMenuLnk); if (-not $NoDesktopShortcut) { $targets += $DesktopLnk }
+$targets = @($StartMenuLnk | Where-Object { $_ }); if (-not $NoDesktopShortcut -and $DesktopLnk) { $targets += $DesktopLnk }
 if ($Portable) { $targets = @(); Say "  [-]  portable version: no shortcuts (start PoB with 'Start PoB Agent Edition.cmd')" }
 foreach ($l in $targets) {
     $s = $shell.CreateShortcut($l)

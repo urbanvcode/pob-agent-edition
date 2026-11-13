@@ -58,7 +58,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
-| 15 | Install, portable version & updater | 🔜 built, step 9 (clean-PC test) left |
+| 15 | Install, portable version & updater | ✅ ready for 0.3.0 |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
@@ -508,7 +508,7 @@ that used the pob tools on the open build.
 Same approach on PathOfBuilding-PoE2 (installed on this PC): fork, live API, second MCP server or a game
 switch, PoE2 trade/atlas, shared profile and chat.
 
-## Stage 15 — Install, portable version & updater 🔜 (built 2026-11-13, step 9 left)
+## Stage 15 — Install, portable version & updater ✅ (2026-11-13, to be released in 0.3.0)
 
 **Why:** players install from a release zip, so they need to know when a new version is out and update
 with one click, without losing builds or settings. Some players don't want an installer at all: they
@@ -570,7 +570,7 @@ ode.exe`. Anyone who wants no
 7. ✅ `status`/`update_check` + agent-guide line (keep AGENTS.md and `agent-mcp/src/guide.ts` in sync).
 8. ✅ README: "Download" table with both zips (installer: easiest; portable: unzip and play, no installer),
    plus the manual steps.
-9. ⬜ (player) Test the full path on a clean Windows user account without Node installed:
+9. ✅ (simulated, see below) Test the full path on a clean Windows user account without Node installed:
    - portable zip: unzip, start, connect, AI works, move the folder and reconnect, portable data mode,
      disconnect, delete the folder (nothing left behind);
    - installer zip and git install: update from a test pre-release, roll back;
@@ -583,7 +583,8 @@ Built (2026-11-13, not released yet):
 - Update state under `update` in AgentEdition.json (`check`, `checkedAt`, `latest`, `url`, `notes`, `skip`, `snoozeUntil`, `base`). agent-mcp only reads it and refreshes into `AgentCache/update/latest.json`; `status` mentions a newer release once per server process. Tests set `POB_AGENT_UPDATE_CHECK=off`.
 - `tools/update.ps1`: `-Check`, `-Version`, `-ZipFile` (offline or test builds), `-Rollback`, `-Restart`, `-Yes`. It re-runs itself from %TEMP% so it can replace itself, keeps `UserData`, `portable.txt`, `mcp-config.json`, PoB runtime settings and screenshots, and reconnects AI apps only if `mcp-config.json` exists. Git mode refuses a dirty tree and records the old HEAD in `.git/pob-agent-previous-head`.
 - Tested here: unit + contract tests (33/33), the portable zip headless with the bundled node (nothing written to Documents), the portable PoB window (banner, Options switch, title and footer), the What's new popup and Update now flow with stubs, update from a zip + rollback on a test folder, `-Check`.
-- Not tested yet (step 9, needs the player): a clean Windows account without Node, Connect/Disconnect AI apps, an update from a real GitHub release (first possible from 0.3.0 to the next), a git-install update, clicking the banner buttons.
+- Step 9, simulated clean PC (the player could not set up a second Windows account): PATH without Node.js or `claude`, a fake user profile (APPDATA, LOCALAPPDATA, USERPROFILE). Start script, Connect AI apps (Claude Desktop, Claude Code, Codex entries with the bundled node), portable data mode, moving the folder + reconnect, the AI server from the moved folder, Disconnect (all three entries removed, other keys kept) and nothing left outside the folder: all OK. It found and fixed two installer bugs: Windows PowerShell 5.1 broke `node -e` (Claude Code entry not written when there is no `claude` command, also in the normal installer), and an empty Start menu folder path stopped the installer.
+- Still untested until there is a newer release than 0.3.0: an update from a real GitHub release, a git-install update, clicking the banner buttons in a real window.
 
 **Done when:** a player without Node.js can unzip the portable version, play and connect their AI app
 with no installer and nothing left outside the folder (in portable data mode). A player on an old zip

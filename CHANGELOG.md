@@ -6,6 +6,12 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **Character sync** (Stage 2): ask your AI to "sync my character". It imports your character from your public pathofexile.com profile with PoB's own importer into its own build, "<character> - synced" (your other builds are never touched), and lists what changed since the last sync: new or swapped items, gems levelled, passives allocated or refunded, with DPS, EHP and max-hit changes calculated by PoB. Your account and character are remembered after the first sync.
+- `character_sync` and `character_history` MCP tools. Each sync is stored in `Documents/Path of Building/AgentCache/history/` with a copy of the build.
+- Overview **Progress** card: DPS, EHP, max hit and level over time as sparklines, with each sync's values on hover and what changed last time.
+- Safe by design: read-only, no login and no password, 3 requests per sync, paced inside the limits pathofexile.com publishes, at most one sync per character per minute. A private profile gets a clear message on how to make the Characters tab public.
+
 ## [0.3.0] - 2026-11-13
 
 Stage 15: install, portable version and updater. Based on **Path of Building Community v2.67.2** (same as 0.2.0). From this version on, PoB Agent Edition tells you when a newer version is out.

@@ -45,7 +45,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 |---|---|---|
 | 0 | Foundation | ✅ |
 | 1 | Player profile & explanation modes | ✅ |
-| 2 | Character import & progress sync | ⬜ |
+| 2 | Character import & progress sync | ✅ built, release pending |
 | 3 | Guide mode | ⬜ |
 | 4 | Optimiser (goal-based min-maxing) | ⬜ |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
@@ -152,7 +152,7 @@ is shared by Claude/Codex/Antigravity.
 
 ---
 
-## Stage 2 — Character import & progress sync 🔜
+## Stage 2 — Character import & progress sync ✅ (2026-11-13, release pending)
 
 **Why:** the AI should see the real character, not just a PoB file, and show progress over time.
 
@@ -169,10 +169,34 @@ is shared by Claude/Codex/Antigravity.
 - **Safety**: respects GGG rate limits; read-only; no game-client access.
 
 ### Steps
-1. Drive PoB's character import via live action (`import_character {account, character}`), test public profile.
-2. Diff engine: items/gems/passives/stats between two snapshots.
-3. History store (`Documents/Path of Building/AgentCache/history/<character>.json`).
-4. Overview "Progress" card + MCP `character_sync`, `character_history`.
+1. ✅ Drive PoB's character import via live action (`character_import`, PoB's own `ImportTab` code), tested with a public profile.
+2. ✅ Diff engine: items/gems/passives/stats between two syncs.
+3. ✅ History store (`Documents/Path of Building/AgentCache/history/<realm>_<account>_<character>.json` + build XML per sync + `index.json`).
+4. ✅ Overview "Progress" card + MCP `character_sync`, `character_history`.
+
+Built:
+- **PoB side** (`PathOfBuilding/src/Agent/Handlers/Character.lua`, loaded by `Tools.lua`): `character_import` feeds the
+  downloaded JSON into `ImportTab:ImportPassiveTreeAndJewels` / `ImportItemsAndSkills` (all "Delete" boxes ticked, config
+  kept, `lastCharacterHash` set); `character_state` returns level, PoB's key stats, items (with a mod fingerprint), gems and
+  allocated passives. No network code in Lua: the same handlers run live and headless.
+- **agent-mcp** (`src/character.ts`, `src/tools/character.ts`): downloads from the public `character-window` endpoints
+  (get-characters, get-items, get-passive-skills = 3 requests), 1 request per 2 s plus a `RateGovernor` that learns the
+  `backend-character-request-limit` tiers (15/60 s, 90/30 min, 180/2 h at the time of writing), stops on 429, max one sync
+  per character per minute. Imports into its own build `<character> - synced` (created on the first sync, reopened and
+  saved on later ones; refuses to replace unsaved changes in the window before any request is made). Diff: items per slot,
+  gems by name (level/quality), named passives (keystones, notables, ascendancy, mastery effects) plus a count of small ones,
+  DPS/EHP/weakest max hit/life/ES/resists.
+- **Overview "Progress" card** (`Agent/ProgressCard.lua`): sparklines for DPS, EHP, max hit and level, change since the
+  first sync, per-sync values on hover, last sync's summary. Matched to the build through PoB's `lastCharacterHash`; reads
+  `index.json` every 3 s.
+- Tests: `agent-mcp/tests/character.test.mjs` (mocked site + headless PoB: private profile, unknown character, 429, the
+  limit governor, diff engine, first and second sync, history); real sync of a public character in a second instance.
+
+Loose ends:
+- [ ] Private profiles: PoB's OAuth flow ("never handle passwords") is not driven yet; public profile only.
+- [ ] Guide link (which guide/stage the character follows) waits for Stage 3.
+- [ ] Maybe: a Sync button on the Progress card (the player chose AI-only for now).
+- [ ] Currency on hand from character sync (Stage 1 idea) needs the stash API, which requires OAuth.
 
 **Done when:** "sync my character" imports it, lists changes since last sync with numbers, and the
 Progress card shows a timeline.

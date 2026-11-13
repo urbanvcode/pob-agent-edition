@@ -31,6 +31,9 @@ CHANGING BUILDS
 - status shows unsaved changes: ask before open_build replaces them.
 - After a change, set_view to the tab that shows it (OVERVIEW, TREE, ITEMS, SKILLS, ATLAS).
 
+CHARACTER
+- "Sync my character": character_sync (account Name#1234 + character, remembered after the first time) imports the public pathofexile.com profile into its own build "<character> - synced" and lists what changed since the last sync with PoB's numbers; character_history shows the timeline. Private profile: the player makes the Characters tab public; never ask for a password or POESESSID.
+
 UPGRADES
 - plan_upgrades (budget in chaos per item, default 50, capped by the currency on hand) finds cheap gear upgrades and simulates each; focus "resists" when resistances are short. currency gives exchange rates.
 - suggest_gems (support gems), suggest_passives (tree), anoint (amulet) and suggest_jewels (jewel mods, Watcher's Eye, cluster notables) simulate every option in PoB. affixes gives affix tiers and bench crafts, and classifies an item's mods (open prefixes/suffixes).

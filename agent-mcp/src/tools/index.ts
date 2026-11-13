@@ -2,6 +2,7 @@
 import type { Tool } from "../registry.js";
 import type { TradeApiClient } from "../trade/client.js";
 import { adviceTools, atlasTools } from "./advice.js";
+import { characterTools } from "./character.js";
 import { editTools } from "./edit.js";
 import { readTools } from "./read.js";
 import { profileTools, sessionTools } from "./session.js";
@@ -11,6 +12,7 @@ export function allTools(trade: TradeApiClient): Tool[] {
   return [
     ...profileTools((league) => checkLeague(trade, league)),
     ...sessionTools,
+    ...characterTools(),
     ...readTools,
     ...editTools,
     ...adviceTools,

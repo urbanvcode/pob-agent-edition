@@ -30,6 +30,11 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Use the profile league and currency as defaults for trade tools and budgets. Change it (`profile_set`) only when the player asks or states a fact ("I have 300c", "I'm SSF now").
 - Stored under `profile` in `Documents\Path of Building\AgentEdition.json` (schema: `PathOfBuilding/src/Agent/Settings.lua` and `agent-mcp/src/profile.ts`, keep in sync).
 
+## Character sync (progress)
+- "Sync my character": `character_sync { account: "Name#1234", character }` (both remembered after the first sync). It imports the public pathofexile.com profile with PoB's own importer into its own build "<character> - synced" (other builds untouched, config kept), saves it, and lists what changed since the last sync: items, gems, passives, with DPS/EHP/max-hit deltas from PoB.
+- `character_history` shows the timeline; the Overview **Progress** card draws it. History: `Documents\Path of Building\AgentCache\history\`.
+- Read-only and polite: 3 requests per sync, paced and inside the limits the site publishes, at most one sync per character per minute. A private profile: the player makes the Characters tab public; never ask for a password or POESESSID.
+
 ## Cheap upgrades (trade or mixed mode)
 - `plan_upgrades { budget_chaos, focus }` searches instant-buyout listings, simulates each in the build and ranks by gain per chaos. Results also show in the Overview's **AI Advisor** card.
 - League defaults to the profile league, else the current challenge league (`leagues` lists them). Default budget 50c per item, capped by the currency on hand.

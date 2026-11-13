@@ -43,6 +43,7 @@ test("the agreed tool list is complete and nothing else is exposed", () => {
   const expected = [
     "profile_get", "profile_set", "profile_mark_learned",
     "status", "list_builds", "open_build", "save_build", "set_view", "open_options",
+    "character_sync", "character_history",
     "build_summary", "stats", "diagnose", "tree_search",
     "edit_items", "edit_skills", "edit_tree", "set_config", "what_if", "snapshot", "restore", "compare",
     "suggest_passives", "anoint", "affixes", "suggest_gems", "suggest_jewels",

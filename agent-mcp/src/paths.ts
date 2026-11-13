@@ -34,9 +34,19 @@ export function liveMode(): "auto" | "only" | "off" {
   return v === "only" ? "only" : v === "off" || v === "false" ? "off" : "auto";
 }
 
-/** PoB's user folder: "Documents/Path of Building". */
+/**
+ * Portable data mode: an empty portable.txt in the root keeps builds and
+ * settings in <root>/UserData. The PoB window reads the same switch
+ * (PathOfBuilding/src/Agent/Update.lua).
+ */
+export function portableMode(): boolean {
+  return fs.existsSync(path.join(ROOT, "portable.txt"));
+}
+
+/** PoB's user folder: "Documents/Path of Building", or <root>/UserData in portable data mode. */
 export function userDir(): string {
   if (process.env.POB_DIRECTORY) return path.dirname(path.resolve(process.env.POB_DIRECTORY));
+  if (portableMode()) return path.join(ROOT, "UserData");
   return path.join(os.homedir(), "Documents", "Path of Building");
 }
 
@@ -61,5 +71,19 @@ export function cacheDir(sub: string): string {
   return dir;
 }
 
-export const VERSION = "0.2.0";
+/** Our version: the VERSION file at the root (one source of truth), else package.json. */
+function readVersion(): string {
+  const semver = /^\d+\.\d+\.\d+\S*/;
+  try {
+    const m = fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim().match(semver);
+    if (m) return m[0];
+  } catch { /* fall back */ }
+  try {
+    const m = String(JSON.parse(fs.readFileSync(path.join(here, "..", "package.json"), "utf8")).version ?? "").match(semver);
+    if (m) return m[0];
+  } catch { /* fall back */ }
+  return "0.0.0";
+}
+
+export const VERSION = readVersion();
 export const USER_AGENT = `pob-agent-edition/${VERSION} (agent-mcp)`;

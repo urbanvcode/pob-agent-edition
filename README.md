@@ -38,6 +38,19 @@ PoB Agent Edition is a Path of Building Community fork with a built-in AI connec
 
 ## Install (Windows, about 5 minutes)
 
+### Download
+
+Both are on the [Releases](https://github.com/urbanvcode/pob-agent-edition/releases) page. Pick one:
+
+| Download | For | You need |
+|---|---|---|
+| `PoB-Agent-Edition-<version>-win64.zip` | **Easiest.** `Install.cmd` adds Start menu and desktop shortcuts and connects your AI apps. | [Node.js 20+](https://nodejs.org/) (the installer offers to install it) |
+| `PoB-Agent-Edition-<version>-win64-portable.zip` | **Unzip and play.** No installer, no shortcuts, no registry changes. Brings its own Node.js (about 30 MB more). Can keep builds and settings inside its folder, for a USB stick. | Nothing |
+
+Each zip has a `.sha256` file next to it if you want to check the download.
+
+### Installer version
+
 **You need:** Windows 10 or 11, [Node.js 20 or newer](https://nodejs.org/) (the LTS version is fine), and an AI app that supports MCP (see [Supported AI apps](#supported-ai-apps)).
 
 1. **Download** the latest `PoB-Agent-Edition-<version>-win64.zip` from [Releases](https://github.com/urbanvcode/pob-agent-edition/releases).
@@ -51,6 +64,15 @@ PoB Agent Edition is a Path of Building Community fork with a built-in AI connec
 5. Optional, for trade searches: open **Options > Trade session ID** in PoB Agent Edition and paste your POESESSID ([how to find it](docs/TRADE.md#finding-your-poesessid)).
 
 Your normal Path of Building keeps working as before. Agent Edition is a separate program and reads the same `Documents\Path of Building\Builds` folder.
+
+### Portable version
+
+1. **Download** `PoB-Agent-Edition-<version>-win64-portable.zip` and **extract** it anywhere (a USB stick works too).
+2. **Double-click `Start PoB Agent Edition.cmd`** to play. Nothing is installed.
+3. To use it with your AI app, **double-click `Connect AI apps.cmd`**. It only adds the `pob` entry to Claude Desktop, Claude Code and Codex, using the Node.js in the folder. It also asks whether to keep builds and settings **inside the folder** (portable data mode, the `portable.txt` file): then nothing is written outside the folder, but your normal PoB won't see those builds. Otherwise they stay in `Documents\Path of Building`, shared with your normal PoB.
+   - No scripts at all? `Start PoB Agent Edition.cmd` writes `mcp-config.txt` with the entry for this folder; copy it into your AI app's MCP settings.
+   - **Moved the folder?** Run `Connect AI apps.cmd` again (AI apps need the full path).
+   - `Disconnect AI apps.cmd` removes the entry again. After that, deleting the folder leaves nothing behind (in portable data mode).
 
 ### Other ways to install
 
@@ -102,7 +124,7 @@ cd agent-mcp; npm ci; npm run build; cd ..
 .\Install.cmd    # optional: or follow the manual steps above
 ```
 
-To update later, run `git pull`, then `git submodule update --init` and `npm ci && npm run build` in `agent-mcp`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+To update later, run `tools\update.ps1` (it does `git pull`, `git submodule update --init` and `npm ci && npm run build` in `agent-mcp`, then renews the AI connections). See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 </details>
 
 <details>
@@ -146,7 +168,9 @@ More details: [docs/TRADE.md](docs/TRADE.md) and [SECURITY.md](SECURITY.md).
 
 | What | How |
 |---|---|
-| PoB Agent Edition | Download the new release, extract it over the old folder (or into a new one) and run `Install.cmd` again. Git installs use `git pull`. The [changelog](CHANGELOG.md) lists what changed. A built-in update reminder and one-click updater are planned ([roadmap](ROADMAP.md), Stage 15). |
+| PoB Agent Edition | Once a day PoB Agent Edition asks GitHub whether a new version is out (nothing else is sent; switch it off in **Options > Check for Agent Edition updates**). If one is, the **Overview** shows a banner: **What's new** shows the changes, **Update now** updates and restarts PoB, **Later** hides it for a day, **Skip this version** hides it until the next one. Your AI app mentions it once too. |
+| By hand | Run `tools\update.ps1` in the folder (works for the installer, portable and git versions). It downloads the matching zip from GitHub, checks its SHA256, waits for PoB to close, keeps the old version in `<folder>.previous`, replaces the program files, renews the AI connections if you had set them up, and can restart PoB (`-Restart`). Builds and settings are never touched. `tools\update.ps1 -Check` only reports; `tools\update.ps1 -Rollback` goes back to the previous version. |
+| Fully manual | Download the new release zip, extract it over the old folder (or into a new one) and run `Install.cmd` (or `Connect AI apps.cmd`) again. The [changelog](CHANGELOG.md) lists what changed. |
 | Game data (items, uniques, passive tree) | Comes with each release. Releases follow official Path of Building Community updates. |
 | Atlas tree | Comes from GGG's official export; developers run `tools/update-atlas.ps1`. |
 

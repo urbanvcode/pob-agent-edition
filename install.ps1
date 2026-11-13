@@ -19,11 +19,20 @@
 
 .PARAMETER BuildsDir
   Path of Building builds folder. Default: Documents\Path of Building\Builds.
+
+.PARAMETER Portable
+  Portable version (Connect AI apps.cmd): use the bundled node\node.exe, create no shortcuts, and
+  offer portable data mode (portable.txt: builds and settings stay in this folder, under UserData).
+
+.PARAMETER Quiet
+  No questions (used by tools\update.ps1 to renew the connections after an update).
 #>
 param(
     [switch]$Uninstall,
     [switch]$NoDesktopShortcut,
-    [string]$BuildsDir
+    [string]$BuildsDir,
+    [switch]$Portable,
+    [switch]$Quiet
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +45,11 @@ $McpEntry = Join-Path $McpDir 'build\index.js'
 $LuaJit = Join-Path $Root 'luajit\luajit.exe'
 $PobSrc = Join-Path $Root 'PathOfBuilding\src'
 if (-not $BuildsDir) { $BuildsDir = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Path of Building\Builds' }
+$BundledNode = Join-Path $Root 'node\node.exe'
+if ($Portable -and -not (Test-Path $BundledNode)) { throw "node\node.exe is missing. Extract the whole portable zip." }
+# The node used to edit Claude Code's config (and, in the portable version, to run the MCP server)
+$NodeCmd = if ($Portable) { $BundledNode } else { 'node' }
+$PortableData = Join-Path $Root 'portable.txt'
 
 function Say($msg, $color = 'Gray') { Write-Host $msg -ForegroundColor $color }
 function Ok($msg) { Say "  [ok] $msg" Green }
@@ -67,7 +81,7 @@ function Set-ClaudeCodePob($entryJson) {
     $env:POB_CC_FILE = $ClaudeCodeConfig
     $env:POB_CC_ENTRY = $entryJson
     $js = 'const fs=require("fs");const f=process.env.POB_CC_FILE;const j=JSON.parse(fs.readFileSync(f,"utf8"));j.mcpServers=j.mcpServers||{};if(process.env.POB_CC_ENTRY){j.mcpServers.pob=JSON.parse(process.env.POB_CC_ENTRY)}else{delete j.mcpServers.pob}fs.writeFileSync(f,JSON.stringify(j,null,2));'
-    & node -e $js
+    & $NodeCmd -e $js
     $ok = $LASTEXITCODE -eq 0
     $env:POB_CC_FILE = $null; $env:POB_CC_ENTRY = $null
     return $ok
@@ -78,7 +92,7 @@ function Test-ClaudeCodePob($entryPath) {
     $env:POB_CC_FILE = $ClaudeCodeConfig
     $env:POB_CC_ARG = $entryPath
     $js = 'const j=JSON.parse(require("fs").readFileSync(process.env.POB_CC_FILE,"utf8"));const p=j.mcpServers&&j.mcpServers.pob;process.exit(p&&p.args&&p.args[0]===process.env.POB_CC_ARG?0:1);'
-    & node -e $js
+    & $NodeCmd -e $js
     $ok = $LASTEXITCODE -eq 0
     $env:POB_CC_FILE = $null; $env:POB_CC_ARG = $null
     return $ok
@@ -127,7 +141,7 @@ if ($Uninstall) {
         }
     }
     if ($HasClaudeCli) { & claude mcp remove pob --scope user *> $null; Ok "Claude Code: removed pob (if it was there)" }
-    elseif ((Test-Path $ClaudeCodeConfig) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+    elseif ((Test-Path $ClaudeCodeConfig) -and ($Portable -or (Get-Command node -ErrorAction SilentlyContinue))) {
         Backup $ClaudeCodeConfig
         if (Set-ClaudeCodePob '') { Ok "Claude Code: removed pob" } else { Warn "Claude Code: could not edit $ClaudeCodeConfig" }
     }
@@ -144,16 +158,21 @@ if (-not (Test-Path $LuaJit)) { throw "luajit\luajit.exe is missing. Extract the
 if ($Root -match '[^\x00-\x7F]') { Warn "The folder path has non-English characters. If PoB fails to start, move the folder to e.g. C:\Games\$AppName." }
 
 # --- Node.js --------------------------------------------------------------------------------
-$node = Get-Command node -ErrorAction SilentlyContinue
-$nodeOk = $false
-if ($node) {
+if ($Portable) {
+    Ok "Node.js $((& $BundledNode --version).TrimStart('v')) (bundled)"
+    $node = $true; $nodeOk = $true
+} else {
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    $nodeOk = $false
+}
+if ($node -and -not $Portable) {
     $v = (& node --version).TrimStart('v')
     $nodeOk = ([version]($v -replace '-.*$', '')) -ge [version]'20.0.0'
     if ($nodeOk) { Ok "Node.js $v" } else { Warn "Node.js $v is too old (20 or newer needed)." }
 }
 if (-not $nodeOk) {
     $winget = Get-Command winget -ErrorAction SilentlyContinue
-    if ($winget) {
+    if ($winget -and -not $Quiet) {
         $answer = Read-Host "Install Node.js LTS now with winget? [Y/n]"
         if ($answer -eq '' -or $answer -match '^[yY]') {
             & winget install -e --id OpenJS.NodeJS.LTS --accept-package-agreements
@@ -161,9 +180,15 @@ if (-not $nodeOk) {
             $node = Get-Command node -ErrorAction SilentlyContinue
         }
     }
-    if (-not $node) { throw "Node.js 20+ is required. Install the LTS version from https://nodejs.org/ and run Install.cmd again." }
+    if (-not $node) { throw "Node.js 20+ is required. Install the LTS version from https://nodejs.org/ and run Install.cmd again (or use the portable version, which brings its own)." }
 }
-$NodeExe = (Get-Command node).Source
+
+# --- Portable data mode ---------------------------------------------------------------------
+if ($Portable -and -not $Quiet -and -not (Test-Path $PortableData)) {
+    $answer = Read-Host "Keep builds and settings inside this folder (for a USB stick; the normal PoB won't see them)? [y/N]"
+    if ($answer -match '^[yY]') { New-Item -ItemType File $PortableData | Out-Null }
+}
+if (Test-Path $PortableData) { Ok "portable data mode: builds and settings in $(Join-Path $Root 'UserData')" }
 
 # --- MCP server build (source checkouts only) ------------------------------------------------
 if (-not (Test-Path $McpEntry)) {
@@ -179,6 +204,7 @@ Ok "MCP server: $McpEntry"
 # --- Shortcuts ------------------------------------------------------------------------------
 $shell = New-Object -ComObject WScript.Shell
 $targets = @($StartMenuLnk); if (-not $NoDesktopShortcut) { $targets += $DesktopLnk }
+if ($Portable) { $targets = @(); Say "  [-]  portable version: no shortcuts (start PoB with 'Start PoB Agent Edition.cmd')" }
 foreach ($l in $targets) {
     $s = $shell.CreateShortcut($l)
     $s.TargetPath = $PobExe
@@ -190,10 +216,11 @@ foreach ($l in $targets) {
 
 # --- MCP server entry -----------------------------------------------------------------------
 # The server finds PoB and LuaJIT next to itself; only the Builds folder is passed (Documents may be redirected).
-$envVars = [ordered]@{
-    POB_DIRECTORY = (Fwd $BuildsDir)
-}
-$server = [ordered]@{ command = 'node'; args = @((Fwd $McpEntry)); env = $envVars }
+# In portable data mode the server finds <root>\UserData by itself (portable.txt), so no folder is passed.
+$envVars = [ordered]@{}
+if (-not (Test-Path $PortableData)) { $envVars.POB_DIRECTORY = (Fwd $BuildsDir) }
+$McpCommand = if ($Portable) { Fwd $BundledNode } else { 'node' }
+$server = [ordered]@{ command = $McpCommand; args = @((Fwd $McpEntry)); env = $envVars }
 
 # mcp-config.json for any other client (contains only local paths, no secrets)
 Write-JsonFile (Join-Path $Root 'mcp-config.json') ([ordered]@{ mcpServers = [ordered]@{ pob = $server } })
@@ -213,13 +240,13 @@ if (-not $ClaudeDesktopConfigs) { Say "  [-]  Claude Desktop not found (skipped)
 
 # Claude Code
 if ($HasClaudeCli) {
-    $json = ([ordered]@{ type = 'stdio'; command = 'node'; args = @((Fwd $McpEntry)); env = $envVars } | ConvertTo-Json -Depth 8 -Compress)
+    $json = ([ordered]@{ type = 'stdio'; command = $McpCommand; args = @((Fwd $McpEntry)); env = $envVars } | ConvertTo-Json -Depth 8 -Compress)
     & claude mcp remove pob --scope user *> $null
     & claude mcp add-json pob $json --scope user
     if ($LASTEXITCODE -eq 0) { Ok "Claude Code: added 'pob' (user scope)" } else { Warn "Claude Code: could not add. Run: claude mcp add-json pob (see mcp-config.json)" }
 } elseif (Test-Path $ClaudeCodeConfig) {
     Backup $ClaudeCodeConfig
-    $json = ([ordered]@{ type = 'stdio'; command = 'node'; args = @((Fwd $McpEntry)); env = $envVars } | ConvertTo-Json -Depth 8 -Compress)
+    $json = ([ordered]@{ type = 'stdio'; command = $McpCommand; args = @((Fwd $McpEntry)); env = $envVars } | ConvertTo-Json -Depth 8 -Compress)
     $claudeRunning = [bool](Get-Process -Name claude -ErrorAction SilentlyContinue)
     if (-not (Set-ClaudeCodePob $json)) { Warn "Claude Code: could not edit $ClaudeCodeConfig (see mcp-config.json)" }
     else {
@@ -238,19 +265,23 @@ if (Test-Path $CodexDir) {
     $toml = @()
     $toml += ''
     $toml += '[mcp_servers.pob]'
-    $toml += 'command = "node"'
+    $toml += "command = ""$McpCommand"""
     $toml += "args = [""$(Fwd $McpEntry)""]"
-    $toml += ''
-    $toml += '[mcp_servers.pob.env]'
-    foreach ($k in $envVars.Keys) { $toml += "$k = ""$($envVars[$k])""" }
+    if ($envVars.Count) {
+        $toml += ''
+        $toml += '[mcp_servers.pob.env]'
+        foreach ($k in $envVars.Keys) { $toml += "$k = ""$($envVars[$k])""" }
+    }
     Write-TextFile $CodexConfig ($text + ($toml -join "`r`n") + "`r`n")
     Ok "Codex: $CodexConfig"
 } else { Say "  [-]  Codex not found (skipped)" }
 
+if ($Quiet) { exit 0 }
 Say ""
 Say "Done! Next steps:" Green
 Say "  1. Restart your AI app."
-Say "  2. Open '$AppName' from the Start menu and load a build."
+if ($Portable) { Say "  2. Start PoB with 'Start PoB Agent Edition.cmd' and load a build. Moved this folder? Run 'Connect AI apps.cmd' again." }
+else { Say "  2. Open '$AppName' from the Start menu and load a build." }
 Say "  3. Ask the AI: ""Check my build in PoB: what's wrong with it?"""
 Say "  Trade searches: paste your POESESSID in PoB Agent Edition > Options (never in a chat)."
 if (Test-Path (Join-Path $Root 'pob-mcp')) { Say "  Note: the old 'pob-mcp' folder is no longer used; you can delete it." }

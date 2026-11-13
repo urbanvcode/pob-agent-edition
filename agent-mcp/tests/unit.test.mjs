@@ -265,3 +265,33 @@ test("boss check verdicts", () => {
   assert.match(text(3.7), /Shaper Beam: damage over time/);
   assert.match(text(3.7), /no boss life data/);
 });
+
+test("update check: version compare, newest release, notice once and only when newer", async () => {
+  const { compareVersions, pickLatest, updateNotice } = await import("../build/update.js");
+  const { VERSION, portableMode } = await import("../build/paths.js");
+  assert.equal(compareVersions("0.3.0", "0.2.0"), 1);
+  assert.equal(compareVersions("v0.2.0", "0.2.0"), 0);
+  assert.equal(compareVersions("0.10.0", "0.9.9"), 1);
+  assert.equal(compareVersions("1.0.0-rc1", "1.0.0"), -1);
+  assert.deepEqual(pickLatest([{ tag_name: "v0.2.0" }, { tag_name: "v0.9.0", draft: true }, { tag_name: "v0.3.1", html_url: "u" }, { tag_name: "nightly" }]), { version: "0.3.1", url: "u" });
+  assert.equal(pickLatest({ message: "rate limited" }), null);
+  // VERSION file at the root is the source of truth
+  assert.equal(VERSION, fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, "$1")), "..", "..", "VERSION"), "utf8").trim());
+  assert.equal(portableMode(), fs.existsSync(path.join(process.cwd(), "..", "portable.txt")));
+
+  const file = process.env.POB_AGENT_SETTINGS;
+  const write = (update) => {
+    const data = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+    fs.writeFileSync(file, JSON.stringify({ ...data, update }));
+  };
+  const now = Math.floor(Date.now() / 1000);
+  write({ checkedAt: now, latest: VERSION });
+  assert.equal(updateNotice(), null, "same version: no notice");
+  write({ checkedAt: now, latest: "99.0.0", skip: "99.0.0" });
+  assert.equal(updateNotice(), null, "skipped version: no notice");
+  write({ checkedAt: now, latest: "99.0.0", check: false });
+  assert.equal(updateNotice(), null, "checking off: no notice");
+  write({ checkedAt: now, latest: "99.0.0" });
+  assert.match(updateNotice(), /Update available: PoB Agent Edition v99\.0\.0/);
+  assert.equal(updateNotice(), null, "mentioned once per conversation");
+});

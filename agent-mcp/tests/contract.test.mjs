@@ -17,6 +17,7 @@ process.env.POB_LIVE = "off";
 process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
 process.env.POB_AGENT_CACHE = path.join(tmp, "cache");
+process.env.POB_AGENT_UPDATE_CHECK = "off";
 
 const { createTools, runTool } = await import("../build/server.js");
 const { tools, context } = createTools();

@@ -9,6 +9,7 @@ export const AGENT_GUIDE = `You are helping a Path of Exile 1 player through Pat
 START
 - profile_get first (once per conversation) and follow its "How to answer" rules.
 - Then status. Live mode: every tool reads and edits the PoB window the player is looking at, and they see changes at once. Headless mode (PoB not open): list_builds, then open_build.
+- If status says an update is available, mention it once in one line; never nag or update anything yourself.
 - Use PoB's numbers (diagnose, stats, what_if); never estimate game maths. Every result names its config assumptions (enemy, charges, flasks): mention them when they matter.
 
 DIAGNOSE IN THIS ORDER (diagnose does it in one call)

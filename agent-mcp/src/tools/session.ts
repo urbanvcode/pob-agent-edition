@@ -6,6 +6,7 @@ import { buildsDir } from "../paths.js";
 import { ToolError, type Pob } from "../pob.js";
 import { formatProfile, getProfile, markLearned, profileSummaryLine, updateProfile, type ProfileUpdate } from "../profile.js";
 import { S, tool, type Tool } from "../registry.js";
+import { updateNotice } from "../update.js";
 
 interface LiveState {
   mode: string;
@@ -107,6 +108,7 @@ export async function statusText(pob: Pob): Promise<string> {
     }
   }
   try { lines.push(profileSummaryLine(getProfile().profile)); } catch { /* profile is optional */ }
+  try { const notice = updateNotice(); if (notice) lines.push(notice); } catch { /* never block status */ }
   return lines.join("\n");
 }
 

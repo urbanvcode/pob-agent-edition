@@ -14,7 +14,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## Start
 1. `profile_get` (once per conversation) and follow its "How to answer" rules. The player profile (play mode, hardcore/softcore, league, currency, goals, experience, explanation mode, learned topics) is shared by every AI client and editable in PoB Agent Edition › Options › Agent profile; the Overview header shows it.
-2. `status`. If PoB Agent Edition is open, every tool works on the build in the window and the user sees changes live. Otherwise load a saved build (`list_builds`, `open_build`).
+2. `status`. If PoB Agent Edition is open, every tool works on the build in the window and the user sees changes live. Otherwise load a saved build (`list_builds`, `open_build`). If it says an update is available, mention it once in one line (the player updates from the Overview banner or `tools\update.ps1`); never nag or update anything yourself.
 3. Use PoB's calculations (`diagnose`, `stats`, `what_if`) instead of estimating. Every result names its config assumptions (enemy, charges, flasks); mention them when they matter.
 
 ## Diagnose in this order (`diagnose` does it in one call)

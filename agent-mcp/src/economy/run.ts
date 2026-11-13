@@ -58,7 +58,7 @@ export async function budgetPlanText(ctx: Context, a: { league: string; leagueNo
     return [
       "SSF plan (the profile is Solo Self-Found: no trading, so no budget or purchases). What to keep from your own drops, per slot:",
       ...targetsText(targets),
-      "", "Next steps:", ...slots.map((s) => `- ${craftHook(s)}`),
+      "", "Next steps:", ...slots.map((s) => `- ${craftHook(s, (targets.find((t) => t.slot === s)?.stats ?? []).slice(0, 3).map((x) => x.text))}`),
       "- [SSF] uniques the build wants: kb_lookup the name for where it drops; farming plans come with the farming advisor (Stage 8).",
       "", "Thresholds are from PoB's own upgrade weights for this build (no trade request was made).",
     ].join("\n");

@@ -35,8 +35,9 @@ export function targetsText(targets: Target[], max = 4): string[] {
 }
 
 /** Hooks to the later stages; until they exist the line says which tool to use now. */
-export function craftHook(slot: string): string {
-  return `[SSF] craft: open prefix/suffix bench crafts with affixes { slot: "${slot}" }; full craft plans come with the crafting helper (Stage 6)`;
+export function craftHook(slot: string, stats: string[] = []): string {
+  const want = stats.length ? stats.map((s) => s.replace(/[+#%]/g, "").replace(/\s+/g, " ").trim()).join(", ") : "<the stats you want>";
+  return `[SSF] craft: affixes { craft: "${want}", slot: "${slot}" } = steps, odds and cost from your own drops; quick fix: affixes { craft: "fix", slot: "${slot}" }`;
 }
 export function farmHook(name: string): string {
   return `[SSF] farm: kb_lookup "${name}" for where it drops (drop-restricted, boss or div card); farming plans come with the farming advisor (Stage 8)`;

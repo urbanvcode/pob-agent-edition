@@ -49,6 +49,10 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Without a trade login the site refuses weighted searches; plan_upgrades then searches "2 of the stats worth most, cheapest first" and still simulates every listing.
 - `optimise { budget_chaos }` now spends it as one total via the set planner.
 
+## Crafting helper (Stage 6)
+- "How do I craft X?", "craft me gloves like the guide": `affixes { craft: "life, 2 res, crit multi", slot }` (or `base`, `ilvl`, default 84). `craft: "item"` + `item_text` = that item is the target (a guide item: each mod at its tier or better). `craft: "fix"` + `slot` = bench crafts for the open prefix/suffix, simulated.
+- Methods ranked by expected cost (poe.ninja) with odds from PoB's spawn weights, steps, stop points, buy vs craft (one instant-buyout search) and the finished item simulated. SSF: drops only, orb counts. It lists its sources and what is unknown: pass both on, never fill the gaps from memory.
+
 ## Optimiser (Stage 4)
 - "I'm weak at single target", "I keep dying", "more damage": `optimise { goal }` with goal `bossing` (pinnacle boss, single-target DPS without culling), `clear` (no boss, DPS + movement speed + area), `tankiness` (EHP + weakest max hit + uncapped resists), `balanced`, or `weakest` (picked from `diagnose`). The goal's config is temporary and restored afterwards.
 - It simulates passives within `points` (default 6, with paths), respecs (net gain per Orb of Regret), mastery effects, support swaps and gem levels/quality, auras/heralds/curses, utility flasks, anoints, pantheon and bandit, ranks them by gain per cost (a point, a regret or one change = 1), and lists config the player may be under-counting (only if true in their fights), what does not fit the reserved mana, and a scaling report (what +1 step of each stat is worth). Each suggestion carries `what_if` ops and its mechanic; explain it per the explanation mode (teach: the glossary lines it returns, then `profile { learned }`). Hardcore drops changes that cost defence for another goal.

@@ -21,7 +21,7 @@ CHANGING BUILDS
 
 TOOLS BY TASK
 - "Sync my character": character (public profile only; a private one: the player makes the Characters tab public). history: true = timeline.
-- Goals ("weak at bosses", "I keep dying"): optimise { goal }. One lever: suggest { kind }. Gear: plan_upgrades (trade/mixed), prices. Affix tiers: affixes. "Can I do <boss>?": diagnose { boss }; PoB has no boss life, say so.
+- Goals ("weak at bosses", "I keep dying"): optimise { goal }. One lever: suggest { kind }. Gear: plan_upgrades (trade/mixed), prices. Affix tiers: affixes. Crafting: affixes { craft: "life, 2 res", slot } (craft: "item" + item_text = guide item; "fix" = bench crafts). "Can I do <boss>?": diagnose { boss }; PoB has no boss life, say so.
 - Guides: guide { source } imports (Mobalytics: ask for its PoB link); guide compares; next: true ranks steps; accept stops flagging deliberate differences.
 - Budget ("I have 3 div"): plan_upgrades { budget } = best set within the total, simulated together; SSF gets rares to keep. What to sell: prices { own: true }.
 - Atlas: atlas; explain each league mechanic for a newcomer.

@@ -297,7 +297,7 @@ test("budget plan text: trade uses the profile budget; SSF makes no trade reques
   assert.equal(ssf.requests, 0, "SSF: no trade request");
   assert.match(s, /SSF plan/);
   assert.match(s, /keep a rare with/);
-  assert.match(s, /Stage 6/);
+  assert.match(s, /affixes { craft: "[^<"]+", slot: "Ring 1" }/, "SSF hook: a craft plan with the stats PoB found");
   assert.match(s, /Stage 8/);
   setProfile({ playMode: "trade", league: "Testleague", currency: { chaos: 0, divine: 0 } });
   await assert.rejects(run.budgetPlanText({ pob: context.pob, trade: fakeTrade() }, { league: "Testleague", budget: undefined, slots: ["Belt"] }), /No budget/);

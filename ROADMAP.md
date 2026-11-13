@@ -49,7 +49,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1; Guide tab fixes and Hide panel: 0.8.0) |
 | 4 | Optimiser (goal-based min-maxing) | ✅ 0.8.0 |
 | 5 | Economy: budgets, trade and SSF | ✅ (built 2026-11-14, not released yet) |
-| 6 | Crafting helper | ⬜ |
+| 6 | Crafting helper | ✅ (built 2026-11-14, not released yet) |
 | 7 | Levelling coach | ⬜ |
 | 8 | Farming & money advisor | ⬜ |
 | 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ 0.6.0 |
@@ -388,7 +388,7 @@ Loose ends / ideas:
 
 ---
 
-## Stage 6 — Crafting helper ⬜
+## Stage 6 — Crafting helper ✅ (2026-11-14)
 
 ### Features
 - **Target item** from: guide item, Optimiser suggestion, or "a ring with life, 2 res, crit multi".
@@ -408,6 +408,37 @@ Loose ends / ideas:
 
 **Done when:** "craft me gloves like the guide" → ranked methods with steps, odds, expected cost, and the
 finished item's simulated gain.
+
+**Built (2026-11-14):** no new tool (99 tokens): `affixes { craft, base, ilvl }`. Engine in `agent-mcp/src/craft/`
+(`target.ts`, `odds.ts`, `facts.ts`, `plan.ts`), PoB side `PathOfBuilding/src/Agent/Handlers/Craft.lua` (read-only).
+1. ✅ Mod pool per base from PoB's data: every rollable prefix/suffix with its spawn weight on that base
+   (`ItemClass:GetModSpawnWeight`), tier over all item levels, item level filter; essences, bench crafts and eldritch
+   implicits for the item class; influenced pools (`influence`).
+2. ✅ Methods: Alteration (+ Augmentation) → Regal (→ bench), Chaos Orb, the two best Essences for a want; seeded
+   simulation of rolls (one mod per group, 3 prefixes + 3 suffixes, 4/5/6 mods at 8:3:1) with the bench filling the
+   last want when a slot is open; expected cost at poe.ninja prices (currency and Essence pages), risk, stop points
+   (tries for 50% / 90%, and what the profile currency covers). Fossils, Harvest, meta-crafting (3.30 costs),
+   Recombinator and eldritch implicits are listed with cited text but no odds (weights not in our data).
+3. ✅ Target from words ("life, 2 res, crit multi", "life 70+", "T1 life"), from an item (`craft: "item"` + item_text:
+   a guide item or an optimiser pick, each mod at its tier or better) or for Stage 11 / Stage 5 from code
+   (`craftPlan()` returns the best method and the buy price). Buy vs craft: one instant-buyout search with every want
+   (2 trade requests), fair price via the Stage 5 price sanity, the cheapest listing simulated. The finished item is
+   built by PoB's own crafter (average rolls) and simulated in the slot (`test_items`).
+4. ✅ `craft: "fix"`: every bench craft that fits an open prefix/suffix of the slot's item, simulated and ranked.
+   Stage 5 hooks (SSF / mixed) now name `affixes { craft: "<stats PoB found>", slot }`.
+
+Facts: every crafting rule the odds use is quoted with source, link, version and read date in `src/craft/facts.ts`
+(poewiki Modifier, Crafting, Rarity, Regal Orb, Essence, Crafting Bench pages; GGG 3.30 patch notes). Unknown and
+shown as such: how often an Alteration gives 1 or 2 mods (cost range), whether 8:3:1 holds for Chaos/Essence rolls
+(range 4 mods to 6 mods shown), fossil and Harvest weights, bench costs, roll spread inside a tier (taken as even).
+
+Tests: `tests/craft.test.mjs` (9, offline: fake poe.ninja and trade site, headless fixture).
+
+Loose ends / ideas:
+- Overview/Items card for craft plans (step 4 of the plan) is not built: plans are text only for now.
+- Not modelled: Exalted Orb slams, Harvest reforges, fossils, Veiled Chaos, Awakener's Orb, the bench's 3/8-chaos
+  rerolls, multi-craft ("Can have up to 3 crafted modifiers"), weapons' local mods in the buy check (no category).
+- Re-check `facts.ts` each league (the Alteration, Transmutation, Rarity pages were older than 3.30 when read).
 
 ---
 

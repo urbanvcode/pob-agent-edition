@@ -4,6 +4,7 @@
 import { n, pct } from "../format.js";
 import { ToolError } from "../pob.js";
 import { S, tool, type Tool } from "../registry.js";
+import { benchFixes, craftPlan } from "../craft/plan.js";
 
 interface AtlasNode { id: string; name?: string; type?: string; stats?: string[]; allocated?: boolean; pathCost?: number | null }
 
@@ -90,13 +91,21 @@ export const adviceTools: Tool[] = [
       return [head, ...lines, `Config assumptions: ${res.assumptions}`].join("\n");
     }),
 
-  tool("affixes", "PoB mod tables. query: tiers of a prefix/suffix (ranges, ilvl, item types); bench: true for bench crafts. slot or item_text: classify an item's mods (tier, bench, open prefixes/suffixes).",
+  tool("affixes", `PoB mod tables. query: tiers of a prefix/suffix (ranges, ilvl, item types); bench: true for bench crafts. slot or item_text: classify an item's mods (tier, bench, open prefixes/suffixes). craft: plan to craft wanted stats ("life, 2 res, crit multi") on slot's base or base: methods by expected cost with odds, steps, stop points, buy vs craft, gain simulated; "item" = item_text is the target (guide item); "fix" = bench crafts for slot, simulated.`,
     {
       query: S.str(), item: S.str("tag: ring, body_armour; bench: class Ring"),
       type: S.enum(["Prefix", "Suffix"]), bench: S.bool(), limit: S.num(),
-      slot: S.str(), item_text: S.str(),
+      slot: S.str(), item_text: S.str(), craft: S.str(), base: S.str("base type"), ilvl: S.num("default 84"),
     }, [],
-    async ({ pob }, args) => {
+    async (ctx, args) => {
+      const { pob } = ctx;
+      if (typeof args.craft === "string" && args.craft.trim()) {
+        if (args.craft.trim().toLowerCase() === "fix") {
+          if (!args.slot) throw new ToolError('craft: "fix" needs slot.');
+          return benchFixes(ctx, String(args.slot), "balanced");
+        }
+        return (await craftPlan(ctx, { craft: args.craft, slot: args.slot, item_text: args.item_text, base: args.base, ilvl: typeof args.ilvl === "number" ? args.ilvl : undefined })).text;
+      }
       if (args.slot || args.item_text) {
         const link = await pob.link(!args.item_text);
         const it = (await link.call("classify_item", { slot: args.slot, text: args.item_text })).item;
@@ -122,7 +131,7 @@ export const adviceTools: Tool[] = [
       const lines = mods.map((m) => `${m.type} "${m.name}" (ilvl ${m.level}, ${m.group}): ${(m.stats ?? []).join(" / ")}${args.item ? "" : `  [${(m.items ?? []).slice(0, 8).join(", ")}${(m.items ?? []).length > 8 ? ", ..." : ""}]`}`);
       if (res.total > mods.length) lines.push(`(${res.total - mods.length} more; narrow with item/type or raise limit)`);
       return [`Source: ${res.source}; highest tier first within each group`, ...lines].join("\n");
-    }),
+    }, { trade: true }),
 
   tool("suggest_gems", "Support gem check for a skill: what each current support is worth (DPS lost without it), then every support gem that fits, simulated in place of the weakest one and ranked by DPS. add: true tests an extra link instead.",
     { group: S.num("Skill group; default the main skill"), replace: S.num("Gem number to replace; default the weakest support"), add: S.bool(), awakened: S.bool("Default true"), limit: S.num() }, [],

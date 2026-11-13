@@ -600,6 +600,10 @@ the open build, with a gem link and an apply card whose Preview matched PoB's wh
 The same question through **Claude Code** (desktop app's CLI, signed in once) streamed an answer using diagnose,
 optimise, what_if, build_summary, stats, with node and gem links and two apply cards.
 
+**Models:** a model per backend in Options, default the balanced one (Claude Code `sonnet`, Codex `gpt-6.1-sol` with
+low reasoning effort, API `claude-sonnet-5-5`); cheaper and strongest choices are opt-in. Defaults live in `Chat.MODELS`
+(Lua) and `DEFAULT_MODELS` (backends.ts); update both when the vendors rename models.
+
 ### Loose ends (Stage 10)
 - Codex sends whole messages, not token deltas (`codex exec --json` has no partial output): its text arrives per message.
 - The panel's input is one line (Enter sends); a multi-line box could come with Stage 12 (UI polish).

@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ClaudeParser, CodexParser } from "../build/chat/events.js";
-import { EDIT_TOOLS, chatRules, claudeArgs, codexArgs } from "../build/chat/backends.js";
+import { EDIT_TOOLS, chatRules, claudeArgs, codexArgs, modelFor } from "../build/chat/backends.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BRIDGE = path.join(here, "..", "build", "chat", "bridge.js");
@@ -83,6 +83,12 @@ test("edit tools are off unless the panel allows them", () => {
   assert.match(cx, /sandbox_mode="read-only"/);
   assert.ok(!codexArgs({ backend: "codex", message: "hi", allowEdits: true }).join(" ").includes("disabled_tools"));
   assert.match(codexArgs({ backend: "codex", message: "hi", session: "01a1d5ec-6b19-7d32" }).join(" "), /^exec resume 01a1d5ec-6b19-7d32 --json/);
+  assert.match(cx, /-m gpt-6\.1-sol/, "Codex defaults to its mid-priced model");
+  assert.match(cx, /model_reasoning_effort="low"/);
+  assert.equal(off[off.indexOf("--model") + 1], "sonnet", "Claude Code defaults to Sonnet");
+  assert.equal(claudeArgs({ backend: "claude", message: "hi", model: "haiku" }, "m", "r")[claudeArgs({ backend: "claude", message: "hi", model: "haiku" }, "m", "r").indexOf("--model") + 1], "haiku");
+  assert.equal(modelFor({ backend: "codex", message: "x", model: "bad name; rm" }), "gpt-6.1-sol", "odd model text falls back to the default");
+  assert.equal(modelFor({ backend: "api", message: "x" }), "claude-sonnet-5-5");
   assert.match(chatRules(false), /Edits are off/);
   assert.match(chatRules(true), /allowed edits/);
 });
@@ -175,7 +181,7 @@ test("API backend: streams text, routes tool use to the pob MCP server, keeps th
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const settings = path.join(tmp, "AgentEdition.json");
   const KEY = "sk-ant-test-0123456789abcdefghij";
-  fs.writeFileSync(settings, JSON.stringify({ anthropicApiKey: KEY, chat: { apiModel: "claude-opus-5-5" } }));
+  fs.writeFileSync(settings, JSON.stringify({ anthropicApiKey: KEY }));
   try {
     const env = { POB_AGENT_SETTINGS: settings, POB_CHAT_API_BASE: `http://127.0.0.1:${server.address().port}`, POB_LIVE: "off" };
     const ev = await runBridge({ backend: "api", message: "status?" }, env);
@@ -187,7 +193,7 @@ test("API backend: streams text, routes tool use to the pob MCP server, keeps th
     assert.equal(requests[0].key, KEY);
     const tools = requests[0].json.tools.map((t) => t.name);
     assert.ok(tools.includes("diagnose") && !tools.includes("edit_items") && !tools.includes("save_build"), "edit tools hidden by default");
-    assert.equal(requests[0].json.model, "claude-opus-5-5");
+    assert.equal(requests[0].json.model, "claude-sonnet-5-5", "the API backend defaults to Sonnet, not Opus");
     const toolResult = requests[1].json.messages.at(-1).content[0];
     assert.equal(toolResult.type, "tool_result");
     assert.match(toolResult.content, /headless|Mode/);

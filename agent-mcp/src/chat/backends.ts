@@ -32,6 +32,18 @@ export interface ChatRequest {
 
 export type Emit = (e: ChatEvent) => void;
 
+/**
+ * Models used when the player picked none: the mid-priced model of each backend, never the
+ * most expensive one (Options > AI chat model offers a cheaper and a stronger choice).
+ */
+export const DEFAULT_MODELS: Record<Backend, string> = { claude: "sonnet", codex: "gpt-6.1-sol", api: "claude-sonnet-5-5" };
+
+/** A model name as a CLI argument: letters, digits and . _ - : [ ] only. */
+export function modelFor(req: ChatRequest): string {
+  const m = typeof req.model === "string" ? req.model.trim() : "";
+  return /^[\w.:\-\[\]]{1,80}$/.test(m) ? m : DEFAULT_MODELS[req.backend] ?? DEFAULT_MODELS.claude;
+}
+
 /** Tools that change the open build, load or save builds. Off unless the panel allows edits. */
 export const EDIT_TOOLS = ["edit_items", "edit_skills", "edit_tree", "set_config", "atlas_edit", "save_build", "open_build", "restore", "guide_import", "character_sync"];
 
@@ -55,7 +67,7 @@ export function withContext(req: ChatRequest): string {
 
 // --- settings (AgentEdition.json) -------------------------------------------------
 
-interface ChatSettings { claudePath?: string; codexPath?: string; apiModel?: string }
+interface ChatSettings { claudePath?: string; codexPath?: string }
 function settings(): { chat: ChatSettings; apiKey?: string } {
   for (const file of settingsCandidates()) {
     try {
@@ -143,7 +155,7 @@ export function claudeArgs(req: ChatRequest, mcpFile: string, rulesFile: string)
     "--permission-mode", "dontAsk", "--append-system-prompt-file", rulesFile];
   if (!req.allowEdits) args.push("--disallowedTools", EDIT_TOOLS.map((t) => `mcp__pob__${t}`).join(","));
   if (req.session && /^[\w-]{8,80}$/.test(req.session)) args.push("--resume", req.session);
-  if (req.model) args.push("--model", req.model);
+  args.push("--model", modelFor(req));
   return args;
 }
 
@@ -176,12 +188,14 @@ export function codexArgs(req: ChatRequest): string[] {
     `mcp_servers.pob.startup_timeout_sec=30`,
     `approval_policy="never"`,
     `sandbox_mode="read-only"`,
+    // The player's own Codex setting can be high effort; chat answers do well with low (less quota).
+    `model_reasoning_effort="low"`,
   ];
   if (!req.allowEdits) cfg.push(`mcp_servers.pob.disabled_tools=${toml(EDIT_TOOLS)}`);
   const resume = req.session && /^[\w-]{8,80}$/.test(req.session);
   const args = ["exec", ...(resume ? ["resume", req.session as string] : []), "--json", "--skip-git-repo-check", "--ignore-user-config"];
   for (const c of cfg) args.push("-c", c);
-  if (req.model) args.push("-m", req.model);
+  args.push("-m", modelFor(req));
   args.push("-");
   return args;
 }
@@ -208,7 +222,7 @@ export async function runCodex(req: ChatRequest, emit: Emit): Promise<string | u
 const API_MAX_MESSAGES = 80;
 
 export async function runApi(req: ChatRequest, emit: Emit): Promise<string | undefined> {
-  const { chat, apiKey } = settings();
+  const { apiKey } = settings();
   if (!apiKey) { emit({ t: "error", code: "no_key", text: "No Anthropic API key is stored. Add one in Options > AI chat, or choose another backend." }); return; }
   const [{ default: Anthropic }, { Client }, { StdioClientTransport }] = await Promise.all([
     import("@anthropic-ai/sdk"),
@@ -243,7 +257,7 @@ export async function runApi(req: ChatRequest, emit: Emit): Promise<string | und
     let wrote = false;
     for (let turn = 0; turn < 25; turn++) {
       const stream = client.beta.messages.stream({
-        model: req.model || chat.apiModel || "claude-opus-5-5",
+        model: modelFor(req),
         max_tokens: 64000,
         output_config: { effort: "medium" },
         betas: ["server-side-fallback-2026-07-01"],

@@ -12,6 +12,7 @@
 import type { Reply } from "../pob.js";
 import type { TradeApiClient } from "./client.js";
 import { priceInChaos, tradeItemToPoBText } from "./itemText.js";
+import { getPoeSessionId } from "../profile.js";
 import { currencyRates } from "./ninja.js";
 import type { ItemListing, TradeQuery } from "./types.js";
 
@@ -126,6 +127,23 @@ export interface SlotResult {
   entries: SlotEntry[];
 }
 
+export const LOGGED_OUT_NOTE = "Trade site not logged in (no POESESSID in Options), so PoB's weighted search is refused: each slot was searched for at least 2 of the stats worth most to the build, cheapest first, and every listing simulated in PoB.";
+
+/** Stats in a logged-out "count" search (the site refuses weighted searches without a login). */
+export const COUNT_FILTERS = 8;
+
+/** Rares of the category with at least two of the given stats (one when fewer than four), cheapest first. */
+export function countQuery(category: string, ids: string[], maxPrice: number): TradeQuery {
+  return {
+    query: {
+      status: { option: INSTANT_BUYOUT },
+      stats: [{ type: "count", value: { min: ids.length >= 4 ? 2 : 1 }, filters: ids.map((id) => ({ id })) }],
+      filters: { type_filters: { filters: { category: { option: category }, rarity: { option: "nonunique" } } }, trade_filters: { filters: { price: { max: maxPrice } } } },
+    },
+    sort: { price: "asc" },
+  };
+}
+
 /** Budget or rate-limit stops end the whole plan; other errors skip the slot. */
 export const isStop = (msg: string) => /Stopped after|asks for a pause|slow down/i.test(msg);
 
@@ -135,14 +153,34 @@ export const isStop = (msg: string) => /Stopped after|asks for a pause|slow down
  * Returns a note string instead when the slot gives nothing.
  */
 export async function searchSlot(lua: PobLink, trade: TradeApiClient, league: string, slot: string,
-  o: { focus: string; maxPrice: number; perSlot: number; rates: Map<string, number> }): Promise<SlotResult | string> {
-  const { query } = await lua.call("generate_weighted_trade_query", { slot, options: { statWeights: weightsFor(o.focus) } });
-  const q = (typeof query === "string" ? JSON.parse(query) : query) as TradeQuery;
-  if (!q?.query) return `${slot}: PoB produced no query`;
-  q.query.status = { option: INSTANT_BUYOUT };
-  const filters = (q.query.filters ??= {});
-  filters.trade_filters = { filters: { ...(filters.trade_filters?.filters ?? {}), price: { max: o.maxPrice } } };
-  const search = await trade.searchItems(league, q);
+  o: { focus: string; maxPrice: number; perSlot: number; rates: Map<string, number>; notes?: string[] }): Promise<SlotResult | string> {
+  const loggedIn = !!getPoeSessionId();
+  let q: TradeQuery | undefined;
+  if (loggedIn) {
+    const { query } = await lua.call("generate_weighted_trade_query", { slot, options: { statWeights: weightsFor(o.focus) } });
+    q = (typeof query === "string" ? JSON.parse(query) : query) as TradeQuery;
+    if (!q?.query) return `${slot}: PoB produced no query`;
+    q.query.status = { option: INSTANT_BUYOUT };
+    const filters = (q.query.filters ??= {});
+    filters.trade_filters = { filters: { ...(filters.trade_filters?.filters ?? {}), price: { max: o.maxPrice } } };
+  }
+  let search;
+  try {
+    search = q ? await trade.searchItems(league, q) : undefined;
+  } catch (error) {
+    // Logged-in limits are higher, but a long query can still be refused: fall back like a logged-out search.
+    if (!/too complex/i.test(error instanceof Error ? error.message : String(error))) throw error;
+  }
+  if (!search) {
+    // Logged out, the trade site refuses every weighted search ("Query is too complex"), so ask for
+    // listings with at least two of the stats a top roll is worth most for, cheapest first; PoB then
+    // simulates each one exactly as for a weighted search.
+    const [t] = (await lua.call("economy_targets", { slots: [slot], focus: o.focus, top: COUNT_FILTERS })).result as Array<{ stats?: Array<{ id: string }>; category?: string; error?: string }>;
+    if (!t?.stats?.length || !t.category) return `${slot}: ${t?.error ?? "PoB found no stat that beats the current item"}`;
+    q = countQuery(t.category, t.stats.map((x) => x.id), o.maxPrice);
+    search = await trade.searchItems(league, q);
+    if (o.notes && !o.notes.includes(LOGGED_OUT_NOTE)) o.notes.push(LOGGED_OUT_NOTE);
+  }
   if (!search.result?.length) return `${slot}: nothing under ${Math.round(o.maxPrice)}c`;
   const listings = await trade.fetchItems(search.result.slice(0, o.perSlot), search.id);
   const usable = listings
@@ -200,7 +238,7 @@ export async function planUpgrades(lua: PobLink, trade: TradeApiClient, args: Up
   for (const slot of slots) {
     let r: SlotResult | string;
     try {
-      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates });
+      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates, notes });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notes.push(`${slot}: ${msg}`);
@@ -236,7 +274,19 @@ export function missingResists(stats: TestStats, includeChaos: boolean): Missing
 const total = (m: Missing) => m.Fire + m.Cold + m.Lightning + m.Chaos;
 
 /** The trade query for one slot: items whose missing resistances add up to at least `min`, cheapest first. */
-export function resistQuery(category: string, missing: Missing, budget: number): TradeQuery {
+export function resistQuery(category: string, missing: Missing, budget: number, loggedIn = true): TradeQuery {
+  if (!loggedIn) {
+    // Weighted searches need a login; without one: any of the missing resistances with a useful roll.
+    const keys = (Object.keys(RESIST_STATS) as Array<keyof Missing>).filter((k) => missing[k] > 0);
+    return {
+      query: {
+        status: { option: INSTANT_BUYOUT },
+        stats: [{ type: "count", value: { min: 1 }, filters: keys.map((k) => ({ id: RESIST_STATS[k], value: { min: Math.min(missing[k], 20) } })) }],
+        filters: { type_filters: { filters: { category: { option: category } } }, trade_filters: { filters: { price: { max: budget } } } },
+      },
+      sort: { price: "asc" },
+    };
+  }
   const filters = (Object.keys(RESIST_STATS) as Array<keyof Missing>).filter((k) => missing[k] > 0).map((k) => ({ id: RESIST_STATS[k], value: { weight: 1 } }));
   // One item rarely carries more than about 90% of resistances: ask for a useful share of what is missing.
   const min = Math.max(12, Math.min(total(missing), 45));
@@ -278,7 +328,7 @@ export async function planResistFix(lua: PobLink, trade: TradeApiClient, args: U
     let searchId: string;
     let listings;
     try {
-      const search = await trade.searchItems(args.league, resistQuery(SLOT_CATEGORY[slot], missing, budget));
+      const search = await trade.searchItems(args.league, resistQuery(SLOT_CATEGORY[slot], missing, budget, !!getPoeSessionId()));
       searchId = search.id;
       if (!search.result?.length) { notes.push(`${slot}: nothing under ${budget}c with enough of the missing resistances`); continue; }
       listings = await trade.fetchItems(search.result.slice(0, perSlot), search.id);

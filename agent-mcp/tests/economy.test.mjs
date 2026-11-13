@@ -122,6 +122,19 @@ test("knapsack: one item per slot, the best total within the budget, no listing 
   assert.equal(same.length, 1, "the same listing is never bought for two slots");
 });
 
+test("logged out: count searches instead of the weighted ones the trade site refuses", async () => {
+  const up = await import("../build/trade/upgrades.js");
+  const q = up.countQuery("accessory.ring", ["a", "b", "c", "d"], 50);
+  assert.equal(q.query.status.option, "securable");
+  assert.deepEqual(q.query.stats[0].value, { min: 2 });
+  assert.deepEqual(q.sort, { price: "asc" });
+  assert.equal(up.countQuery("accessory.ring", ["a"], 50).query.stats[0].value.min, 1);
+  const r = up.resistQuery("accessory.ring", { Fire: 30, Cold: 5, Lightning: 0, Chaos: 0 }, 50, false);
+  assert.equal(r.query.stats[0].type, "count");
+  assert.deepEqual(r.query.stats[0].filters.map((f) => f.value.min), [20, 5]);
+  assert.equal(up.resistQuery("accessory.ring", { Fire: 30, Cold: 5, Lightning: 0, Chaos: 0 }, 50).query.stats[0].type, "weight", "logged in: weighted as before");
+});
+
 test("poe.ninja: rates cached on disk, an old copy used (and said) when poe.ninja is down", async () => {
   const r = await ninja.ratesInfo("CacheLeague");
   assert.equal(r.rates.get("Divine Orb"), DIVINE);
@@ -156,6 +169,9 @@ test("own items: uniques by name and links, gems by level and quality", () => {
   assert.equal(sell.matchGem(gems, { name: "Concentrated Effect", level: 21, quality: 0 }).chaosValue, 60, "the support suffix and the corrupted line are handled");
   assert.equal(sell.matchGem(gems, { name: "Concentrated Effect", level: 20, quality: 10 }).chaosValue, 8);
   assert.equal(sell.matchGem(gems, { name: "Vortex", level: 1, quality: 0 }), undefined);
+  // A thin, wishful line is capped by a strictly better version of the gem.
+  const noisy = [{ name: "Test Support", gemLevel: 20, chaosValue: 2700, listingCount: 20 }, { name: "Test Support", gemLevel: 20, gemQuality: 20, chaosValue: 380, listingCount: 70 }];
+  assert.equal(sell.matchGem(noisy, { name: "Test", level: 20, quality: 0 }).chaosValue, 380);
 });
 
 // --- headless: the fixture build ------------------------------------------------
@@ -224,6 +240,7 @@ function fakeTrade() {
     async searchItems(league, q) {
       this.requests++;
       assert.equal(q.query.status.option, "securable", "instant buyout only");
+      assert.equal(q.query.stats[0].type, "count", "no POESESSID in the tests: the logged-out count search is used");
       const cat = q.query.filters?.type_filters?.filters?.category?.option;
       const max = q.query.filters?.trade_filters?.filters?.price?.max ?? Infinity;
       const ids = (POOL[cat] ?? []).filter((l) => l.listing.price.amount <= max).map((l) => l.id);

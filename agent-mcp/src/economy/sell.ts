@@ -45,13 +45,21 @@ export function matchUnique(lines: NinjaLine[], item: Pick<OwnItem, "name" | "ba
   return pool.reduce((a, b) => (a.chaosValue <= b.chaosValue ? a : b));
 }
 
-/** The poe.ninja line for a gem: same name, the closest level/quality not above the gem's, uncorrupted. */
+/**
+ * The poe.ninja line for a gem: same name, the closest level/quality not above
+ * the gem's, uncorrupted. Price sanity: a gem is never worth more than a
+ * strictly better version of itself (same or higher level and quality), so a
+ * thin, wishful line is capped by the better one.
+ */
 export function matchGem(lines: NinjaLine[], gem: OwnGem): NinjaLine | undefined {
   const want = gem.name.toLowerCase();
   const same = lines.filter((l) => { const ln = l.name.toLowerCase(); return (ln === want || ln === `${want} support`) && !l.corrupted; });
   const fit = same.filter((l) => (l.gemLevel ?? 1) <= gem.level && (l.gemQuality ?? 0) <= gem.quality);
   if (!fit.length) return undefined;
-  return fit.reduce((a, b) => ((b.gemLevel ?? 1) * 100 + (b.gemQuality ?? 0) > (a.gemLevel ?? 1) * 100 + (a.gemQuality ?? 0) ? b : a));
+  const hit = fit.reduce((a, b) => ((b.gemLevel ?? 1) * 100 + (b.gemQuality ?? 0) > (a.gemLevel ?? 1) * 100 + (a.gemQuality ?? 0) ? b : a));
+  const better = same.filter((l) => l !== hit && (l.gemLevel ?? 1) >= (hit.gemLevel ?? 1) && (l.gemQuality ?? 0) >= (hit.gemQuality ?? 0) && (l.listingCount ?? 0) >= 10);
+  const cap = better.reduce((m, l) => Math.min(m, l.chaosValue), Infinity);
+  return cap < hit.chaosValue ? { ...hit, chaosValue: cap, variant: `${hit.variant ?? ""} capped by a better version`.trim() } : hit;
 }
 
 /**
@@ -98,7 +106,7 @@ export async function priceOwn(league: string, own: { items: OwnItem[]; gems: Ow
       if (seen.has(key)) continue;
       seen.add(key);
       priced.push({ kind: "gem", name: `${g.name} ${g.level}/${g.quality}`, slot: g.slot, chaos: hit.chaosValue, spare: g.enabled === false,
-        basis: `poe.ninja ${hit.gemLevel ?? 1}/${hit.gemQuality ?? 0}` });
+        basis: `poe.ninja ${hit.gemLevel ?? 1}/${hit.gemQuality ?? 0}${/capped/.test(hit.variant ?? "") ? ", capped by the price of a better version" : ""}${(hit.listingCount ?? 99) < 10 ? `, only ${hit.listingCount} listed: uncertain` : ""}` });
     }
   }
   priced.sort((a, b) => Number(b.spare) - Number(a.spare) || (b.chaos ?? -1) - (a.chaos ?? -1));

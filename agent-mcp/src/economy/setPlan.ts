@@ -103,7 +103,7 @@ export async function planBudget(lua: PobLink, trade: TradeApiClient, args: SetA
   for (const slot of slots) {
     let r: SlotResult | string;
     try {
-      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates });
+      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates, notes });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notes.push(`${slot}: ${msg}`);

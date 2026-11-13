@@ -23,6 +23,9 @@
   Go back to the version kept in "<folder>.previous" (zip installs) or the commit before the last
   update (git installs).
 
+.PARAMETER ZipFile
+  Update from a release zip you downloaded yourself (its .sha256 next to it is checked when present).
+
 .PARAMETER Restart
   Start PoB Agent Edition again when done.
 
@@ -35,6 +38,7 @@ param(
     [switch]$Rollback,
     [switch]$Restart,
     [switch]$Yes,
+    [string]$ZipFile,
     [string]$Root,   # set when the script re-runs itself from a temp copy
     [string]$Repo = 'urbanvcode/pob-agent-edition'
 )
@@ -60,6 +64,7 @@ if (-not $Check -and $PSCommandPath -and -not $PSCommandPath.StartsWith($Work, [
     Copy-Item $PSCommandPath $copy -Force
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $copy, '-Root', $Root, '-Repo', $Repo)
     if ($Version) { $argv += @('-Version', $Version) }
+    if ($ZipFile) { $argv += @('-ZipFile', (Resolve-Path $ZipFile).Path) }
     foreach ($s in @('Rollback', 'Restart', 'Yes')) { if ((Get-Variable $s).Value) { $argv += "-$s" } }
     & powershell.exe @argv
     exit $LASTEXITCODE
@@ -226,6 +231,20 @@ try {
         Reconnect; Start-Pob; Done 0
     }
 
+    if ($ZipFile) {
+        # Update from a zip downloaded by hand (offline, or a test build). Its .sha256 is checked when present.
+        $zip = (Resolve-Path $ZipFile).Path
+        if (Test-Path "$zip.sha256") {
+            $expected = ((Get-Content "$zip.sha256" -TotalCount 1) -split '\s+')[0].ToLower()
+            $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+            if ($expected -ne $actual) { throw "SHA256 check failed (expected $expected, got $actual). Nothing was changed." }
+            Ok 'SHA256 verified'
+        } else { Warn "no $(Split-Path $zip -Leaf).sha256 next to the zip: not verified" }
+        $dl = Join-Path $Work 'zipfile'
+        if (Test-Path $dl) { Remove-Item $dl -Recurse -Force }
+        New-Item -ItemType Directory -Force $dl | Out-Null
+        $target = $null
+    } else {
     Say 'Asking GitHub for the newest release...'
     $rel = Pick-Release (Get-Releases)
     if (-not $rel) { throw "No releases found for $Repo." }
@@ -251,13 +270,16 @@ try {
     $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
     if ($expected -notmatch '^[0-9a-f]{64}$' -or $expected -ne $actual) { throw "SHA256 check failed (expected $expected, got $actual). Nothing was changed." }
     Ok 'SHA256 verified'
+    }
 
     $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
     $ex = Join-Path $dl 'x'
     New-Item -ItemType Directory -Force $ex | Out-Null
     & $tar -x -f $zip -C $ex; if ($LASTEXITCODE -ne 0) { throw 'Extracting the zip failed.' }
     $newRoot = Get-ChildItem $ex -Directory | Select-Object -First 1
-    if (-not $newRoot -or -not (Test-Path (Join-Path $newRoot.FullName 'VERSION'))) { throw 'The downloaded zip does not look like PoB Agent Edition.' }
+    if (-not $newRoot -or -not (Test-Path (Join-Path $newRoot.FullName 'VERSION'))) { throw 'The zip does not look like PoB Agent Edition (0.3.0 or newer).' }
+    if (-not $target) { $target = (Get-Content (Join-Path $newRoot.FullName 'VERSION') -TotalCount 1).Trim() }
+    if ($ZipFile -and -not $Yes -and (Read-Host "Update v$Current -> v$target from $(Split-Path $zip -Leaf)? [Y/n]") -notmatch '^([yY]|)$') { Done 1 }
 
     Wait-Closed
     Make-Backup

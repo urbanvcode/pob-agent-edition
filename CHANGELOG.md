@@ -6,6 +6,16 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **Portable version** (Stage 15): a second download, `PoB-Agent-Edition-<version>-win64-portable.zip`. Unzip it and double-click `Start PoB Agent Edition.cmd`: no installer, no shortcuts, no registry changes, and no Node.js to install (it brings its own, the official Node.js 24 LTS). `Connect AI apps.cmd` connects Claude Desktop, Claude Code and Codex; `Disconnect AI apps.cmd` removes the entry again; `mcp-config.txt` has the entry for connecting by hand.
+- **Portable data mode**: with `portable.txt` in the folder (`Connect AI apps.cmd` asks), builds and settings stay inside the folder under `UserData`, for USB sticks or players who want nothing outside the folder.
+- **Update reminder**: once a day PoB Agent Edition asks GitHub whether a newer version is out (nothing else is sent). The Overview then shows a banner with **What's new**, **Update now**, **Later** (hides it for a day) and **Skip this version**. Switch it off, or check right away, in **Options > Check for Agent Edition updates**. Your AI app mentions a new version once per conversation.
+- **One-click updater** `tools\update.ps1` (started by **Update now**, or by hand): works for the installer, portable and git versions. It downloads the matching zip from GitHub, checks its SHA256, waits for PoB to close, keeps the old version in `<folder>.previous`, replaces the program files, renews the AI connections if you had set them up and restarts PoB. Builds and settings are never touched. `-Rollback` goes back, `-Check` only reports, `-ZipFile` updates from a zip you downloaded yourself.
+
+### Changed
+- The window title and the footer show the Agent Edition version and the official PoB version it is based on, e.g. `v0.3.0 (PoB 2.67.2)`.
+- `Install.cmd` has `-Portable` and `-Quiet` modes (used by `Connect AI apps.cmd` and the updater).
+
 ## [0.2.0] - 2026-11-13
 
 Stage 16: our own MCP server. Based on **Path of Building Community v2.67.2** (same as 0.1.0). **After updating, run `Install.cmd` again and restart your AI app** so it connects to the new server.

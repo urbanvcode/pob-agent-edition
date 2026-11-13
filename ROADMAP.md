@@ -58,7 +58,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
-| 15 | Install, portable version & updater | 🔜 next |
+| 15 | Install, portable version & updater | 🔜 built, step 9 (clean-PC test) left |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
@@ -508,7 +508,7 @@ that used the pob tools on the open build.
 Same approach on PathOfBuilding-PoE2 (installed on this PC): fork, live API, second MCP server or a game
 switch, PoE2 trade/atlas, shared profile and chat.
 
-## Stage 15 — Install, portable version & updater ⬜
+## Stage 15 — Install, portable version & updater 🔜 (built 2026-11-13, step 9 left)
 
 **Why:** players install from a release zip, so they need to know when a new version is out and update
 with one click, without losing builds or settings. Some players don't want an installer at all: they
@@ -555,26 +555,35 @@ ode.exe`. Anyone who wants no
   as a reminder to make a new release.
 
 ### Steps
-1. Version source of truth: a `VERSION` file at the root, read by PoB (window title, Options) and by
+1. ✅ Version source of truth: a `VERSION` file at the root, read by PoB (window title, Options) and by
    agent-mcp; `build-release.ps1` checks it matches the CHANGELOG.
-2. Portable build: `build-release.ps1` also makes the `-portable.zip`. It downloads the pinned Node LTS
+2. ✅ Portable build: `build-release.ps1` also makes the `-portable.zip`. It downloads the pinned Node LTS
    Windows zip from nodejs.org, checks it against nodejs.org's published SHASUMS256, and adds `node\`,
    the start, connect and disconnect scripts and Node's licence.
-3. Portable data mode (`portable.txt`) in PoB (`Main.lua` user path) and agent-mcp (`paths.ts`), with a
+3. ✅ Portable data mode (`portable.txt`) in PoB (`Main.lua` user path) and agent-mcp (`paths.ts`), with a
    test that nothing is written outside the folder in that mode.
-4. Release check in PoB (Lua, async `DownloadPage` of the GitHub releases API, daily cache in
+4. ✅ Release check in PoB (Lua, async `DownloadPage` of the GitHub releases API, daily cache in
    AgentEdition.json, semver compare, skip/snooze stored there).
-5. Overview banner + Options switch + changelog popup.
-6. `tools/update.ps1`: install-type detection, download, SHA256 verify, backup, swap, reconnect, restart,
+5. ✅ Overview banner + Options switch + changelog popup.
+6. ✅ `tools/update.ps1`: install-type detection, download, SHA256 verify, backup, swap, reconnect, restart,
    `-Rollback`; git mode (pull, submodules, rebuild). Manual update stays documented in the README.
-7. `status`/`update_check` + agent-guide line (keep AGENTS.md and `agent-mcp/src/guide.ts` in sync).
-8. README: "Download" table with both zips (installer: easiest; portable: unzip and play, no installer),
+7. ✅ `status`/`update_check` + agent-guide line (keep AGENTS.md and `agent-mcp/src/guide.ts` in sync).
+8. ✅ README: "Download" table with both zips (installer: easiest; portable: unzip and play, no installer),
    plus the manual steps.
-9. Test the full path on a clean Windows user account without Node installed:
+9. ⬜ (player) Test the full path on a clean Windows user account without Node installed:
    - portable zip: unzip, start, connect, AI works, move the folder and reconnect, portable data mode,
      disconnect, delete the folder (nothing left behind);
    - installer zip and git install: update from a test pre-release, roll back;
    - every time: builds and the POESESSID survive.
+
+Built (2026-11-13, not released yet):
+- `VERSION` at the root is read by PoB (`Agent/Update.lua`: window title, footer `v0.2.0 (PoB 2.67.2)`), agent-mcp (`paths.ts`, falls back to package.json) and `build-release.ps1` (refuses a mismatch, only warns about package.json). **Bump VERSION when releasing.**
+- Portable zip: Node.js **v24.22.3** (LTS Krypton, pinned in `build-release.ps1`; Node 26 is LTS too but untested), `node/LICENSE` + `node/VERSION.txt`, `portable/*.cmd` copied to the zip root, `Install.cmd` left out. About 665 MB vs 631 MB.
+- `install.ps1 -Portable` (bundled node, no shortcuts, asks about portable data mode) and `-Quiet` (used by the updater). In portable data mode the MCP entry has no `POB_DIRECTORY`; the server finds `UserData` through `portable.txt`.
+- Update state under `update` in AgentEdition.json (`check`, `checkedAt`, `latest`, `url`, `notes`, `skip`, `snoozeUntil`, `base`). agent-mcp only reads it and refreshes into `AgentCache/update/latest.json`; `status` mentions a newer release once per server process. Tests set `POB_AGENT_UPDATE_CHECK=off`.
+- `tools/update.ps1`: `-Check`, `-Version`, `-ZipFile` (offline or test builds), `-Rollback`, `-Restart`, `-Yes`. It re-runs itself from %TEMP% so it can replace itself, keeps `UserData`, `portable.txt`, `mcp-config.json`, PoB runtime settings and screenshots, and reconnects AI apps only if `mcp-config.json` exists. Git mode refuses a dirty tree and records the old HEAD in `.git/pob-agent-previous-head`.
+- Tested here: unit + contract tests (33/33), the portable zip headless with the bundled node (nothing written to Documents), the portable PoB window (banner, Options switch, title and footer), the What's new popup and Update now flow with stubs, update from a zip + rollback on a test folder, `-Check`.
+- Not tested yet (step 9, needs the player): a clean Windows account without Node, Connect/Disconnect AI apps, an update from a real GitHub release (first possible from 0.3.0 to the next), a git-install update, clicking the banner buttons.
 
 **Done when:** a player without Node.js can unzip the portable version, play and connect their AI app
 with no installer and nothing left outside the folder (in portable data mode). A player on an old zip
@@ -769,7 +778,7 @@ The player always runs two sessions:
 ## Releases
 **Every finished stage gets a GitHub release** (done by the repo-control session). When a stage's "Done when" is met:
 1. Run `tools\check-secrets.ps1`, then push both forks (`agent`) and the root (`main`).
-2. Move "Unreleased" in `CHANGELOG.md` to `## [0.N.0] - <date>` (one minor version per stage; fixes in
+2. Set `VERSION` to the new version, then move "Unreleased" in `CHANGELOG.md` to `## [0.N.0] - <date>` (one minor version per stage; fixes in
    between are patch releases, e.g. 0.2.1). Name the stage in the section's first line.
 3. `powershell -ExecutionPolicy Bypass -File tools\build-release.ps1 -Version 0.N.0 -Publish`
 4. Check the release page (zip + .sha256 present, notes correct) and mark the stage ✅ with the version.

@@ -14,6 +14,7 @@ import { characterTools } from "./character.js";
 import { editTools } from "./edit.js";
 import { guideTools } from "./guides.js";
 import { knowledgeTools } from "./knowledge.js";
+import { levellingTools } from "./levelling.js";
 import { optimiseTools } from "./optimise.js";
 import { readTools } from "./read.js";
 import { profileTools, sessionTools } from "./session.js";
@@ -57,6 +58,7 @@ export function internalTools(trade: TradeApiClient): Tool[] {
     ...adviceTools,
     ...optimiseTools(trades.find((t) => t.name === "plan_upgrades")),
     ...guideTools,
+    ...levellingTools,
     ...trades,
     ...atlasTools,
     ...knowledgeTools(),
@@ -122,13 +124,14 @@ export function allTools(trade: TradeApiClient, internal: Tool[] = internalTools
     });
 
   const guide = routed("guide",
-    'Build guides, simulated. source: import a PoB code or pobb.in/poe.ninja/pastebin/maxroll link (or "Stage: link" lines) as "Guide - <name>"; loadouts = stages. Else compare the open build with the guide stage (passive path, gems, items, gap); next: true = actions by gain per cost within budget. Updates the Guide card.',
+    'Build guides, simulated. source: import a PoB code or pobb.in/poe.ninja/pastebin/maxroll link (or "Stage: link" lines) as "Guide - <name>"; loadouts = stages. Else compare the open build with the guide stage (passive path, gems, items, gap); next: true = actions by gain per cost within budget. Updates the Guide card. levelling = campaign coach (guide optional).',
     {
       source: S.str(), name: S.str(), next: S.bool(), guide: S.str(), stage: S.str('"auto" detects'),
-      accept: S.list(S.str(), "never flagged again"), unaccept: S.list(S.str()), notes: S.bool(), budget: S.str('"2 div"'), limit: S.num(),
+      levelling: S.enum(["next", "plan"], "next: act + next steps; plan: act by act (quest/vendor gems, passives, swaps, links, labs, bandit, Pantheon, quest points, resists after Act 5/10)"), accept: S.list(S.str(), "never flagged again"), unaccept: S.list(S.str()), notes: S.bool(), budget: S.str('"2 div"'), limit: S.num(),
     }, [],
     (a) => {
       if (has(a, "source")) return [get("guide_import"), { source: a.source, name: a.name }];
+      if (has(a, "levelling")) return [get("guide_levelling"), { levelling: a.levelling, guide: a.guide }];
       if (a.next === true) return [get("guide_next_steps"), without(a, "next", "source", "name")];
       return [get("guide_compare"), without(a, "next", "source", "name", "budget", "limit")];
     });

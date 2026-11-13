@@ -68,6 +68,11 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - When the player deliberately differs (another unique, gem or passive), `guide { accept: [...] }` stops flagging it.
 - PoB has a **Guide tab** that does the same without an AI (tree overlay with the next passives numbered, Sync character button): `set_view { view: "GUIDE" }` shows it. Advice is weighed by what the character lacks (`FOCUS`: resists, defence or damage) and levelling stages follow campaign rules.
 
+## Levelling coach (Stage 7)
+- Below level 90: `guide { levelling: "next" }` = the act (PoB's estimate from passive points) and the next steps; `guide { levelling: "plan" }` = act by act: passives per level, gems from quest rewards / vendors for the class, skill swaps, links, labs (with the guide's ascendancy nodes), bandit (each option simulated), Pantheon, quest passive points, resistances now and after the Act 5 / Act 10 penalties, boots, weapon recipes. Uses the guide picked for the build if there is one, else the build itself.
+- `character` (sync) adds a "LEVELLING: level N in Act X - next: …" line; the Overview **Levelling** card shows the same.
+- Facts come from `PathOfBuilding/src/Agent/LevellingData.lua` (poewiki, links and quotes; regenerate each league: `node scripts/levelling-data.mjs` in `agent-mcp`). Explain PoE1 basics (labs, Pantheon, bandits) briefly and pass on "may be outdated".
+
 ## Facts: look up, cite, never guess (Stage 9)
 - Before stating a game fact (a mechanic, an item, a gem, a patch change) call `kb_lookup { query }`. Your own memory may be outdated or mix in PoE2: it only tells you what to look up, it is never the answer.
 - Every fact comes with its source, link, game version and date. Cite them, and quote numbers and wording exactly. If nothing is found, say it could not be verified and how to check; don't fill the gap.

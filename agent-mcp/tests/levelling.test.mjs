@@ -178,6 +178,18 @@ test("levelling text: short answer and act-by-act plan, cited, with PoB's number
   assert.match(line, /^LEVELLING: level 34 in Act \d - next: /);
 });
 
+test("guide { levelling }: the public tool gives the next steps and the plan, read-only", async () => {
+  const next = await ok("guide", { levelling: "next" });
+  assert.match(next, /^LEVELLING: Witch \(Occultist\) level 34, Act \d/);
+  const full = await ok("guide", { levelling: "plan" });
+  assert.match(full, /ACT BY ACT/);
+  const saved = process.env.POB_READ_ONLY;
+  process.env.POB_READ_ONLY = "1";
+  try { assert.match(await ok("guide", { levelling: "next" }), /NEXT:/, "allowed with edits off"); } finally {
+    if (saved === undefined) delete process.env.POB_READ_ONLY; else process.env.POB_READ_ONLY = saved;
+  }
+});
+
 test("Overview Levelling card: draws headless with the global build unset, follows the Guide tab, hides at 90", async () => {
   const { spawnSync } = await import("node:child_process");
   const guideMode = await import("../build/guideMode.js");

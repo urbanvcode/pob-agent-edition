@@ -539,8 +539,8 @@ dev mode from our files) and must stay off, or it would replace our fork with of
 
 **Done when:** a player on an old zip sees the banner, clicks Update now, and is on the new version with
 builds, settings and AI connections working; Roll back returns to the old one.
-**Note:** while the repo is private the GitHub API needs auth, so the check only works for the owner
-(via `gh`) until the repo is public.
+**Note:** the repo is public (2026-11-13), so the check needs no login. GitHub's `/releases/latest`
+skips pre-releases (all 0.x releases are pre-releases), so read `/releases` and take the newest by version.
 
 ## Stage X — Cross-cutting (ongoing)
 - **Testing**: headless tests per feature; real-window checks via second instance on port 31338 +

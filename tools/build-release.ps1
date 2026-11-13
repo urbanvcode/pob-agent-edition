@@ -87,7 +87,8 @@ if ($Publish) {
     $tag = "v$Version"
     $pre = if ([version]$Version -lt [version]'1.0.0') { '--prerelease' } else { $null }
     $notesFile = Join-Path $env:TEMP 'pob-agent-release\notes.md'
-    Set-Content $notesFile ($notes + "`n`n**Install:** download the zip, extract it, double-click ``Install.cmd``. See the README.`n`nSHA256: ``$hash``") -Encoding UTF8
+    # UTF-8 without BOM (PowerShell 5.1's -Encoding UTF8 adds one, which shows up in GitHub release notes)
+    [IO.File]::WriteAllText($notesFile, ($notes + "`n`n**Install:** download the zip, extract it, double-click ``Install.cmd``. See the README.`n`nSHA256: ``$hash``"), (New-Object Text.UTF8Encoding $false))
     & git -C $Root rev-parse -q --verify "refs/tags/$tag" *> $null
     if ($LASTEXITCODE -ne 0) { Run git @('-C', $Root, 'tag', '-a', $tag, '-m', "PoB Agent Edition $tag") }
     Run git @('-C', $Root, 'push', 'origin', $tag)

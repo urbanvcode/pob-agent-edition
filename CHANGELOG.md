@@ -6,6 +6,13 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **Guide tab** in PoB (button "Guide" under Party/Compare): pick a guide and a stage (or Auto, the closest stage), import a guide from its link or code, and press **Analyse**. PoB simulates every difference in your build and shows the next passives, gems and gear in order. Your tree is drawn with the guide's stage over it (green = take it, red = not in the guide) and the next passives numbered 1, 2, 3; click a step to jump to it on the tree or open its instant-buyout search. "keep" marks a deliberate difference so it is not flagged again.
+- **Priorities by what you lack**: resistances under their cap come first; otherwise defence or damage, whichever is further behind the guide stage, counts more (Hardcore leans to defence). The Guide tab, the Overview card and the AI's `guide_compare` / `guide_next_steps` show the focus and why.
+- **Rush target**: the best passive target 3 or more points away (counting its path), shown in the Guide tab, on the tree and by the AI.
+- **Levelling guides and stages** are treated differently: the stage is picked from your level and passive points, the next points follow the guide's tree without counting respecs, gear advice is about links and levelling uniques (no budget ranking), gems your level can't use yet are listed for later, the next stage's new skills are named with the level they need, and the Act 5 / Act 10 resistance penalties are pointed out.
+- **Sync character** button in the Guide tab, and an optional **auto-sync every 15 minutes** while PoB is open (off by default). It re-imports the character you synced before (3 requests to your public pathofexile.com profile, 2 s apart, at most once a minute, a 10-minute pause if pathofexile.com asks for one) and adds the result to the Progress history.
+
 ## [0.6.0] - 2026-11-13
 
 Stage 9: PoE knowledge engine. Based on **Path of Building Community v2.67.2** (same as 0.5.0).

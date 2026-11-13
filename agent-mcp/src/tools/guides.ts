@@ -3,8 +3,8 @@ import fs from "fs";
 import path from "path";
 import { n } from "../format.js";
 import {
-  detectStage, dpsOf, download, gainText, headline, itemName, mergeStages, ninjaPrice, parseBudget, parseSources, rawUrl,
-  readState, tradeLink, value, withSourceNote, writeCard, writeState, type Gain, type GuideChoice, type LightStage,
+  dpsOf, download, gainText, headline, itemName, mergeStages, ninjaPrice, parseBudget, parseSources, rawUrl,
+  readState, tradeLink, value, value as valueOf, withSourceNote, writeCard, writeState, type Gain, type GuideChoice, type LightStage,
 } from "../guideMode.js";
 import { ToolError, type Pob } from "../pob.js";
 import { getProfile } from "../profile.js";
@@ -72,7 +72,7 @@ function pickStage(stages: LightStage[], wanted: string | undefined): LightStage
 
 // --- one analysis, shared by compare and next steps -----------------------------------
 interface Analysis {
-  file: string; guideName: string; stage: LightStage; stages: LightStage[]; detected: ReturnType<typeof detectStage>;
+  file: string; guideName: string; stage: LightStage; stages: LightStage[]; detected: { index: number; reason: string; levelling?: boolean };
   stageReason: string; choice: GuideChoice; player: string; gap: any; guide: any; live: boolean;
 }
 const gapCache = new Map<string, { at: number; gap: any }>();
@@ -103,7 +103,7 @@ async function analyse({ pob }: Context, args: Args): Promise<Analysis> {
   const info = await guideInfo(pob, file);
   const stages = info.stages;
   const mine = me.stages?.[0] as LightStage;
-  const detected = detectStage(stages, mine, me.pointsAtLevel ?? 0);
+  const detected = await link.call("guide_detect", { stages, me: mine, level: me.level ?? 1, pointsAtLevel: me.pointsAtLevel ?? 0 }) as any;
   let stage: LightStage | undefined;
   let stageReason: string;
   const asked = typeof args.stage === "string" || typeof args.stage === "number" ? String(args.stage) : undefined;
@@ -116,7 +116,7 @@ async function analyse({ pob }: Context, args: Args): Promise<Analysis> {
     if (asked) delete choice.stage;
     stage = choice.stage ? pickStage(stages, choice.stage) : undefined;
     stageReason = stage ? "remembered" : "detected";
-    stage ??= detected[0].stage;
+    stage ??= stages.find((s) => s.index === detected.index) ?? stages[0];
   }
   state.builds[player] = choice;
   state.last = guideName;
@@ -127,7 +127,11 @@ async function analyse({ pob }: Context, args: Args): Promise<Analysis> {
   const key = JSON.stringify([info.key, stage.index, choice.accept, player, statsNow.stats, link.kind]);
   let cached = gapCache.get(key);
   if (!cached || Date.now() - cached.at > 600_000) {
-    const gap = await link.call("guide_gap", { guide, skip: choice.accept }, GAP_TIMEOUT);
+    const profile = getProfile().profile;
+    const gap = await link.call("guide_gap", {
+      guide, skip: choice.accept, levelling: stage.levelling === true, hardcore: profile.hardcore,
+      league: profile.league || undefined, playMode: profile.playMode,
+    }, GAP_TIMEOUT);
     cached = { at: Date.now(), gap };
     gapCache.set(key, cached);
   }
@@ -146,9 +150,32 @@ function matchNumbers(gap: any) {
 }
 
 function stageLine(a: Analysis): string {
-  const top = a.detected[0];
-  const det = `closest stage: ${top.stage.index} "${top.stage.title}" (tree ${Math.round(top.tree * 100)}%, items ${Math.round(top.items * 100)}%, gems ${Math.round(top.gems * 100)}% alike)`;
-  return `GUIDE "${a.guideName}", stage ${a.stage.index}/${a.stages.length} "${a.stage.title}" (${a.stageReason}); ${det}`;
+  const top = a.stages.find((s) => s.index === a.detected.index);
+  const det = top ? `closest stage: ${top.index} "${top.title}" (${a.detected.reason})` : "";
+  const mode = a.gap.levelling ? " LEVELLING mode (campaign rules)" : "";
+  return `GUIDE "${a.guideName}", stage ${a.stage.index}/${a.stages.length} "${a.stage.title}" (${a.stageReason}); ${det}.${mode}`;
+}
+
+/** What the character lacks most, and the best far-away target. */
+function focusLines(a: Analysis): string[] {
+  const f = a.gap.focus, plan = a.gap.plan;
+  if (!f) return [];
+  const L = [`FOCUS: ${f.title} (${(f.reasons ?? []).join("; ")}). Gains are weighed DPS x${f.wDps}, EHP x${f.wEhp}${Object.keys(f.resMissing ?? {}).length ? ", plus missing resistance" : ""}.`];
+  if (plan?.rush) L.push(`RUSH: ${plan.rush.target}, ${plan.rush.points} points with its path: DPS ${plan.rush.dpsPct >= 0 ? "+" : ""}${plan.rush.dpsPct.toFixed(1)}%, EHP ${plan.rush.ehpPct >= 0 ? "+" : ""}${plan.rush.ehpPct.toFixed(1)}% (best gain per point among targets 3+ points away).`);
+  return L;
+}
+
+/** Levelling: the skills the guide's next stage brings, with the level they need. */
+function nextStageLines(a: Analysis): string[] {
+  if (!a.gap.levelling) return [];
+  const L = ["Levelling: Act 5 and Act 10 each lower your resistances by 30%; cap them again after each."];
+  const next = a.stages.find((s) => s.index === a.stage.index + 1);
+  if (next) {
+    const now = new Set((a.stage.skills ?? []).map((x) => x.name.toLowerCase()));
+    const fresh = (next.skills ?? []).filter((x) => !now.has(x.name.toLowerCase()));
+    if (fresh.length) L.push(`Next stage "${next.title}" (${next.points} points) uses: ${fresh.map((x) => `${x.name}${x.req ? ` (needs level ${x.req})` : ""}`).join(", ")}.`);
+  }
+  return L;
 }
 
 function compareText(a: Analysis, showNotes: boolean): string {
@@ -158,6 +185,7 @@ function compareText(a: Analysis, showNotes: boolean): string {
   const m = matchNumbers(gap);
   L.push(`Matched: passives ${m.passives[0]}/${m.passives[1]} (${pctOf(m.passives[0], m.passives[1])}%), gems ${m.gems[0]}/${m.gems[1]} (${pctOf(m.gems[0], m.gems[1])}%), key items ${m.items[0]}/${m.items[1]} (${pctOf(m.items[0], m.items[1])}%)`);
   if (gap.className !== guide.className || gap.ascendancy !== guide.ascendancy) L.push(`NOTE: you are ${gap.ascendancy ?? gap.className}, the guide is ${guide.ascendancy ?? guide.className}.`);
+  L.push(...focusLines(a), ...nextStageLines(a));
 
   L.push("", `HEADLINE (you level ${gap.level}, guide level ${guide.level})`, ...headline(gap.stats, guide.stats));
   const ex = gap.explain;
@@ -184,7 +212,9 @@ function compareText(a: Analysis, showNotes: boolean): string {
       L.push(`${i + 1}. ${s.names.join(", ")} [${s.kind}, ${s.points} pt${s.points === 1 ? "" : "s"}]${extra}: ${s.skippedSim ? `not simulated (${s.skippedSim})` : gainText(s.gain)}`);
     });
     if (steps.length > 20) L.push(`... ${steps.length - 20} more steps`);
-    if (t.extra?.length) {
+    if (t.extra?.length && t.respecIgnored) {
+      L.push(`Not in this stage's tree: ${t.extraPoints} points. Levelling: no respec needed; follow the guide's next tree.`);
+    } else if (t.extra?.length) {
       L.push(`Not in the guide: ${t.extraPoints} points (respec = 1 Orb of Regret each): ${t.extra.slice(0, 15).map((e: any) => e.name).join(", ")}${t.extra.length > 15 ? ", ..." : ""}`);
       if (t.removeExtra) L.push(`Removing them after the path: ${gainText(t.removeExtra)}`);
     }
@@ -193,10 +223,10 @@ function compareText(a: Analysis, showNotes: boolean): string {
   L.push("", "GEMS (per skill group of the guide)");
   for (const g of gap.gems.groups ?? []) {
     const head = `- ${g.skill}${g.main ? " [main]" : ""}${g.slot ? ` (${g.slot})` : ""}`;
-    if (g.absent) { L.push(`${head}: missing group, ${g.gems.map((x: any) => x.name).join(" + ")}: ${gainText(g.gain)}`); continue; }
+    if (g.absent) { L.push(`${head}: missing group, ${g.gems.map((x: any) => x.name).join(" + ")}: ${g.later ? `from level ${g.later}` : gainText(g.gain)}`); continue; }
     const bits: string[] = [];
     if (g.guideCount !== g.playerCount) bits.push(`${g.playerCount} gems, guide ${g.guideCount}`);
-    for (const x of g.missing) bits.push(`add ${x.name}${x.replaces ? ` instead of ${x.replaces}` : ""}: ${gainText(x.gain)}`);
+    for (const x of g.missing) bits.push(`add ${x.name}${x.replaces ? ` instead of ${x.replaces}` : ""}: ${x.later ? `from level ${x.later}` : gainText(x.gain)}`);
     if (g.wrong.length && !g.missing.length) bits.push(`not in the guide: ${g.wrong.map((w: any) => w.name).join(", ")}`);
     if (g.levels.length) bits.push(`levels ${g.levels.map((l: any) => `${l.name} ${l.from}/${l.qFrom} -> ${l.to}/${l.qTo}`).join(", ")}: ${gainText(g.levelGain)}`);
     if (bits.length) L.push(`${head}: ${bits.join("; ")}`);
@@ -209,11 +239,14 @@ function compareText(a: Analysis, showNotes: boolean): string {
     const guideItem = itemName(s.guide, s.base, s.rarity);
     if (s.status === "accepted") { L.push(`- ${s.slot}: guide ${guideItem}; your choice is accepted`); continue; }
     if (s.status === "socket not allocated") { L.push(`- ${s.slot}: guide ${guideItem}; take the socket first (it is on the passive path)`); continue; }
+    if (s.status === "levelling rare") continue;
     const mods = s.mods?.length && s.status !== "missing unique" ? ` [guide mods: ${s.mods.slice(0, 6).join("; ")}]` : "";
     L.push(`- ${s.slot}: guide ${guideItem}, you ${s.player ? itemName(s.player, s.playerBase, s.playerRarity) : "(empty)"}: ${gainText(s.gain)}${mods}`);
   }
   const ok = (gap.items.slots ?? []).filter((s: any) => s.status === "match" || s.status === "rare ok").map((s: any) => s.slot);
   if (ok.length) L.push(`Matching the guide (or the guide's rare would not add 2%): ${ok.join(", ")}`);
+  const lv = (gap.items.slots ?? []).filter((s: any) => s.status === "levelling rare").map((s: any) => s.slot);
+  if (lv.length) L.push(`Levelling: the guide's rares (${lv.join(", ")}) only show what to look for (life, resistances, movement speed); links on the main skill matter more.`);
 
   if (gap.config?.length) {
     L.push("", "CONFIG that differs (changes numbers, not the character; PoB config option = guide / you)");
@@ -303,24 +336,19 @@ async function rankSteps(ctx: Context, a: Analysis, budgetText: unknown, limit: 
     steps.push(step);
   }
 
-  const score = (s: Step) => value(s.gain, hardcore);
+  // PoB weighs every gain by what the character lacks most (gap.focus); score is that weighted value.
+  const score = (s: Step) => (s.gain as any).score ?? value(s.gain, hardcore);
   const free = gap.pointsAtLevel - gap.points;
-  // Free actions: passive points you have, gem levels and new groups (gems from vendors and drops).
   const perPoint = (s: Step) => score(s) / Math.max(1, s.points ?? 1);
-  const passive = steps.filter((s) => s.kind === "passives" || s.kind === "mastery").sort((x, y) => perPoint(y) - perPoint(x));
-  // Respect the path: a step comes after the step it builds on.
-  const taken = new Set<number>();
-  const passivePlan: Step[] = [];
-  const pending = passive.filter((s) => score(s) > 0);
-  const take = (s: Step) => {
-    if (s.idx && taken.has(s.idx)) return;
-    const dep = passive.find((p) => p.idx === s.after);
-    if (dep && !taken.has(dep.idx!)) take(dep);
-    taken.add(s.idx!);
-    passivePlan.push(s);
-  };
-  for (const s of pending) take(s);
-  const buys = steps.filter((s) => s.chaos !== undefined && score(s) > 0).sort((x, y) => score(y) / Math.max(1, y.chaos!) - score(x) / Math.max(1, x.chaos!));
+  // Passives in PoB's order: best per point first, each after the step it builds on.
+  const passivePlan: Step[] = (gap.plan?.passives ?? [])
+    .map((p: any) => steps.find((s) => s.idx === p.idx))
+    .filter((s: Step | undefined): s is Step => !!s && score(s) > 0);
+  const pending = [...passivePlan].sort((x, y) => perPoint(y) - perPoint(x));
+  const levelling = gap.levelling === true;
+  // Levelling: no price ranking, just the best gains; endgame: gain per chaos.
+  const buys = steps.filter((s) => s.chaos !== undefined && score(s) > 0)
+    .sort((x, y) => (levelling ? score(y) - score(x) : score(y) / Math.max(1, y.chaos!) - score(x) / Math.max(1, x.chaos!)));
   const other = steps.filter((s) => (s.kind === "gem levels" || s.kind === "skill group" || (s.kind === "gem" && s.chaos === undefined && !s.needsPrice) || (mode === "ssf" && (s.kind === "item" || s.kind === "jewel")))
     && score(s) > 0).sort((x, y) => score(y) - score(x));
   const priceCheck = mode === "ssf" ? [] : steps.filter((s) => s.needsPrice && score(s) > 0).sort((x, y) => score(y) - score(x));
@@ -329,11 +357,11 @@ async function rankSteps(ctx: Context, a: Analysis, budgetText: unknown, limit: 
   let spent = 0;
   const inBudget: Step[] = [], over: Step[] = [];
   for (const s of buys) {
-    if (budget === undefined || spent + s.chaos! <= budget) { inBudget.push(s); spent += s.chaos!; } else over.push(s);
+    if (levelling || budget === undefined || spent + s.chaos! <= budget) { inBudget.push(s); spent += s.chaos!; } else over.push(s);
   }
   const regret = rates.get("Orb of Regret");
-  const respec = gap.tree.extraPoints > 0 ? { points: gap.tree.extraPoints, chaos: regret ? regret * gap.tree.extraPoints : undefined } : undefined;
-  return { respec, topPassive: pending[0] as Step | undefined, passivePlan, free, buys: inBudget, over, other, priceCheck, negative, budget, spent, divine, league, mode, hardcore, notes, limit };
+  const respec = gap.tree.extraPoints > 0 && !levelling ? { points: gap.tree.extraPoints, chaos: regret ? regret * gap.tree.extraPoints : undefined } : undefined;
+  return { respec, levelling, topPassive: pending[0] as Step | undefined, passivePlan, free, buys: inBudget, over, other, priceCheck, negative, budget, spent, divine, league, mode, hardcore, notes, limit };
 }
 
 function stepLine(i: number, s: Step): string {
@@ -345,8 +373,9 @@ function stepLine(i: number, s: Step): string {
 function nextStepsText(a: Analysis, r: Awaited<ReturnType<typeof rankSteps>>): string {
   const L: string[] = [stageLine(a)];
   const budget = r.budget === undefined ? "no budget set" : `budget ${n(r.budget)}c${r.divine ? ` (${n(r.budget / r.divine, 2)} div)` : ""}`;
-  L.push(`Mode: ${r.mode}${r.hardcore ? ", hardcore (defence counts double)" : ""}; ${budget}; league ${r.league || "?"}. Gains are PoB simulations in your build.`);
-  L.push("", `1) PASSIVES (free: ${r.free} unspent point${r.free === 1 ? "" : "s"}; later points come with levels, or 1 Orb of Regret per respecced point)`);
+  L.push(`Mode: ${r.mode}${r.hardcore ? ", hardcore" : ""}; ${r.levelling ? "levelling (no budget ranking)" : budget}; league ${r.league || "?"}. Gains are PoB simulations in your build.`);
+  L.push(...focusLines(a), ...nextStageLines(a));
+  L.push("", `1) PASSIVES (free: ${r.free} unspent point${r.free === 1 ? "" : "s"}; ${r.levelling ? "the next ones come with levels" : "later points come with levels, or 1 Orb of Regret per respecced point"})`);
   if (!r.passivePlan.length) L.push("Nothing on the path adds DPS or EHP right now.");
   if (r.respec) L.push(`Respec to follow the guide's tree: ${r.respec.points} of your points are not in it = ${r.respec.points} Orbs of Regret${r.respec.chaos !== undefined ? ` (about ${n(r.respec.chaos)}c, poe.ninja)` : ""}.`);
   let used = 0;
@@ -358,7 +387,7 @@ function nextStepsText(a: Analysis, r: Awaited<ReturnType<typeof rankSteps>>): s
     L.push("", "2) SSF TARGETS (craft, farm or drop; ranked by gain)");
     r.other.slice(0, r.limit).forEach((s, i) => L.push(stepLine(i + 1, s)));
   } else {
-    L.push("", `2) BUY (instant buyout; ranked by gain per chaos${r.budget !== undefined ? `; ${n(r.spent)}c of ${n(r.budget)}c used` : ""})`);
+    L.push("", r.levelling ? "2) LEVELLING UNIQUES (instant buyout; ranked by gain; levelling uniques are usually cheap)" : `2) BUY (instant buyout; ranked by gain per chaos${r.budget !== undefined ? `; ${n(r.spent)}c of ${n(r.budget)}c used` : ""})`);
     if (!r.buys.length) L.push(r.budget !== undefined ? "Nothing with a known price fits the budget." : "No priced upgrades.");
     r.buys.slice(0, r.limit).forEach((s, i) => L.push(stepLine(i + 1, s)));
     if (r.over.length) L.push(`Over budget: ${r.over.slice(0, 5).map((s) => `${s.text} (${s.price}; ${gainText(s.gain)})`).join(" | ")}`);
@@ -383,7 +412,9 @@ function cardFrom(a: Analysis, next: Step[]): unknown {
   const m = matchNumbers(a.gap);
   return {
     build: a.player, guide: a.guideName, stage: a.stage.title, stageIndex: a.stage.index, stages: a.stages.length, reason: a.stageReason,
-    detected: a.detected[0]?.stage.title, at: new Date().toISOString(), match: m,
+    detected: a.stages.find((s) => s.index === a.detected.index)?.title, at: new Date().toISOString(), match: m,
+    focus: a.gap.focus?.title, levelling: a.gap.levelling === true,
+    rush: a.gap.plan?.rush ? { target: a.gap.plan.rush.target, points: a.gap.plan.rush.points, dpsPct: a.gap.plan.rush.dpsPct, ehpPct: a.gap.plan.rush.ehpPct } : undefined,
     dps: [dpsOf(a.gap.stats), dpsOf(a.guide.stats)], ehp: [a.gap.stats.TotalEHP ?? 0, a.guide.stats.TotalEHP ?? 0],
     next: next.slice(0, 3).map((s) => ({ text: s.text, kind: s.kind, view: s.view, dpsPct: s.gain.dpsPct, ehpPct: s.gain.ehpPct, price: s.price, link: s.link })),
   };
@@ -391,6 +422,7 @@ function cardFrom(a: Analysis, next: Step[]): unknown {
 
 /** Steps for the card: without a ranking, the best of each kind by gain. */
 function quickNext(a: Analysis, hardcore: boolean): Step[] {
+  const value = (g: any, hc: boolean) => g?.score ?? valueOf(g, hc);
   const list: Step[] = [];
   const tree = (a.gap.tree.steps ?? []).filter((s: any) => s.gain && value(s.gain, hardcore) > 0)
     .map((s: any) => ({ kind: "passives", text: s.names.join(", "), gain: s.gain, view: "TREE" } as Step));

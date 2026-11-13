@@ -112,7 +112,7 @@ export async function statusText(pob: Pob): Promise<string> {
   return lines.join("\n");
 }
 
-const VIEWS = ["OVERVIEW", "ATLAS", "TREE", "SKILLS", "ITEMS", "CALCS", "CONFIG", "NOTES", "IMPORT", "PARTY", "COMPARE"];
+const VIEWS = ["OVERVIEW", "GUIDE", "ATLAS", "TREE", "SKILLS", "ITEMS", "CALCS", "CONFIG", "NOTES", "IMPORT", "PARTY", "COMPARE"];
 
 export const sessionTools: Tool[] = [
   tool("status", "What PoB has open: live window or headless, build, unsaved changes, tab, player profile line. Call after profile_get.", {}, [],

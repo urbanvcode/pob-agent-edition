@@ -166,23 +166,10 @@ export function writeCard(card: unknown): void {
   fs.renameSync(file + ".tmp", file);
 }
 
-// --- stage detection ---------------------------------------------------------------------
-export interface LightStage { index: number; title: string; points: number; nodes: number[]; items: Record<string, string>; gems: string[] }
-
-export function detectStage(stages: LightStage[], me: LightStage, pointsAtLevel: number): Array<{ stage: LightStage; score: number; tree: number; items: number; gems: number }> {
-  const mine = new Set(me.nodes);
-  const myGems = new Set(me.gems.map((g) => g.toLowerCase()));
-  return stages.map((stage) => {
-    const theirs = new Set(stage.nodes);
-    const both = stage.nodes.filter((x) => mine.has(x)).length;
-    const tree = both / Math.max(1, new Set([...mine, ...theirs]).size);
-    const slots = Object.keys(stage.items);
-    const items = slots.filter((s) => me.items[s] && me.items[s].toLowerCase() === stage.items[s].toLowerCase()).length / Math.max(1, slots.length);
-    const gems = stage.gems.filter((g) => myGems.has(g.toLowerCase())).length / Math.max(1, stage.gems.length);
-    let score = 0.6 * tree + 0.2 * items + 0.2 * gems;
-    if (stage.points > pointsAtLevel + 3) score -= 0.15; // needs more levels than the character has
-    return { stage, score, tree, items, gems };
-  }).sort((a, b) => b.score - a.score);
+// --- stages (detection itself runs in PoB: Agent/Handlers/Guide.lua guide_detect) -------------
+export interface LightStage {
+  index: number; title: string; points: number; nodes: number[]; items: Record<string, string>; gems: string[];
+  skills?: Array<{ name: string; req?: number }>; levelling?: boolean;
 }
 
 // --- formatting ---------------------------------------------------------------------------

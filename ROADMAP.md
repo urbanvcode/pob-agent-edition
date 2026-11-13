@@ -245,6 +245,19 @@ Progress card shows a timeline.
 Tested with a real multi-stage guide (Deadeye, 11 loadouts): stage detection, compare,
 next steps with "2 div", card in a second window (port 31340). `npm test` runs `tests/guide.test.mjs`.
 
+**Guide mode 2 (patch 0.6.1, player's requests after 0.5.0):**
+5. ✅ **Guide tab** in PoB (`Classes/GuideTab.lua`, "Guide" button under Party/Compare): guide + stage pickers (Auto =
+   detected), Import guide (link or code, PoB's own build-site downloads), Analyse (same engine as the AI tools),
+   the player's tree with the guide stage drawn over it (PoB's compare colours) and the next passives numbered 1, 2, 3,
+   click to jump on the tree / open the instant-buyout search, "keep" = accepted deviation. Works without an AI app.
+6. ✅ **Priorities by need** (`Guide.lua` priorities/rankPlan): uncapped resistances first, else defence or damage,
+   whichever is further behind the guide stage (hardcore leans to defence); **rush** = best target 3+ points away.
+7. ✅ **Levelling vs endgame**: levelling stage (title or < 70 points) or character below level 68: stage by level and
+   points, no respec counting, links + levelling uniques (no budget ranking), gems by level requirement, next stage's
+   new skills with their level, Act 5 / Act 10 resistance penalties.
+8. ✅ **Sync character** button + optional auto-sync every 15 min (`Agent/CharacterSync.lua`): 3 requests 2 s apart,
+   once a minute at most, 10-minute pause on 429, history in the Stage 2 format.
+
 Loose ends / ideas:
 - Changing a chosen mastery: the cost is not verified (shown as "cost not verified"); Stage 9 can source it.
 - Jewels are simulated one by one by hand (PoB's item undo state errors when socketed jewels are rolled back),

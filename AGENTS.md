@@ -50,6 +50,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - `guide_compare` compares the open build with a guide stage (detected, or `stage`): passives ordered into a path, masteries, gems, items, config, headline numbers and "what explains the gap", all simulated in PoB.
 - `guide_next_steps { budget }` ranks actions by gain per cost (passive points, chaos), respecting trade/SSF and the currency on hand; trade links are instant-buyout searches. Both update the Overview's Guide card.
 - When the player deliberately differs (another unique, gem or passive), `guide_compare { accept: [...] }` stops flagging it.
+- PoB has a **Guide tab** that does the same without an AI (tree overlay with the next passives numbered, Sync character button): `set_view { view: "GUIDE" }` shows it. Advice is weighed by what the character lacks (`FOCUS`: resists, defence or damage) and levelling stages follow campaign rules.
 
 ## Facts: look up, cite, never guess (Stage 9)
 - Before stating a game fact (a mechanic, an item, a gem, a patch change) call `kb_lookup { query }`. Your own memory may be outdated or mix in PoE2: it only tells you what to look up, it is never the answer.

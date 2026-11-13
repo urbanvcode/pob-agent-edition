@@ -74,13 +74,6 @@ test("several stage builds merge into one build with loadouts", () => {
   assert.match(guideMode.withSourceNote(merged, ["https://pobb.in/x"]), /<Notes>Guide imported by PoB Agent Edition on \d{4}-\d\d-\d\d from: https:\/\/pobb\.in\/x/);
 });
 
-test("stage detection prefers the closest stage the character can reach", () => {
-  const stage = (index, nodes, points) => ({ index, title: `S${index}`, points, nodes, items: { Helmet: "A" }, gems: ["X"] });
-  const ranked = guideMode.detectStage([stage(1, [1, 2], 2), stage(2, [1, 2, 3, 4, 5], 5), stage(3, [1, 2, 3, 4, 5, 6, 7, 8], 40)], stage(0, [1, 2, 3, 4], 4), 6);
-  assert.equal(ranked[0].stage.index, 2);
-  assert.equal(ranked.at(-1).stage.index, 3);
-});
-
 test("guide tools: import, compare, accept, next steps, card; the build is left alone", async () => {
   const code = zlib.deflateSync(Buffer.from(fixture)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
   // The player: the guide's build minus one notable and one support gem.
@@ -115,6 +108,7 @@ test("guide tools: import, compare, accept, next steps, card; the build is left 
   assert.match(cmp, new RegExp(`add ${escape(gem)}: DPS [+-][\\d.]+%`));
   assert.match(cmp, /WHAT EXPLAINS THE GAP[\s\S]*- Passive tree: DPS [+-][\d.]+%[\s\S]*- Gems: DPS/);
   assert.match(cmp, /HEADLINE[\s\S]*DPS: you [\d,]+ \| guide [\d,]+/);
+  assert.match(cmp, /FOCUS: (Cap your resistances first|Defence is behind|Damage is behind|Damage and defence are even) \(.*vs the guide stage: DPS \d+%/);
   assert.equal(await ok("stats"), before, "guide_compare must leave the build as it was");
 
   const acc = await ok("guide_compare", { accept: [gem] });
@@ -137,4 +131,22 @@ test("guide tools: import, compare, accept, next steps, card; the build is left 
   assert.ok(card.next.length >= 1 && card.match.passives[1] > 0);
   assert.equal(await ok("stats"), before, "guide_next_steps must leave the build as it was");
   await ok("profile_set", { playMode: "trade" });
+
+  // Levelling (below maps): campaign rules, no respec counting, gems by level.
+  await ok("set_config", { values: { level: 40 } });
+  const lv = await ok("guide_compare", { stage: "End" });
+  assert.match(lv, /LEVELLING mode \(campaign rules\)/);
+  assert.match(lv, /Act 5 and Act 10 each lower your resistances by 30%/);
+  assert.doesNotMatch(lv, /Orb of Regret/);
+  assert.match(await ok("guide_next_steps", {}), /levelling \(no budget ranking\)/);
+});
+
+test("PoB's Sync character button: paced requests, import, history; refusals and pauses (offline)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const root = path.join(here, "..", "..");
+  const exe = path.join(root, "luajit", process.platform === "win32" ? "luajit.exe" : "luajit");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-sync-"));
+  const r = spawnSync(exe, [path.join(here, "charsync.lua"), path.join(root, "PathOfBuilding", "src"), path.join(here, "fixtures", "character"), dir], { encoding: "utf8" });
+  assert.equal(r.status, 0, `charsync.lua failed:\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /charsync ok/);
 });

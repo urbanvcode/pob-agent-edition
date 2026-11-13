@@ -45,7 +45,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 |---|---|---|
 | 0 | Foundation | ✅ |
 | 1 | Player profile & explanation modes | ✅ |
-| 2 | Character import & progress sync | ✅ built, release pending |
+| 2 | Character import & progress sync | ✅ 0.4.0 |
 | 3 | Guide mode | ⬜ |
 | 4 | Optimiser (goal-based min-maxing) | ⬜ |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
@@ -63,7 +63,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 17 | Lighter: smaller downloads and updates, less memory, disk and CPU | ⬜ |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → **2** → 3 → 4 → 5 → 9 → 7 → 6
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → **3** → 4 → 5 → 9 → 7 → 6
 → 8 → 10 → 11 → 12/13 → 14.
 - **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
   instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
@@ -153,7 +153,7 @@ is shared by Claude/Codex/Antigravity.
 
 ---
 
-## Stage 2 — Character import & progress sync ✅ (2026-11-13, release pending)
+## Stage 2 — Character import & progress sync ✅ (2026-11-13, released in 0.4.0)
 
 **Why:** the AI should see the real character, not just a PoB file, and show progress over time.
 
@@ -884,3 +884,4 @@ The player always runs two sessions:
 | 0.1.0 (2026-11-13) | 0 Foundation, 1 Player profile |
 | 0.2.0 (2026-11-13) | 16 Own MCP server (agent-mcp) |
 | 0.3.0 (2026-11-13) | 15 Install, portable version & updater |
+| 0.4.0 (2026-11-13) | 2 Character import & progress sync |

@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-13
+
+Stage 2: character import and progress sync. Based on **Path of Building Community v2.67.2** (same as 0.3.0).
+
 ### Added
 - **Character sync** (Stage 2): ask your AI to "sync my character". It imports your character from your public pathofexile.com profile with PoB's own importer into its own build, "<character> - synced" (your other builds are never touched), and lists what changed since the last sync: new or swapped items, gems levelled, passives allocated or refunded, with DPS, EHP and max-hit changes calculated by PoB. Your account and character are remembered after the first sync.
 - `character_sync` and `character_history` MCP tools. Each sync is stored in `Documents/Path of Building/AgentCache/history/` with a copy of the build.
@@ -104,7 +108,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/urbanvcode/pob-agent-edition/releases/tag/v0.1.0

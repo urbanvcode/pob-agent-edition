@@ -6,11 +6,13 @@ import { characterTools } from "./character.js";
 import { editTools } from "./edit.js";
 import { guideTools } from "./guides.js";
 import { knowledgeTools } from "./knowledge.js";
+import { optimiseTools } from "./optimise.js";
 import { readTools } from "./read.js";
 import { profileTools, sessionTools } from "./session.js";
 import { checkLeague, tradeTools } from "./trade.js";
 
 export function allTools(trade: TradeApiClient): Tool[] {
+  const trades = tradeTools();
   return [
     ...profileTools((league) => checkLeague(trade, league)),
     ...sessionTools,
@@ -18,8 +20,9 @@ export function allTools(trade: TradeApiClient): Tool[] {
     ...readTools,
     ...editTools,
     ...adviceTools,
+    ...optimiseTools(trades.find((t) => t.name === "plan_upgrades")),
     ...guideTools,
-    ...tradeTools(),
+    ...trades,
     ...atlasTools,
     ...knowledgeTools(),
   ];

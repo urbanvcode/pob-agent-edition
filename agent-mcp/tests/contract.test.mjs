@@ -184,6 +184,79 @@ test("advice: suggest_passives, anoint, affixes", async () => {
   assert.match(await ok("affixes", { query: "zzzz" }), /No affix matches/);
 });
 
+test("suggest_gems: values the current supports, ranks replacements, leaves the build alone", async () => {
+  const before = await ok("stats");
+  const s = await ok("suggest_gems", { limit: 5 });
+  assert.match(s, /Support gems for Vortex \(group 5\): [\d,]+ DPS/);
+  assert.match(s, /Current supports, weakest first/);
+  const losses = [...s.matchAll(/^- gem \d+ .*: (-[\d.]+)%/gm)].map((m) => Number(m[1]));
+  assert.equal(losses.length, 5);
+  assert.ok(losses.every((x, i) => i === 0 || x <= losses[i - 1]), "current supports are not sorted weakest first");
+  assert.match(s, /Best supports in place of Efficacy \(gem 4\)/);
+  const gains = [...s.matchAll(/^\d+\. .*: DPS ([+-][\d.]+)%/gm)].map((m) => Number(m[1]));
+  assert.ok(gains.length >= 3 && gains.every((x, i) => i === 0 || x <= gains[i - 1]), "replacements are not sorted by DPS");
+  assert.match(s, /\d+ of \d+ fitting supports beat the current setup/);
+  // Supports that turn the skill into something else are kept out of the ranking.
+  assert.ok(!/^\d+\. Cast when/m.test(s));
+  assert.match(await ok("suggest_gems", { add: true, awakened: false, limit: 3 }), /as an extra link/);
+  assert.ok(!/^\d+\. Awakened/m.test(await ok("suggest_gems", { awakened: false, limit: 8 })));
+  assert.match(await ok("suggest_gems", { limit: 8 }), /^\d+\. Awakened/m);
+  await fails("suggest_gems", { group: 99 }, /no skill group 99/);
+  // Another group can be checked without changing which skill is the main one.
+  assert.match(await ok("suggest_gems", { group: 1, limit: 2 }), /Support gems for Flame Dash \(group 1\)/);
+  assert.equal(await ok("stats"), before);
+});
+
+test("diagnose with a boss: PoB's boss presets, config restored", async () => {
+  const before = await ok("stats");
+  const d = await ok("diagnose", { boss: "uber maven" });
+  assert.match(d, /4\. DAMAGE[\s\S]*BOSS CHECK \(uber version/);
+  assert.match(d, /- Maven Fireball: takes [\d,]+ \(Fire [\d,]+\) of [\d,]+ raw; pool lasts [\d.]+ hits -> /);
+  assert.match(d, /- Maven Memory Game: .*DIES TO ONE HIT/);
+  assert.match(d, /Verdict: not ready/);
+  assert.match(await ok("diagnose", { boss: "shaper" }), /BOSS CHECK \(pinnacle version[\s\S]*Shaper Slam[\s\S]*Shaper Beam: damage over time/);
+  await fails("diagnose", { boss: "nobody" }, /no boss skill preset matching "nobody"\. Presets: Atziri Flameblast/);
+  assert.equal(await ok("stats"), before);
+  assert.match(await ok("set_config", { search: "presetBossSkills" }), /= (None|unset)/);
+});
+
+test("affixes: classify an item's mods", async () => {
+  const gloves = await ok("affixes", { slot: "Gloves" });
+  assert.match(gloves, /Woe Caress, Fingerless Silk Gloves \(rare, ilvl 78\): prefixes 2\/3 \(1 open\), suffixes 2\/3 \(1 open\)/);
+  assert.match(gloves, /Prefix "Rotund" \(T3 of 9, ilvl 36\): \+92 to maximum Life {2}\[rolls \+\(85-99\) to maximum Life\]/);
+  assert.match(gloves, /Suffix "of Craft" \(bench craft\): \+15% to Fire and Chaos Resistances/);
+  assert.match(gloves, /Not classified: \+2 Life gained for each Enemy hit by your Attacks/);
+  assert.match(await ok("affixes", { slot: "Helmet" }), /Unique items have fixed mods/);
+  const ring = await ok("affixes", { item_text: "Rarity: RARE\nDoom Knot\nTwo-Stone Ring\nItem Level: 84\nImplicits: 1\n+15% to Fire and Cold Resistances\n+74 to maximum Life\n+41% to Lightning Resistance\n{crafted}+25% to Cold Resistance" });
+  assert.match(ring, /prefixes 1\/3 \(2 open\), suffixes 2\/3 \(1 open\)/);
+  assert.match(ring, /Suffix ".*" \(T\d of \d, ilvl \d+\): \+41% to Lightning Resistance/);
+  await fails("affixes", {}, /Give query/);
+  await fails("affixes", { slot: "Nope" }, /unknown slot/);
+});
+
+test("suggest_jewels: jewel mods, Watcher's Eye and cluster notables", async () => {
+  const j = await ok("suggest_jewels", { limit: 4, focus: "defence" });
+  assert.match(j, /Jewel mods for this build \(jewel, defence; \d+ simulated; each mod alone at its best tier and top roll, compared with a blank jewel in Jewel \d+\)/);
+  assert.match(j, /1\. .* \[(prefix|suffix); [\w/]+\]: DPS [+-][\d.]+% \| EHP \+[\d.]+%/);
+  const c = await ok("suggest_jewels", { kind: "cluster", limit: 3 });
+  assert.match(c, /1\. [\w' ]+: .*: DPS [+-][\d.]+% \| EHP [+-][\d.]+%/);
+  assert.match(await ok("suggest_jewels", { kind: "abyss", limit: 2, focus: "dps" }), /Murderous|Searching|Hypnotic|Ghastly|No mod of this kind/);
+  assert.match(await ok("suggest_jewels", { kind: "watchers_eye", limit: 2 }), /Jewel mods for this build \(watchers_eye/);
+});
+
+test("save_build: export code and a note in the build notes", async () => {
+  const code = (await ok("save_build", { export_code: true })).split("\n")[1];
+  assert.match(code, /^[A-Za-z0-9_-]+=*$/);
+  assert.match(await ok("build_summary", { parts: ["notes"] }), /has no notes/);
+  await ok("save_build", { name: "occ-vortex - AI notes", note: "Swapped Efficacy for Bonechill" });
+  assert.match(await ok("build_summary", { parts: ["notes"] }), /\[AI, \d{4}-\d\d-\d\d\] Swapped Efficacy for Bonechill/);
+  assert.match(fs.readFileSync(path.join(builds, "occ-vortex - AI notes.xml"), "utf8"), /Swapped Efficacy for Bonechill/);
+  // The code opens as the same build.
+  assert.match(await ok("open_build", { code, name: "Round trip" }), /Imported "Round trip"/);
+  assert.match(await ok("build_summary", { parts: ["tree"] }), /122 points used/);
+  await ok("open_build", { name: "occ-vortex" });
+});
+
 test("atlas tools", async () => {
   const get = await ok("atlas_get");
   assert.match(get, /Atlas tree [\d.]+: 0 \/ \d+ points/);

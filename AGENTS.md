@@ -9,7 +9,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## What's here
 - `PathOfBuilding/` — PoB Agent Edition (our fork, branch `agent`): live API, Overview dashboard, inventory with icons, AI Advisor card.
-- `agent-mcp/` — our MCP server (31 tools): talks to the PoB Agent Edition window, or to a headless PoB when it is closed. Its Lua side is `PathOfBuilding/src/Agent/Handlers/`.
+- `agent-mcp/` — our MCP server (34 tools): talks to the PoB Agent Edition window, or to a headless PoB when it is closed. Its Lua side is `PathOfBuilding/src/Agent/Handlers/`.
 - Builds live in `Documents\Path of Building\Builds` (in the user's Documents folder).
 
 ## Start
@@ -33,7 +33,9 @@ The same rules are sent automatically by the `pob` MCP server on connect
 ## Cheap upgrades (trade or mixed mode)
 - `plan_upgrades { budget_chaos, focus }` searches instant-buyout listings, simulates each in the build and ranks by gain per chaos. Results also show in the Overview's **AI Advisor** card.
 - League defaults to the profile league, else the current challenge league (`leagues` lists them). Default budget 50c per item, capped by the currency on hand.
-- `suggest_passives` and `anoint` do the same for the passive tree and the amulet; `affixes` gives affix tiers and crafting-bench mods.
+- `plan_upgrades { focus: "resists" }` finds gear that caps the resistances that are short. `currency` gives exchange rates.
+- `suggest_gems` (support gems), `suggest_passives` (tree), `anoint` (amulet) and `suggest_jewels` (jewel mods, Watcher's Eye, cluster notables) simulate every option in PoB. `affixes` gives affix tiers and crafting-bench mods and classifies an item's mods (open prefixes/suffixes).
+- "Can I do <boss>?": `diagnose { boss }`. It uses PoB's boss skill presets; PoB has no boss life data, so judge damage separately and say so.
 
 ## Atlas tree
 - `atlas_get` (points, mechanics, combined bonuses, share link), `atlas_search` (node ids + cost), `atlas_edit` (add/remove/replace/import link). 150 points; explain what each league mechanic does for a PoE1 newcomer. Save the build to keep it.
@@ -47,7 +49,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Default (unless the profile says otherwise): knows Path of Exile 2, new to Path of Exile 1. Explain PoE1 terms and systems at the depth the explanation mode asks for, relate them to PoE2 and point out differences.
 
 ## Changing builds
-- Never overwrite the user's build file. Save AI changes as a new file (`save_build` with a name like `<build> - AI <change>`); overwrite only when asked.
+- Never overwrite the user's build file. Save AI changes as a new file (`save_build` with a `note` of what changed and a name like `<build> - AI <change>`); overwrite only when asked.
 - `status` shows unsaved changes: ask before `open_build` replaces them.
 - Try a change with `what_if` first (it rolls back), then apply it with `edit_items` / `edit_skills` / `edit_tree` / `set_config`.
 - Show before/after numbers; switch the window to the relevant tab (`set_view`).

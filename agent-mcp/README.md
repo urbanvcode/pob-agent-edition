@@ -6,7 +6,7 @@ Path of Exile 1 build in **PoB Agent Edition**. It is part of
 
 - **Live first.** It talks to the PoB Agent Edition window on `127.0.0.1:31337` (this PC only). Edits show
   up in the window at once. When PoB is closed it starts a headless PoB and works on saved build files.
-- **31 focused tools**, about 3,000 tokens of tool definitions (a test fails above 5,000).
+- **34 focused tools**, about 3,600 tokens of tool definitions (a test fails above 5,000).
 - **PoB does the maths.** Every number is PoB's own calculation; every result names the config it used.
 - **Account safety.** Instant-buyout listings only, 1 trade request per 2 seconds, inside every limit
   pathofexile.com publishes, 16 requests per question, no whispers, no game-client access. The POESESSID
@@ -33,8 +33,8 @@ License: GPL-3.0-or-later (see `LICENSE` at the repository root).
 | Session | `status`, `list_builds`, `open_build`, `save_build`, `set_view`, `open_options` |
 | Read | `build_summary`, `stats`, `diagnose`, `tree_search` |
 | Edit and simulate | `edit_items`, `edit_skills`, `edit_tree`, `set_config`, `what_if`, `snapshot`, `restore`, `compare` |
-| Advice | `suggest_passives`, `anoint`, `affixes` |
-| Trade | `leagues`, `trade_search`, `plan_upgrades`, `price_check` |
+| Advice | `suggest_gems`, `suggest_passives`, `suggest_jewels`, `anoint`, `affixes` |
+| Trade | `leagues`, `trade_search`, `plan_upgrades`, `currency`, `price_check` |
 | Atlas | `atlas_get`, `atlas_search`, `atlas_edit` |
 
 The working rules for the AI (diagnosis order, profile, trade safety, saving) are sent as server
@@ -55,7 +55,8 @@ AI app ── MCP (stdio) ── agent-mcp ── JSON lines ──▶ PoB Agent
 - `src/profile.ts`: the player profile and POESESSID in `Documents/Path of Building/AgentEdition.json`
   (same schema as `PathOfBuilding/src/Agent/Settings.lua`).
 - PoB side: `PathOfBuilding/src/Agent/Handlers/Core.lua` (basic requests), `Ops.lua` (build operations),
-  `Tools.lua` (summary, diagnose, edits, what-if, suggestions).
+  `Tools.lua` (summary, diagnose, edits, what-if, suggestions), `Advice.lua` (support gems, boss check, jewels,
+  item affixes, notes).
 
 ## Build and test
 

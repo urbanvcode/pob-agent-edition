@@ -632,7 +632,11 @@ than to pob-mcp.
 
 ### Steps
 1. ✅ Inventory and tool list agreed with the player: the 28 planned tools plus `tree_search`, `suggest_passives`,
-   `anoint` and `affixes` (the player asked to keep anoints, passive/mastery suggestions and affix tiers). 31 tools.
+   `anoint` and `affixes` (the player asked to keep anoints, passive/mastery suggestions and affix tiers). Then, to
+   replace pob-mcp fully, the player chose seven more gaps to close: support gem advice, resist-fixing gear, boss
+   readiness, currency rates, export code + notes, affix classification, jewel advice (`suggest_gems`,
+   `suggest_jewels`, `currency`, plus options on `diagnose`, `plan_upgrades`, `save_build`, `build_summary`,
+   `affixes`). 34 tools.
 2. ✅ Lua handlers moved into `PathOfBuilding/src/Agent/Handlers/` (`Core.lua`, `Ops.lua` ported; `Tools.lua` new)
    and the headless runner `Agent/Headless.lua` (real Inflate built in). `POB_AGENT_LUA_DIR` is gone.
 3. ✅ `agent-mcp` skeleton: connection (window checked on every call, headless fallback, second engine for
@@ -645,7 +649,7 @@ than to pob-mcp.
 7. ⬜ Release 0.2.0 (repo-control session): changelog note tells players to rerun `Install.cmd`; credits pob-mcp.
 
 Built:
-- `agent-mcp/` (TypeScript, MCP SDK, Node 20; about 2,700 lines against pob-mcp's 27,000): 31 tools, about 3,000
+- `agent-mcp/` (TypeScript, MCP SDK, Node 20; about 3,000 lines against pob-mcp's 27,000): 34 tools, about 3,600
   tokens of tool definitions (was about 16,000; `npm test` fails above 5,000). Files: `src/pob.ts` (connection),
   `src/tools/*.ts` (session, read, edit, advice, trade), `src/trade/*` (client, governor, upgrade planner),
   `src/profile.ts`, `src/guide.ts`.
@@ -660,11 +664,27 @@ Built:
   no `claude` command (the Claude desktop app's Claude Code): it edits `~/.claude.json` through Node.
 - Fixed on the way (bugs in the ported pob-mcp code): flask on/off did not change the numbers until reload;
   picking a mastery re-imported the tree and dropped tattoos.
-- Tests: 25 pass (`npm test`: token budget, tool list, profile, governor, trade client limits, upgrade scoring,
+- Gap closing (all simulated in PoB, build restored exactly afterwards; `Agent/Handlers/Advice.lua`):
+  - `suggest_gems`: value of each current support, every fitting support tried in place of the weakest (or as an
+    extra link), gem levels capped by the character's level, under-levelled gems pointed out, playstyle-changing
+    supports (mine, trap, totem, Barrage, triggers) listed apart.
+  - `diagnose { boss }`: PoB's boss skill presets (Data/BossSkills) per boss, normal or uber: damage taken after
+    defences, hits survived, verdict. No kill time: PoB has no boss life data, and the tool says so.
+  - `plan_upgrades { focus: "resists" }`: weighted trade search on the resistances that are short, each listing
+    simulated in the slot, ranked by resistance really fixed. Chaos waits until elemental is capped.
+  - `suggest_jewels`: jewel, abyss, Watcher's Eye mods (best tier, top roll, one at a time against a blank jewel)
+    and cluster notables.
+  - `affixes { slot | item_text }`: prefix/suffix, tier of N, bench crafts, open slots; flags lines it cannot place
+    and possible hybrids instead of guessing.
+  - `currency` (poe.ninja rates, profile currency in chaos), `save_build { note, export_code }`,
+    `build_summary { parts: ["notes"] }` (full notes).
+- Tests: 32 pass (`npm test`: token budget, tool list, profile, governor, trade client limits, upgrade scoring,
   and contract tests for every non-trade tool headless). Live smoke test passes on port 31338, with real trade
   calls (`leagues`, `price_check`, `trade_search`, `plan_upgrades`). Codex CLI ran the full workflow
   (profile_get → status → diagnose → atlas_get → what_if) on the new server. Claude Code connected and listed
-  all 31 tools; a full headless conversation could not be run (the bundled CLI is not logged in outside the app).
+  all tools; a full headless conversation could not be run (the bundled CLI is not logged in outside the app).
+  The gap-closing tools were also run live on port 31338, with real trade calls for the resist search and
+  poe.ninja for `currency`.
 
 Loose ends:
 - [ ] Player: after 0.2.0 is out (or now, from this folder) run `Install.cmd`, restart Claude / Codex /
@@ -674,8 +694,10 @@ Loose ends:
 - [ ] Antigravity is not set up by the installer (copy the `pob` entry from `mcp-config.json`).
 - [ ] The contract fixture uses the 3.13 tree (no masteries); add a current-tree fixture that is not a
   player's build. Masteries were tested by hand on a 3.28 build.
-- [ ] Dropped pob-mcp features come back in their stages: optimiser (4), economy (5), crafting (6),
-  levelling (7), farming (8). Hit damage by type is not in `diagnose` yet (PoB does not export it per type).
+- [ ] Not carried over from pob-mcp, by the player's choice: crafting advisor (Stage 6), levelling plan (Stage 7),
+  budget build creation (Stage 11), watch mode (obsolete), currency arbitrage and config presets (dropped).
+- [ ] `suggest_jewels` needs an allocated jewel socket (except for cluster notables). `suggest_gems` freezes the
+  PoB window for a few seconds while it simulates about 100 supports.
 - [ ] `open_build` takes PoB codes but does not fetch pobb.in / pastebin links (Stage 3).
 
 **Done when:** every AGENTS.md workflow (profile, diagnose, plan_upgrades, atlas, save as new file) works

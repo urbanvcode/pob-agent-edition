@@ -84,7 +84,9 @@ export function evaluateCandidate(base: TestStats, test: TestStats, focus: strin
   const cb = base.ChaosResist ?? 0, ct = test.ChaosResist ?? 0;
   if (Math.abs(ct - cb) >= 5) resNotes.push(`Chaos res ${Math.round(cb)}% -> ${Math.round(ct)}%`);
   for (const [attr, req] of [["Str", "ReqStr"], ["Dex", "ReqDex"], ["Int", "ReqInt"]]) {
-    if ((test[req] ?? 0) > (test[attr] ?? 0)) warnings.push(`${attr} requirement not met (${Math.round(test[attr] ?? 0)}/${Math.round(test[req] ?? 0)})`);
+    const shortNow = (test[req] ?? 0) - (test[attr] ?? 0), shortBefore = (base[req] ?? 0) - (base[attr] ?? 0);
+    // Only the item's own doing: a requirement that was already unmet and did not get worse is not its fault.
+    if (shortNow > 0 && shortNow > Math.max(shortBefore, 0)) warnings.push(`${attr} requirement not met (${Math.round(test[attr] ?? 0)}/${Math.round(test[req] ?? 0)})`);
   }
   if ((test.ManaUnreserved ?? 0) < 0 && (base.ManaUnreserved ?? 0) >= 0) warnings.push("mana becomes over-reserved");
   const w = focus === "dps" ? [1, 0.15] : focus === "defence" ? [0.15, 1] : [1, 0.6];
@@ -177,13 +179,128 @@ export async function planUpgrades(lua: PobLink, trade: TradeApiClient, args: Up
   return { candidates: candidates.slice(0, Math.max(1, args.max_results ?? 8)), notes };
 }
 
+// --- resist fixing ----------------------------------------------------------------
+const RESIST_STATS: Record<string, string> = {
+  Fire: "pseudo.pseudo_total_fire_resistance", Cold: "pseudo.pseudo_total_cold_resistance",
+  Lightning: "pseudo.pseudo_total_lightning_resistance", Chaos: "pseudo.pseudo_total_chaos_resistance",
+};
+const SLOT_CATEGORY: Record<string, string> = {
+  "Ring 1": "accessory.ring", "Ring 2": "accessory.ring", "Amulet": "accessory.amulet", "Belt": "accessory.belt",
+  "Helmet": "armour.helmet", "Gloves": "armour.gloves", "Boots": "armour.boots", "Body Armour": "armour.chest",
+};
+const RESIST_SLOTS = ["Ring 1", "Ring 2", "Belt", "Boots", "Gloves", "Helmet", "Amulet"];
+
+export type Missing = Record<"Fire" | "Cold" | "Lightning" | "Chaos", number>;
+
+export function missingResists(stats: TestStats, includeChaos: boolean): Missing {
+  const m = (k: string) => Math.max(0, Math.round(stats[k] ?? 0));
+  return { Fire: m("MissingFireResist"), Cold: m("MissingColdResist"), Lightning: m("MissingLightningResist"), Chaos: includeChaos ? m("MissingChaosResist") : 0 };
+}
+
+const total = (m: Missing) => m.Fire + m.Cold + m.Lightning + m.Chaos;
+
+/** The trade query for one slot: items whose missing resistances add up to at least `min`, cheapest first. */
+export function resistQuery(category: string, missing: Missing, budget: number): TradeQuery {
+  const filters = (Object.keys(RESIST_STATS) as Array<keyof Missing>).filter((k) => missing[k] > 0).map((k) => ({ id: RESIST_STATS[k], value: { weight: 1 } }));
+  // One item rarely carries more than about 90% of resistances: ask for a useful share of what is missing.
+  const min = Math.max(12, Math.min(total(missing), 45));
+  return {
+    query: {
+      status: { option: INSTANT_BUYOUT },
+      stats: [{ type: "weight", filters, value: { min } }],
+      filters: { type_filters: { filters: { category: { option: category } } }, trade_filters: { filters: { price: { max: budget } } } },
+    },
+    sort: { price: "asc" },
+  };
+}
+
+/**
+ * Cheap gear that caps the resistances that are short. Each listing is put in
+ * the build by PoB, so what the replaced item gave is taken off first: the
+ * score is how many missing resistance points are really fixed.
+ */
+export async function planResistFix(lua: PobLink, trade: TradeApiClient, args: UpgradeArgs): Promise<{ candidates: UpgradeCandidate[]; notes: string[]; missing: Missing }> {
+  const budget = Math.max(1, args.budget_chaos ?? 50);
+  const notes: string[] = [];
+  const now = (await lua.call("key_stats", { fields: ["MissingFireResist", "MissingColdResist", "MissingLightningResist", "MissingChaosResist"] })).stats as TestStats;
+  // Elemental resistances come first; chaos is only chased once they are capped.
+  const elemental = missingResists(now, false);
+  const withChaos = total(elemental) === 0;
+  const missing = missingResists(now, withChaos);
+  const chaosShort = Math.max(0, Math.round(now.MissingChaosResist ?? 0));
+  if (!withChaos && chaosShort > 0) notes.push(`Chaos resistance is also ${chaosShort}% short; it is left for after the elemental resistances are capped.`);
+  if (total(missing) === 0) return { candidates: [], notes, missing };
+  const slots = (args.slots && args.slots.length ? args.slots : RESIST_SLOTS).filter((s) => {
+    if (SLOT_CATEGORY[s]) return true;
+    notes.push(`${s}: not searched for resistances (use rings, amulet, belt or armour slots)`);
+    return false;
+  }).slice(0, 7);
+  const perSlot = Math.min(Math.max(args.per_slot ?? 4, 1), 8);
+  const rates = await ratesOrChaosOnly(args.league, notes);
+  const candidates: UpgradeCandidate[] = [];
+  for (const slot of slots) {
+    let searchId: string;
+    let listings;
+    try {
+      const search = await trade.searchItems(args.league, resistQuery(SLOT_CATEGORY[slot], missing, budget));
+      searchId = search.id;
+      if (!search.result?.length) { notes.push(`${slot}: nothing under ${budget}c with enough of the missing resistances`); continue; }
+      listings = await trade.fetchItems(search.result.slice(0, perSlot), search.id);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      notes.push(`${slot}: ${msg}`);
+      if (/Stopped after|asks for a pause|slow down/i.test(msg)) break;
+      continue;
+    }
+    const usable = listings.map((l) => ({ l, chaos: priceInChaos(l.listing.price, rates) })).filter((x) => x.chaos !== undefined && x.chaos <= budget * 1.001);
+    if (!usable.length) { notes.push(`${slot}: no listings with a known price under ${budget}c`); continue; }
+    const texts = usable.map((x) => tradeItemToPoBText(x.l.item));
+    let report;
+    try {
+      report = (await lua.call("test_items", { slot, items: texts })).result;
+    } catch (error) {
+      notes.push(`${slot}: PoB could not test items (${error instanceof Error ? error.message : String(error)})`);
+      continue;
+    }
+    const before = total(missingResists(report.base, withChaos));
+    (report.results as Array<{ ok: boolean; stats?: TestStats; rarity?: string }>).forEach((r, i) => {
+      if (!r.ok || !r.stats) return;
+      const fixed = before - total(missingResists(r.stats, withChaos));
+      if (fixed <= 0) return;
+      const { l, chaos } = usable[i];
+      const ev = evaluateCandidate(report.base, r.stats, "balanced");
+      const price = l.listing.price!;
+      const left = missingResists(r.stats, withChaos);
+      const leftText = total(left) === 0 ? "all capped" : `still missing ${(Object.keys(left) as Array<keyof Missing>).filter((k) => left[k] > 0).map((k) => `${k} ${left[k]}%`).join(", ")}`;
+      candidates.push({
+        slot,
+        name: [l.item.name, l.item.typeLine].filter(Boolean).join(", "),
+        rarity: r.rarity,
+        priceChaos: chaos!,
+        priceText: `${price.amount} ${price.currency}`,
+        ...ev,
+        resNotes: [`fixes ${fixed} of ${before} missing resistance (${leftText})`],
+        warnings: ev.warnings.filter((w) => !/ res drops to /.test(w)),
+        score: fixed,
+        value: fixed / Math.max(chaos!, 1),
+        url: tradeUrl(args.league, searchId, l.id),
+        itemText: texts[i],
+        seller: l.listing.account?.name,
+      });
+    });
+  }
+  // Most resistance fixed first; the cheaper one wins a tie.
+  candidates.sort((a, b) => b.score - a.score || a.priceChaos - b.priceChaos);
+  return { candidates: candidates.slice(0, Math.max(1, args.max_results ?? 8)), notes, missing };
+}
+
 export function formatPlan(league: string, budget: number, result: { candidates: UpgradeCandidate[]; notes: string[] }): string {
   const lines = [`Upgrade plan: ${league}, up to ${budget}c per item, instant buyout only`, ""];
   if (!result.candidates.length) lines.push("No upgrades found within the budget for the searched slots.");
   result.candidates.forEach((c, i) => {
     const parts = [`DPS ${c.dpsPct >= 0 ? "+" : ""}${c.dpsPct.toFixed(1)}%`, `EHP ${c.ehpPct >= 0 ? "+" : ""}${c.ehpPct.toFixed(1)}%`];
     if (Math.abs(c.lifeDelta) >= 1) parts.push(`Life ${c.lifeDelta > 0 ? "+" : ""}${Math.round(c.lifeDelta)}`);
-    lines.push(`${i + 1}. [${c.slot}] ${c.name} - ${c.priceText} (~${Math.round(c.priceChaos)}c)`);
+    lines.push(`${i + 1}. [${c.slot}] ${c.name} - ${c.priceText} (~${c.priceChaos >= 1 ? Math.round(c.priceChaos) : c.priceChaos.toFixed(2)}c)`);
     lines.push(`   ${parts.join(" | ")}${c.resNotes.length ? " | " + c.resNotes.join(", ") : ""}`);
     if (c.warnings.length) lines.push(`   Warning: ${c.warnings.join("; ")}`);
     lines.push(`   ${c.url}`);

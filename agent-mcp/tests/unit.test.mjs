@@ -16,11 +16,12 @@ const { AGENT_GUIDE } = await import("../build/guide.js");
 const profile = await import("../build/profile.js");
 const { RateGovernor, parseRules, parseState, policyForUrl } = await import("../build/trade/rateGovernor.js");
 const { TradeApiClient } = await import("../build/trade/client.js");
-const { evaluateCandidate, INSTANT_BUYOUT } = await import("../build/trade/upgrades.js");
+const { evaluateCandidate, INSTANT_BUYOUT, missingResists, resistQuery } = await import("../build/trade/upgrades.js");
 const { tradeItemToPoBText, priceInChaos } = await import("../build/trade/itemText.js");
 const { parseRates } = await import("../build/trade/ninja.js");
 const { findStat, challengeLeague } = await import("../build/tools/trade.js");
-const { decodeBuildCode, buildFile } = await import("../build/tools/session.js");
+const { decodeBuildCode, encodeBuildCode, buildFile } = await import("../build/tools/session.js");
+const { bossText } = await import("../build/tools/read.js");
 const { deltaLines } = await import("../build/format.js");
 
 const { tools } = createTools();
@@ -44,14 +45,14 @@ test("the agreed tool list is complete and nothing else is exposed", () => {
     "status", "list_builds", "open_build", "save_build", "set_view", "open_options",
     "build_summary", "stats", "diagnose", "tree_search",
     "edit_items", "edit_skills", "edit_tree", "set_config", "what_if", "snapshot", "restore", "compare",
-    "suggest_passives", "anoint", "affixes",
-    "leagues", "trade_search", "plan_upgrades", "price_check",
+    "suggest_passives", "anoint", "affixes", "suggest_gems", "suggest_jewels",
+    "leagues", "trade_search", "plan_upgrades", "currency", "price_check",
     "atlas_get", "atlas_search", "atlas_edit",
   ];
   assert.deepEqual(defs.map((d) => d.name), expected);
   for (const d of defs) {
     assert.equal(d.inputSchema.type, "object");
-    assert.ok(d.description.length >= 20 && d.description.length <= 420, `${d.name}: description length ${d.description.length}`);
+    assert.ok(d.description.length >= 20 && d.description.length <= 460, `${d.name}: description length ${d.description.length}`);
   }
 });
 
@@ -171,6 +172,8 @@ test("upgrade scoring: gains, resist notes and warnings", () => {
   assert.equal(better.lifeDelta, 100);
   assert.deepEqual(better.resNotes, ["Cold res 60% -> 75%"]);
   assert.ok(better.score > 10);
+  // An attribute that was already short and did not get worse is not the item's fault.
+  assert.deepEqual(evaluateCandidate({ ...base, Str: 40 }, { ...base, Str: 45 }, "dps").warnings, []);
   const worse = evaluateCandidate(base, { ...base, CombinedDPS: 1200, FireResist: 40, Str: 40 }, "dps");
   assert.deepEqual(worse.warnings, ["Fire res drops to 40%", "Str requirement not met (40/50)"]);
   assert.ok(worse.score < 20 - 10);
@@ -219,6 +222,8 @@ test("build codes and build file names", () => {
   const xml = '<PathOfBuilding><Build level="1"/></PathOfBuilding>';
   const code = zlib.deflateSync(Buffer.from(xml)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
   assert.equal(decodeBuildCode(code), xml);
+  assert.equal(decodeBuildCode(encodeBuildCode(xml)), xml);
+  assert.ok(!/[+/]/.test(encodeBuildCode(xml)), "export codes are base64url");
   assert.equal(decodeBuildCode(`  ${xml}`), xml);
   assert.throws(() => decodeBuildCode("not a code"), /not a valid PoB export code/);
   assert.throws(() => decodeBuildCode("https://pobb.in/abc"), /Links are not fetched/);
@@ -232,4 +237,31 @@ test("build codes and build file names", () => {
 test("before/after lines only list what changed", () => {
   const lines = deltaLines({ CombinedDPS: 1000, Life: 4000, FireResist: 60, FullDPS: 0 }, { CombinedDPS: 1100, Life: 4000, FireResist: 75, FullDPS: 0 });
   assert.deepEqual(lines, ["Combined DPS: 1,000 -> 1,100 (+10.0%)", "Fire res %: 60 -> 75 (+15)"]);
+});
+
+test("resist fixing: what is missing and the trade query for it", () => {
+  const missing = missingResists({ MissingFireResist: 22.4, MissingColdResist: 0, MissingLightningResist: 40, MissingChaosResist: 19 }, true);
+  assert.deepEqual(missing, { Fire: 22, Cold: 0, Lightning: 40, Chaos: 19 });
+  assert.equal(missingResists({ MissingChaosResist: 19 }, false).Chaos, 0);
+  const q = resistQuery("accessory.ring", missing, 30);
+  assert.equal(q.query.status.option, "securable");
+  assert.deepEqual(q.sort, { price: "asc" });
+  assert.equal(q.query.filters.type_filters.filters.category.option, "accessory.ring");
+  assert.equal(q.query.filters.trade_filters.filters.price.max, 30);
+  const group = q.query.stats[0];
+  assert.equal(group.type, "weight");
+  // Only the resistances that are short are asked for; cold is capped.
+  assert.deepEqual(group.filters.map((f) => f.id), ["pseudo.pseudo_total_fire_resistance", "pseudo.pseudo_total_lightning_resistance", "pseudo.pseudo_total_chaos_resistance"]);
+  assert.equal(group.value.min, 45);
+  assert.equal(resistQuery("accessory.ring", { Fire: 5, Cold: 0, Lightning: 0, Chaos: 0 }, 30).query.stats[0].value.min, 12);
+});
+
+test("boss check verdicts", () => {
+  const base = { uber: false, dps: 1000000, mainSkill: "Arc", assumptions: "x" };
+  const text = (hits) => bossText({ ...base, results: [{ skill: "Shaper Slam", taken: 9000, enemyDamage: 12000, hitsToDie: hits, takenByType: { Physical: 9000 } }, { skill: "Shaper Beam", overTime: true }] });
+  assert.match(text(0.6), /DIES TO ONE HIT[\s\S]*Verdict: not ready/);
+  assert.match(text(1.4), /survives one hit, not two[\s\S]*Verdict: risky/);
+  assert.match(text(3.7), /survives 3 hits[\s\S]*Verdict: survivable/);
+  assert.match(text(3.7), /Shaper Beam: damage over time/);
+  assert.match(text(3.7), /no boss life data/);
 });

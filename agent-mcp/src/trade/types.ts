@@ -2,7 +2,7 @@
 
 export interface StatFilter {
   id: string;
-  value?: { min?: number; max?: number };
+  value?: { min?: number; max?: number; weight?: number };
   disabled?: boolean;
 }
 

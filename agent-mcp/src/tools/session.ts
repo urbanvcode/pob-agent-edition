@@ -79,6 +79,11 @@ export function decodeBuildCode(code: string): string {
   }
 }
 
+/** Build XML -> PoB export code (zlib + base64url), the format PoB's Import/Export uses. */
+export function encodeBuildCode(xml: string): string {
+  return zlib.deflateSync(Buffer.from(xml, "utf8")).toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
 export async function statusText(pob: Pob): Promise<string> {
   const lines: string[] = [];
   const state = await liveState(pob);
@@ -150,10 +155,14 @@ export const sessionTools: Tool[] = [
       return `Loaded "${name}" in the headless engine (PoB Agent Edition is not open, so the player sees nothing).\nFile: ${file}`;
     }),
 
-  tool("save_build", "Save the open build. Always pass a new name for AI changes, e.g. \"<build> - AI <change>\"; never overwrite the player's file unless they asked (then overwrite: true).",
-    { name: S.str("New build name"), overwrite: S.bool("Player asked to overwrite") }, [],
+  tool("save_build", "Save the open build. Always pass a new name for AI changes, e.g. \"<build> - AI <change>\"; never overwrite the player's file unless they asked (then overwrite: true). note records what was changed in the build's notes. export_code returns a PoB share code instead of saving.",
+    { name: S.str("New build name"), overwrite: S.bool("Player asked to overwrite"), note: S.str("Added to the build notes"), export_code: S.bool() }, [],
     async ({ pob }, args) => {
       const link = await pob.link();
+      if (args.export_code === true) {
+        const { xml } = await link.call("export_build_xml");
+        return `PoB code of the open build (import with PoB > Import/Export, or share it):\n${encodeBuildCode(String(xml))}`;
+      }
       const dir = await currentBuildsDir(pob);
       const state = link.kind === "live" ? await liveState(pob) : null;
       const currentFile = state?.file ?? pob.headlessBuild?.file;
@@ -172,6 +181,9 @@ export const sessionTools: Tool[] = [
       }
       fs.mkdirSync(path.dirname(file), { recursive: true });
       const name = path.basename(file).replace(/\.xml$/i, "");
+      if (typeof args.note === "string" && args.note.trim()) {
+        await link.call("notes", { append: `[AI, ${new Date().toISOString().slice(0, 10)}] ${args.note.trim()}` });
+      }
       if (link.kind === "live") {
         const res = await link.call("save_live_build", file === currentFile ? {} : { path: file.replace(/\\/g, "/"), name });
         return `Saved to ${res.file}. The PoB window now works on this file.`;

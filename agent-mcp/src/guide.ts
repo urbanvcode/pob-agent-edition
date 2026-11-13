@@ -31,7 +31,9 @@ CHANGING BUILDS
 - After a change, set_view to the tab that shows it (OVERVIEW, TREE, ITEMS, SKILLS, ATLAS).
 
 UPGRADES
-- plan_upgrades (budget in chaos per item, default 50, capped by the currency on hand) finds cheap gear upgrades and simulates each. suggest_passives and anoint do the same for the tree and the amulet; affixes gives affix tiers and bench crafts.
+- plan_upgrades (budget in chaos per item, default 50, capped by the currency on hand) finds cheap gear upgrades and simulates each; focus "resists" when resistances are short. currency gives exchange rates.
+- suggest_gems (support gems), suggest_passives (tree), anoint (amulet) and suggest_jewels (jewel mods, Watcher's Eye, cluster notables) simulate every option in PoB. affixes gives affix tiers and bench crafts, and classifies an item's mods (open prefixes/suffixes).
+- "Can I do <boss>?": diagnose with boss. It uses PoB's boss skill presets; PoB has no boss life data, so judge damage separately and say so.
 - Atlas: atlas_get, atlas_search, atlas_edit (150 points); explain what each league mechanic does for a PoE1 newcomer.
 
 TRADE RULES (account safety)

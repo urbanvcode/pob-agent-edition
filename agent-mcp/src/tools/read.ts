@@ -42,7 +42,7 @@ export function summaryText(s: any, parts: Set<string>, detail: boolean): string
     const entries = Object.entries(s.config ?? {});
     lines.push("", `CONFIG (${entries.length} options set): ${entries.map(([k, v]) => `${k}=${v}`).join(", ") || "defaults"}`);
   }
-  if (parts.has("notes") && s.notes) lines.push("", `NOTES: ${s.notes}`);
+  if (parts.has("notes") && s.notes) lines.push("", `NOTES (start; parts: ["notes"] gives all): ${s.notes}`);
   lines.push("", ASSUME(s.assumptions));
   return lines.join("\n");
 }
@@ -101,13 +101,40 @@ export function diagnosisText(d: any): string {
   return L.join("\n");
 }
 
+export function bossText(res: any): string {
+  const L = [`BOSS CHECK (${res.uber ? "uber" : "pinnacle"} version, PoB's boss skill presets; hits are after this character's defences)`];
+  let worst = Infinity;
+  for (const r of (Array.isArray(res.results) ? res.results : []) as any[]) {
+    if (r.overTime || !r.taken) {
+      L.push(`- ${r.skill}: damage over time, PoB gives no hit numbers for it`);
+      continue;
+    }
+    const hits = typeof r.hitsToDie === "number" ? r.hitsToDie : undefined;
+    if (hits !== undefined) worst = Math.min(worst, hits);
+    const verdict = hits === undefined ? "?" : hits < 1 ? "DIES TO ONE HIT" : hits < 2 ? "survives one hit, not two" : `survives ${Math.floor(hits)} hits`;
+    const types = Object.entries(r.takenByType ?? {}).map(([k, v]) => `${k} ${n(v)}`).join(", ");
+    L.push(`- ${r.skill}: takes ${n(r.taken)}${types ? ` (${types})` : ""} of ${n(r.enemyDamage)} raw; pool lasts ${hits === undefined ? "?" : n(hits, 1)} hits -> ${verdict}`);
+    if (r.note) L.push(`    ${r.note}`);
+  }
+  if (worst !== Infinity) L.push(worst < 1 ? "Verdict: not ready. At least one skill kills in one hit unless it is dodged every time." : worst < 2 ? "Verdict: risky. Every skill is survivable once, with no margin for a second hit before recovering." : "Verdict: survivable. No listed skill kills in fewer than two hits.");
+  L.push(`Damage at this boss setting: ${n(res.dps)} DPS with ${res.mainSkill ?? "the main skill"}. PoB has no boss life data, so there is no kill time here.`);
+  L.push(`Config assumptions: ${res.assumptions}`);
+  if (res.rollbackProblem) L.push(`WARNING: the config may not be exactly as before (${res.rollbackProblem}).`);
+  return L.join("\n");
+}
+
 export const readTools: Tool[] = [
   tool("build_summary", "The open build at a glance: class, skill groups with gems, items per slot (with ids), tree (points, keystones, notables), config in use.",
-    { parts: S.list(S.enum(["skills", "items", "tree", "config", "notes"]), "Default: all"), detail: S.bool("Add item mods and mastery choices") }, [],
+    { parts: S.list(S.enum(["skills", "items", "tree", "config", "notes"]), "Default: all; [\"notes\"] alone returns the full build notes"), detail: S.bool("Add item mods and mastery choices") }, [],
     async ({ pob }, args) => {
       const link = await pob.link();
       const { summary } = await link.call("summary");
       const parts = new Set<string>(Array.isArray(args.parts) && args.parts.length ? args.parts : ["skills", "items", "tree", "config", "notes"]);
+      // Guides keep their instructions in the notes: asked for on their own, they come back in full.
+      if (parts.size === 1 && parts.has("notes")) {
+        const notes = String((await link.call("notes")).notes ?? "");
+        return notes.trim() ? `NOTES of ${summary.name ?? "the build"} (${notes.length} characters)\n${notes.slice(0, 12000)}${notes.length > 12000 ? "\n... (cut)" : ""}` : "This build has no notes.";
+      }
       return summaryText(summary, parts, args.detail === true);
     }),
 
@@ -126,11 +153,14 @@ export const readTools: Tool[] = [
       return [`Main skill: ${res.mainSkill ?? "none"}`, ...keys.map((k) => `${k}: ${typeof stats[k] === "number" ? n(stats[k], 2) : stats[k]}`), ASSUME(res.assumptions)].join("\n");
     }),
 
-  tool("diagnose", "Full health check in one call, in priority order: resistances, max hit and EHP, recovery and mana, damage, plus a list of findings (uncapped resists, empty slots, unspent points, unmet requirements).", {}, [],
-    async ({ pob }) => {
+  tool("diagnose", "Full health check in one call, in priority order: resistances, max hit and EHP, recovery and mana, damage, plus a list of findings (uncapped resists, empty slots, unspent points, unmet requirements). boss adds a boss check: how hard each of that boss's skills hits this character and how many hits it survives.",
+    { boss: S.str("shaper, maven, sirus, exarch, eater, atziri, cortex or all; prefix \"uber \" for the uber version") }, [],
+    async ({ pob }, args) => {
       const link = await pob.link();
       const { diagnosis } = await link.call("diagnose");
-      return diagnosisText(diagnosis);
+      const text = diagnosisText(diagnosis);
+      if (!args.boss) return text;
+      return `${text}\n\n${bossText(await link.call("boss_check", { boss: String(args.boss) }))}`;
     }),
 
   tool("tree_search", "Find passive tree nodes by name or stat text: id, stats, points needed to reach it, mastery effect ids. Use before edit_tree.",

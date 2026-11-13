@@ -90,9 +90,31 @@ export const adviceTools: Tool[] = [
       return [head, ...lines, `Config assumptions: ${res.assumptions}`].join("\n");
     }),
 
-  tool("affixes", "Item affix data from PoB's mod tables: tiers of a rollable prefix/suffix (stat ranges, required item level, which items roll it), or crafting-bench mods with bench: true.",
-    { query: S.str("Stat text, e.g. \"maximum life\""), item: S.str("Item tag (\"ring\", \"body_armour\", \"bow\") or with bench an item class (\"Ring\")"), type: S.enum(["Prefix", "Suffix"]), bench: S.bool(), limit: S.num() }, ["query"],
+  tool("affixes", "Item affix data from PoB's mod tables. query: tiers of a rollable prefix/suffix (ranges, item level, which items roll it), or crafting-bench mods with bench: true. slot or item_text: classify an item's mods instead (prefix or suffix, tier, bench crafts, open slots).",
+    {
+      query: S.str("Stat text, e.g. \"maximum life\""), item: S.str("Item tag (\"ring\", \"body_armour\", \"bow\") or with bench an item class (\"Ring\")"),
+      type: S.enum(["Prefix", "Suffix"]), bench: S.bool(), limit: S.num(),
+      slot: S.str("Classify the item equipped here"), item_text: S.str("Classify this item text"),
+    }, [],
     async ({ pob }, args) => {
+      if (args.slot || args.item_text) {
+        const link = await pob.link(!args.item_text);
+        const it = (await link.call("classify_item", { slot: args.slot, text: args.item_text })).item;
+        const head = `${it.name}${it.base && !String(it.name).includes(it.base) ? `, ${it.base}` : ""} (${String(it.rarity).toLowerCase()}${it.itemLevel ? `, ilvl ${it.itemLevel}` : ""})`;
+        if (!it.prefixes) return [head, ...(it.notes ?? [])].join("\n");
+        const open = (x: { used: number; limit: number }) => `${x.used}/${x.limit}${x.used < x.limit ? ` (${x.limit - x.used} open)` : ""}`;
+        const lines = [`${head}: prefixes ${open(it.prefixes)}, suffixes ${open(it.suffixes)}`];
+        for (const m of (Array.isArray(it.mods) ? it.mods : []) as any[]) {
+          const what = m.source === "bench" ? "bench craft" : m.tier ? `T${m.tier} of ${m.tiers}, ilvl ${m.level}` : `ilvl ${m.level}`;
+          lines.push(`${m.type} "${m.name}" (${what}${m.fractured ? ", fractured" : ""}): ${(m.lines ?? []).join(" / ")}  [rolls ${(m.range ?? []).join(" / ")}]`);
+        }
+        const unmatched = (Array.isArray(it.unmatched) ? it.unmatched : []) as string[];
+        if (unmatched.length) lines.push(`Not classified: ${unmatched.join("; ")}`);
+        for (const note of (Array.isArray(it.notes) ? it.notes : []) as string[]) lines.push(`Note: ${note}`);
+        lines.push("T1 is the best tier this base can roll. Bench options for an open slot: affixes with bench: true.");
+        return lines.join("\n");
+      }
+      if (!args.query) throw new ToolError("Give query (stat text to look up), or slot / item_text to classify an item.");
       const link = await pob.link(false);
       const res = await link.call("affixes", { query: args.query, item: args.item, type: args.type, bench: args.bench === true, limit: args.limit });
       const mods = (Array.isArray(res.mods) ? res.mods : []) as any[];
@@ -100,5 +122,46 @@ export const adviceTools: Tool[] = [
       const lines = mods.map((m) => `${m.type} "${m.name}" (ilvl ${m.level}, ${m.group}): ${(m.stats ?? []).join(" / ")}${args.item ? "" : `  [${(m.items ?? []).slice(0, 8).join(", ")}${(m.items ?? []).length > 8 ? ", ..." : ""}]`}`);
       if (res.total > mods.length) lines.push(`(${res.total - mods.length} more; narrow with item/type or raise limit)`);
       return [`Source: ${res.source}; highest tier first within each group`, ...lines].join("\n");
+    }),
+
+  tool("suggest_gems", "Support gem check for a skill: what each current support is worth (DPS lost without it), then every support gem that fits, simulated in place of the weakest one and ranked by DPS. add: true tests an extra link instead.",
+    { group: S.num("Skill group; default the main skill"), replace: S.num("Gem number to replace; default the weakest support"), add: S.bool(), awakened: S.bool("Default true"), limit: S.num() }, [],
+    async ({ pob }, args) => {
+      const res = await (await pob.link()).call("suggest_gems", { group: args.group, replace: args.replace, add: args.add === true, awakened: args.awakened, limit: args.limit }, 180_000);
+      const L = [`Support gems for ${res.skill ?? "the skill"} (group ${res.group}): ${n(res.baseDps)} DPS, mana cost ${n(res.manaCost)}`];
+      const current = (Array.isArray(res.current) ? res.current : []) as any[];
+      L.push(current.length ? "Current supports, weakest first (DPS lost if removed):" : "No active support gems in this group.");
+      for (const c of current) L.push(`- gem ${c.gem} ${c.name} ${c.level}/${c.quality}: ${pct(-c.lossPct)}${c.lossPct < 0.5 ? "  <- does almost nothing for damage here" : ""}`);
+      const list = (Array.isArray(res.candidates) ? res.candidates : []) as any[];
+      const ups = (Array.isArray(res.levelUps) ? res.levelUps : []) as any[];
+      if (ups.length) L.push("Under-levelled gems (levelling them is free damage):", ...ups.map((u) => `- gem ${u.gem} ${u.name}: level ${u.from} -> ${u.to} gives DPS ${pct(u.dpsPct)}`));
+      const at = `at the highest gem level a level ${res.characterLevel} character can use, 20% quality`;
+      L.push("", res.mode === "replace" ? `Best supports in place of ${res.targetName} (gem ${res.target}), ${at}:` : `Best supports as an extra link, ${at}:`);
+      const line = (c: any, i: number) => `${i + 1}. ${c.name} (level ${c.level}): DPS ${pct(c.dpsPct)}${c.manaCost !== undefined ? ` | mana cost ${n(c.manaCost)}` : ""}${c.warning ? ` | Warning: ${c.warning}` : ""}`;
+      if (!list.length) L.push("None.");
+      list.forEach((c, i) => L.push(line(c, i)));
+      L.push(res.better > 0 ? `${res.better} of ${res.tried} fitting supports beat the current setup.` : `None of the ${res.tried} fitting supports beats the current setup: the links are already the best PoB can find.`);
+      const play = (Array.isArray(res.playstyle) ? res.playstyle : []) as any[];
+      if (play.length) L.push(`Not ranked because they change how the skill is played: ${play.map((c) => `${c.name} ${pct(c.dpsPct)} (${c.playstyle})`).join(", ")}`);
+      L.push(`Config assumptions: ${res.assumptions}`, "A support can win on paper and still have a drawback PoB does not price in (lost clear speed, ailments, mana). Try one with what_if: remove_gem + add_gem.");
+      if (res.rollbackProblem) L.push(`WARNING: the build may not be exactly as before (${res.rollbackProblem}).`);
+      return L.join("\n");
+    }),
+
+  tool("suggest_jewels", "What to look for on a jewel: simulates every jewel mod (best tier, top roll) alone in an allocated socket and ranks them. kind: jewel (Crimson/Viridian/Cobalt), abyss, watchers_eye, or cluster (cluster jewel notables).",
+    { kind: S.enum(["jewel", "abyss", "watchers_eye", "cluster"]), focus: FOCUS, limit: S.num(), socket: S.str("Jewel socket node id; default an allocated one") }, [],
+    async ({ pob }, args) => {
+      const res = await (await pob.link()).call("suggest_jewels", { kind: args.kind, focus: args.focus, limit: args.limit, socket: args.socket }, 180_000);
+      const mods = (Array.isArray(res.mods) ? res.mods : []) as any[];
+      const L = [`Jewel mods for this build (${res.kind}, ${res.focus}; ${res.evaluated} simulated; ${res.baseline})`];
+      if (!mods.length) L.push("No mod of this kind improves the build for this focus.");
+      mods.forEach((m, i) => {
+        const life = Math.abs(m.lifeDelta) >= 1 ? ` | Life ${m.lifeDelta > 0 ? "+" : ""}${Math.round(m.lifeDelta)}` : "";
+        const tags = [m.affix ? String(m.affix).toLowerCase() : "", Array.isArray(m.rollsOn) ? m.rollsOn.join("/") : ""].filter(Boolean).join("; ");
+        L.push(`${i + 1}. ${m.name ? `${m.name}: ` : ""}${(m.stats ?? []).filter((x: string) => x.trim()).join(" / ")}${tags ? ` [${tags}]` : ""}: DPS ${pct(m.dpsPct)} | EHP ${pct(m.ehpPct)}${life}`);
+      });
+      L.push(`Config assumptions: ${res.assumptions}`);
+      if (res.kind !== "cluster") L.push("A real jewel has up to 4 mods (a Watcher's Eye 2-3) at lower rolls: add the gains up only roughly. Find one with trade_search (type \"jewel\", the stat texts) and test it with what_if.");
+      return L.join("\n");
     }),
 ];

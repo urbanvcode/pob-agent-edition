@@ -13,7 +13,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Builds live in `Documents\Path of Building\Builds` (in the user's Documents folder).
 
 ## Start
-1. `profile_get` (once per conversation) and follow its "How to answer" rules. The player profile (play mode, league, currency, goals, experience, explanation mode, learned topics) is shared by every AI client and editable in PoB Agent Edition › Options › Agent profile; the Overview header shows it.
+1. `profile_get` (once per conversation) and follow its "How to answer" rules. The player profile (play mode, hardcore/softcore, league, currency, goals, experience, explanation mode, learned topics) is shared by every AI client and editable in PoB Agent Edition › Options › Agent profile; the Overview header shows it.
 2. `live_status`. If PoB Agent Edition is open, all `lua_*` tools work on the build in the window and the user sees changes live. Otherwise load a build (`list_builds`, `lua_load_build`).
 3. Use PoB's calculations (`lua_get_stats`, `get_build_issues`, `analyze_defenses`) instead of estimating.
 
@@ -25,6 +25,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## Player profile
 - **Play mode**: `trade` = buying upgrades is fine (instant buyout only). `ssf` = Solo Self-Found, no trading: never suggest buying or run trade searches for purchases; suggest crafting, farming and drop targets. `mixed` = give both, labelled [Trade] and [SSF].
+- **Hardcore**: a death moves the character to softcore for good, so defences come before damage, risky choices are flagged with a safe option, and trade uses the Hardcore league.
 - **Explanation mode**: `teach` = explain a PoE1 mechanic the first time it matters (1-3 sentences, compared with PoE2), then `profile_mark_learned` so it isn't repeated; `concise` = actions and numbers, one line of why; `deep` = full mechanics and maths (increased vs more, DPS formula, EHP layers) with PoB's numbers.
 - Use the profile league and currency as defaults for trade tools and budgets. Change it (`profile_set`) only when the player asks or states a fact ("I have 300c", "I'm SSF now").
 - Stored under `profile` in `Documents\Path of Building\AgentEdition.json` (schema: `PathOfBuilding/src/Agent/Settings.lua` and `pob-mcp/src/utils/playerProfile.ts`, keep in sync).

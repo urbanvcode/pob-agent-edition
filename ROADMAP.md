@@ -118,13 +118,13 @@ Loose ends:
 4. ✅ Overview header shows mode/league/currency chips (click → Options).
 
 Built:
-- Profile under `"profile"` in `AgentEdition.json`: `playMode` (trade/ssf/mixed), `league` ("" = current
+- Profile under `"profile"` in `AgentEdition.json`: `playMode` (trade/ssf/mixed), `hardcore` (bool), `league` ("" = current
   challenge league), `currency {chaos, divine, other, updated}`, `goals[]`, `experience` (poe2/new/poe1),
   `explanationMode` (teach/concise/deep), `learnedTopics[]`, `updated`. Schema in `Agent/Settings.lua`
   (`normalizeProfile`) and `pob-mcp/src/utils/playerProfile.ts` — keep in sync.
-- Options › "Agent profile (AI)" section (mode, league, chaos/divine, other currency, goals, experience,
+- Options › "Agent profile (AI)" section (mode + Hardcore checkbox, league, chaos/divine, other currency, goals, experience,
   explanations, explained-topics count + Reset). Saving re-reads the file so AI-learned topics are kept.
-- Overview header chips (mode, league, currency, explanation mode); re-read every 2 s, click opens Options.
+- Overview header chips (mode, Hardcore/Softcore, league, currency, explanation mode); re-read every 2 s, click opens Options.
 - pob-mcp: `profile_get` (profile + "How to answer" rules per mode), `profile_set` (league checked
   against pathofexile.com), `profile_mark_learned`; `live_status` appends a profile line;
   `plan_upgrades` defaults league to the profile and warns in SSF. Live action `open_options`.
@@ -134,7 +134,7 @@ Loose ends:
 - [ ] Click **Save** in Options › Agent profile with a real mouse (rendering and the MCP→Overview path were
   verified; the Save click itself couldn't be automated).
 - [ ] Restart Claude Code / Codex / Antigravity (new tools) and PoB Agent Edition (new UI) to pick it up.
-- [ ] Set your profile (Options or tell the AI): trade/SSF, league, currency, goals, explanation mode.
+- [ ] Set your profile (Options or tell the AI): trade/SSF, hardcore/softcore, league, currency, goals, explanation mode.
 - [ ] Maybe: MCP tool `live_open_options` so the AI can open the profile editor for the player.
 
 **Done when:** switching to SSF or Deep dive visibly changes AI answers; profile survives restarts and

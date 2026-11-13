@@ -20,11 +20,13 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 - Atlas tab: atlas passive tree planner with GGG's official 3.30 data. You can drag, zoom, allocate by shortest path, search, import and copy official links, and open a summary of points per mechanic, notables and combined bonuses. It is saved inside the build.
 - Atlas card on the Overview. The newest atlas data version is detected automatically.
 - Options: trade session ID (POESESSID), stored locally in `Documents\Path of Building\AgentEdition.json`.
+- **Agent profile** in Options: play mode (trade, SSF or mixed), Hardcore or Softcore, league, currency, goals, PoE experience and explanation mode (Teach, Concise or Deep dive). Every AI app shares it, and it shows as chips in the Overview header. The `open_options` live action opens it.
 
 #### MCP server (pob-mcp)
 - Live mode: every `lua_*` tool works on the build in the PoB Agent Edition window. New tools: `live_status`, `live_open_build`, `live_save_build`, `live_set_view` (including the OVERVIEW and COMPARE tabs).
 - `plan_upgrades`: searches instant-buyout trade listings, simulates each item in the build and ranks the results by gain per chaos.
 - Atlas tools: `atlas_get` (points per mechanic, combined bonuses, share link), `atlas_search`, `atlas_edit`.
+- Player profile tools: `profile_get` (the profile plus "how to answer" rules for each mode), `profile_set` (checks the league against pathofexile.com) and `profile_mark_learned` (so a PoE1 mechanic is explained only once). `live_status` shows a profile line. `plan_upgrades` defaults to the profile's league and warns in SSF.
 - Built-in agent guide that tells any AI client the diagnosis order, the trade safety rules and how to explain PoE1 to PoE2 players.
 - Reads the POESESSID from PoB Agent Edition when `POE_SESSION_ID` is not set.
 - Trade searches default to instant buyout (`POE_TRADE_ONLINE_STATUS=securable`).

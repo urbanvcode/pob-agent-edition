@@ -53,7 +53,7 @@ export async function checkLeague(trade: TradeApiClient, league: string): Promis
 }
 
 /** League for a trade call: the argument, else the profile, else the current challenge league. */
-async function resolveLeague(trade: TradeApiClient, given: unknown): Promise<{ league: string; note?: string }> {
+export async function resolveLeague(trade: TradeApiClient, given: unknown): Promise<{ league: string; note?: string }> {
   if (typeof given === "string" && given.trim()) return checkLeague(trade, given.trim());
   const profile = getProfile().profile;
   if (profile.league) return { league: profile.league };

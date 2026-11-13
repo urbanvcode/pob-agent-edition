@@ -4,6 +4,7 @@ import type { TradeApiClient } from "../trade/client.js";
 import { adviceTools, atlasTools } from "./advice.js";
 import { characterTools } from "./character.js";
 import { editTools } from "./edit.js";
+import { guideTools } from "./guides.js";
 import { readTools } from "./read.js";
 import { profileTools, sessionTools } from "./session.js";
 import { checkLeague, tradeTools } from "./trade.js";
@@ -16,6 +17,7 @@ export function allTools(trade: TradeApiClient): Tool[] {
     ...readTools,
     ...editTools,
     ...adviceTools,
+    ...guideTools,
     ...tradeTools(),
     ...atlasTools,
   ];

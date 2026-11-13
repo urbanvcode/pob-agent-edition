@@ -46,7 +46,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 0 | Foundation | ✅ |
 | 1 | Player profile & explanation modes | ✅ |
 | 2 | Character import & progress sync | ✅ 0.4.0 |
-| 3 | Guide mode | ⬜ |
+| 3 | Guide mode | ✅ built, release pending |
 | 4 | Optimiser (goal-based min-maxing) | ⬜ |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
 | 6 | Crafting helper | ⬜ |
@@ -204,7 +204,7 @@ Progress card shows a timeline.
 
 ---
 
-## Stage 3 — Guide mode ⬜
+## Stage 3 — Guide mode ✅ (2026-11-13, release pending)
 
 **Why:** the player follows guides (Fubgun on Mobalytics); the AI should keep them on track.
 
@@ -228,10 +228,29 @@ Progress card shows a timeline.
 - **Deviation awareness**: if the player deliberately differs (e.g. different unique), don't nag; remember it.
 
 ### Steps
-1. Link/code fetch + decode (pobb.in raw, pastebin raw, poe.ninja) → open as build/specs; tests.
-2. Compare engine (tree/masteries/gems/items/config) with PoB simulations.
-3. Next-steps ranking + profile awareness.
-4. Overview Guide card + MCP tools + AI guide text.
+1. ✅ Link/code fetch + decode (the download addresses PoB's own BuildSiteTools.lua uses: pobb.in, poe.ninja,
+   pastebin, maxroll, pob.codes, rentry, poedb) → saved as a new "Guide - <name>" build, never over another file;
+   several "Stage: link" lines merge into one build whose loadouts are the stages; tests.
+2. ✅ Compare engine (`PathOfBuilding/src/Agent/Handlers/Guide.lua`): stages = PoB loadouts (spec + item/skill/config
+   set of the same title); passives ordered into a path (nearest first) and simulated step by step; masteries,
+   gems (per group, matched by active skill), items and jewels per slot, config; "what explains the gap" = each part
+   of the guide applied alone, then all together. Build always rolled back.
+3. ✅ Next-steps ranking: passives by gain per point (path order kept), buys by gain per chaos within the budget
+   (poe.ninja prices, instant-buyout trade links, no trade API request), SSF = farm/craft targets without prices,
+   mixed = both; hardcore weighs EHP double; respec line with Orb of Regret price.
+4. ✅ Overview Guide card (`Agent/GuideCard.lua`, reads `AgentCache/guide/card.json`) + MCP tools `guide_import`,
+   `guide_compare`, `guide_next_steps` (about 385 tokens) + AI guide text. Stage detection, deviations (`accept`)
+   and the guide per build are remembered in `AgentCache/guide/state.json`.
+
+Tested with a real multi-stage guide (Deadeye, 11 loadouts): stage detection, compare,
+next steps with "2 div", card in a second window (port 31340). `npm test` runs `tests/guide.test.mjs`.
+
+Loose ends / ideas:
+- Changing a chosen mastery: the cost is not verified (shown as "cost not verified"); Stage 9 can source it.
+- Jewels are simulated one by one by hand (PoB's item undo state errors when socketed jewels are rolled back),
+  so they are not in "all together".
+- Guide rares get "needs a price" (trade_search / plan_upgrades price them); a later step could search them directly.
+- Link to Stage 2: a synced character could pick its guide automatically.
 
 **Done when:** paste a Fubgun guide → it opens with stages; "what am I missing?" and "what next with
 2 divines?" give ranked, simulated answers with links.

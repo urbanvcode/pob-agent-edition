@@ -6,6 +6,13 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **Guide mode** (Stage 3): paste a guide's PoB link (pobb.in, poe.ninja, pastebin, maxroll) or code and ask your AI to import it. It is saved as a new "Guide - <name>" build (nothing is overwritten); the guide's loadouts (Starter, Mid game, Endgame, ...) are its stages and its notes are kept. Several stage links, one "Stage: link" per line, become one guide build.
+- "What am I missing?": `guide_compare` compares your build with a guide stage (it finds the stage you are at): passives ordered into a path to take next, masteries, gems per skill group, items and jewels per slot, config differences and the headline DPS / EHP / max hit / resists, with **what explains the gap**. Every gap is simulated in your build by PoB, and your build is put back exactly.
+- "What next with 2 divines?": `guide_next_steps` ranks passive points by gain per point and purchases by gain per chaos within your budget (poe.ninja prices, instant-buyout trade links), with the Orb of Regret cost of a respec. SSF profiles get farm and craft targets instead of purchases; Hardcore counts defence double.
+- Overview **Guide** card: passives, gems and key items matched, DPS and EHP against the guide, and the next 3 steps (hover for the numbers, click to open the tab or the trade search).
+- Deliberate differences (another unique, gem or passive) can be accepted once and are never flagged again.
+
 ## [0.4.0] - 2026-11-13
 
 Stage 2: character import and progress sync. Based on **Path of Building Community v2.67.2** (same as 0.3.0).

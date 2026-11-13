@@ -45,6 +45,12 @@ The same rules are sent automatically by the `pob` MCP server on connect
 ## Atlas tree
 - `atlas_get` (points, mechanics, combined bonuses, share link), `atlas_search` (node ids + cost), `atlas_edit` (add/remove/replace/import link). 150 points; explain what each league mechanic does for a PoE1 newcomer. Save the build to keep it.
 
+## Guides (Stage 3)
+- `guide_import { source }` takes the guide's PoB code or a pobb.in / poe.ninja / pastebin / maxroll link (Mobalytics pages are JS-only: ask for the guide's PoB link) and saves it as a new "Guide - <name>" build; the guide's loadouts are its stages. Several stage builds: one "Stage: link" per line. The guide's notes are kept (`guide_compare { notes: true }`).
+- `guide_compare` compares the open build with a guide stage (detected, or `stage`): passives ordered into a path, masteries, gems, items, config, headline numbers and "what explains the gap", all simulated in PoB.
+- `guide_next_steps { budget }` ranks actions by gain per cost (passive points, chaos), respecting trade/SSF and the currency on hand; trade links are instant-buyout searches. Both update the Overview's Guide card.
+- When the player deliberately differs (another unique, gem or passive), `guide_compare { accept: [...] }` stops flagging it.
+
 ## Trade rules (account safety)
 - Instant buyout only. Never whisper, auto-buy or touch the game client — the user clicks the buyout.
 - Requests are paced (1 per 2 s), kept inside every limit pathofexile.com publishes, and capped at 16 per question. If the site asks for a pause, tell the user; don't retry in a loop.

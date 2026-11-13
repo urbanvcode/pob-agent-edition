@@ -47,6 +47,7 @@ test("the agreed tool list is complete and nothing else is exposed", () => {
     "build_summary", "stats", "diagnose", "tree_search",
     "edit_items", "edit_skills", "edit_tree", "set_config", "what_if", "snapshot", "restore", "compare",
     "suggest_passives", "anoint", "affixes", "suggest_gems", "suggest_jewels",
+    "guide_import", "guide_compare", "guide_next_steps",
     "leagues", "trade_search", "plan_upgrades", "currency", "price_check",
     "atlas_get", "atlas_search", "atlas_edit",
   ];

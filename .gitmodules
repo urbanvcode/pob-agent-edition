@@ -1,0 +1,8 @@
+[submodule "PathOfBuilding"]
+	path = PathOfBuilding
+	url = https://github.com/urbanvcode/pob-agent-edition-pob.git
+	branch = agent
+[submodule "pob-mcp"]
+	path = pob-mcp
+	url = https://github.com/urbanvcode/pob-agent-edition-mcp.git
+	branch = agent

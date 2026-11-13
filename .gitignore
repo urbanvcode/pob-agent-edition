@@ -1,0 +1,25 @@
+# --- Secrets and personal data: never commit ---
+AgentEdition.json
+.env
+.env.*
+*.pem
+*.key
+settings.local.json
+Builds/
+*.cfg
+Settings.xml
+mcp-config.json
+
+# --- Local / machine specific ---
+*.lnk
+luajit-src/
+atlastree-export/
+dist/
+*.log
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# --- Claude / agent local state ---
+.claude/settings.local.json

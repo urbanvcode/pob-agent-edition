@@ -1,0 +1,14 @@
+name: Feature request
+description: An idea for the AI tools or the PoB window
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like the AI or PoB Agent Edition to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it help? (example question you'd ask the AI)

@@ -9,7 +9,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## What's here
 - `PathOfBuilding/` — PoB Agent Edition (our fork, branch `agent`): live API, Overview dashboard, inventory with icons, AI Advisor card.
-- `agent-mcp/` — our MCP server (34 tools): talks to the PoB Agent Edition window, or to a headless PoB when it is closed. Its Lua side is `PathOfBuilding/src/Agent/Handlers/`.
+- `agent-mcp/` — our MCP server (42 tools): talks to the PoB Agent Edition window, or to a headless PoB when it is closed. Its Lua side is `PathOfBuilding/src/Agent/Handlers/`.
 - Builds live in `Documents\Path of Building\Builds` (in the user's Documents folder).
 
 ## Start
@@ -42,6 +42,11 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - `suggest_gems` (support gems), `suggest_passives` (tree), `anoint` (amulet) and `suggest_jewels` (jewel mods, Watcher's Eye, cluster notables) simulate every option in PoB. `affixes` gives affix tiers and crafting-bench mods and classifies an item's mods (open prefixes/suffixes).
 - "Can I do <boss>?": `diagnose { boss }`. It uses PoB's boss skill presets; PoB has no boss life data, so judge damage separately and say so.
 
+## Optimiser (Stage 4)
+- "I'm weak at single target", "I keep dying", "more damage": `optimise { goal }` with goal `bossing` (pinnacle boss, single-target DPS without culling), `clear` (no boss, DPS + movement speed + area), `tankiness` (EHP + weakest max hit + uncapped resists), `balanced`, or `weakest` (picked from `diagnose`). The goal's config is temporary and restored afterwards.
+- It simulates passives within `points` (default 6, with paths), respecs (net gain per Orb of Regret), mastery effects, support swaps and gem levels/quality, auras/heralds/curses, utility flasks, anoints, pantheon and bandit, ranks them by gain per cost (a point, a regret or one change = 1), and lists config the player may be under-counting (only if true in their fights), what does not fit the reserved mana, and a scaling report (what +1 step of each stat is worth). Each suggestion carries `what_if` ops and its mechanic; explain it per the explanation mode (teach: the glossary lines it returns, then `profile_mark_learned`). Hardcore drops changes that cost defence for another goal.
+- Gear: `budget_chaos` adds `plan_upgrades` (trade/mixed; Stage 5 will widen it); SSF gets the scaling report as what to look for. Results also fill the Overview's AI Advisor tabs (Items / Passives / Gems / Other).
+
 ## Atlas tree
 - `atlas_get` (points, mechanics, combined bonuses, share link), `atlas_search` (node ids + cost), `atlas_edit` (add/remove/replace/import link). 150 points; explain what each league mechanic does for a PoE1 newcomer. Save the build to keep it.
 
@@ -62,6 +67,12 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - "Is this good for my build?" is not a fact from a text: simulate it (`what_if`). Numbers for the player's build always come from PoB.
 - Fetching is polite: robots.txt is obeyed, requests are paced and capped per question, pages are cached (`AgentCache\knowledge`). If a site asks for a pause, say so; don't retry.
 
+## AI chat inside PoB (Stage 10)
+- PoB has its own chat panel (right edge of the build screen). It runs `agent-mcp/build/chat/bridge.js`, which starts Claude Code (`claude -p --output-format stream-json`), Codex (`codex exec --json`) or the Anthropic API with a fresh agent-mcp server pinned to that window (`POB_AGENT_PORT`, `POB_LIVE=only`). No new MCP tools: the chat uses the same tools and rules.
+- In the panel the AI writes `[[node:Name]]`, `[[item:Name]]`, `[[gem:Name]]` (clickable links) and `[[apply:Label|{"ops":[...]}]]` (Preview = what_if, Apply = edit, both by PoB). Edit tools are off unless the player switches on "AI may edit".
+- Backend, sign-in and API key: Options > AI chat backend. The key (`anthropicApiKey` in AgentEdition.json) is read by the bridge only; never print it or pass it on a command line.
+- Tests: `npm test` includes `tests/chat.test.mjs` (fake CLIs and a fake API). Live: the actions `chat_send { message }` / `chat_state { last }` drive the panel of a test window (port 31345).
+
 ## Trade rules (account safety)
 - Instant buyout only. Never whisper, auto-buy or touch the game client — the user clicks the buyout.
 - Requests are paced (1 per 2 s), kept inside every limit pathofexile.com publishes, and capped at 16 per question. If the site asks for a pause, tell the user; don't retry in a loop.
@@ -81,6 +92,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
   - Working session: commit locally (submodules on `agent`, root on `main`, only your own files), but **never push, tag or publish**. When work is done and tested, message the repo-control session with the commits (repo + hash + one line each), the tests and their results, the CHANGELOG "Unreleased" lines, and whether the stage is finished.
   - Repo-control session: review the diff, run `tools\check-secrets.ps1`, push the forks first and then the root (submodule pointers), update CHANGELOG, and publish the release when a stage is finished.
 - **Every finished stage is released on GitHub**: changelog → new minor version → `tools\build-release.ps1 -Version x.y.z -Publish` (steps in ROADMAP.md › Releases). Add user-facing changes to `CHANGELOG.md` under "Unreleased" as you go.
+- Releases are light (Stage 17): old and Ruthless passive trees are downloaded on demand from the fork tag `agent-edition-v<ver>` (`-Publish` creates it), and each release ships a manifest and small delta zips that `tools\update.ps1` tries before the full zip. Measure size, RAM and CPU with `tools\measure.ps1` before and after a change.
 - Always credit the projects we build on, even after replacing them: Path of Building Community, and [ianderse/pob-mcp](https://github.com/ianderse/pob-mcp) for our MCP server (README credits, THIRD_PARTY_NOTICES, a header in every ported file, release notes). Details: ROADMAP.md › Stage 16 › "Credit to pob-mcp, always".
 - The repos are public: never commit secrets, personal paths or a personal e-mail (commits use the GitHub no-reply address); run `tools\check-secrets.ps1` before pushing.
 - Update PoB: `tools/update-pob.ps1` (`-Check` first). Dev helpers: `tools/restart-pob.ps1`, `tools/snap-pob.ps1`.

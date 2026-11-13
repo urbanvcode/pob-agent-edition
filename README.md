@@ -2,7 +2,7 @@
 
 **Let Claude, Codex or any MCP-capable AI read, analyse and improve your Path of Exile build inside Path of Building, live.**
 
-PoB Agent Edition is a Path of Building Community fork with a built-in AI connection, plus its own MCP server with 41 focused Path of Building tools. Ask "why do I keep dying?" or "what is the best upgrade for 50 chaos?" and the AI answers with PoB's own calculations, edits the build in the open window and finds instant-buyout trade items that fit your build.
+PoB Agent Edition is a Path of Building Community fork with a built-in AI connection, plus its own MCP server with 42 focused Path of Building tools. Ask "why do I keep dying?" or "what is the best upgrade for 50 chaos?" and the AI answers with PoB's own calculations, edits the build in the open window and finds instant-buyout trade items that fit your build.
 
 [![Latest release](https://img.shields.io/github/v/release/urbanvcode/pob-agent-edition?include_prereleases&label=release)](https://github.com/urbanvcode/pob-agent-edition/releases)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue)
@@ -14,7 +14,7 @@ PoB Agent Edition is a Path of Building Community fork with a built-in AI connec
 > Known limits:
 > - Windows only.
 > - The 3.30 passive trees are an early preview taken from Path of Building's next update.
-> - Each download is about 630 MB (Path of Building's own tree and game data), and updates download the whole zip again; smaller updates are planned.
+> - Each download is about 250 MB (portable about 280 MB). Older and Ruthless passive trees download the first time a build needs them, so the first open of such a build needs internet.
 > - The atlas tree share links have not been checked against pathofexile.com yet.
 
 ![PoB Agent Edition Overview dashboard with AI Advisor card](docs/images/overview.png)

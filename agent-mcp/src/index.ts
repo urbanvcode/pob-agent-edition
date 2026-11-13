@@ -7,6 +7,7 @@
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer } from "./server.js";
+import { pruneCaches } from "./cachePrune.js";
 
 const { server, context } = createServer();
 
@@ -20,3 +21,5 @@ process.stdin.on("close", shutdown);
 
 await server.connect(new StdioServerTransport());
 console.error("[pob-agent-edition] MCP server ready");
+// Disk limits for AgentCache, off the request path
+setTimeout(() => { try { pruneCaches(); } catch { /* best effort */ } }, 5_000).unref();

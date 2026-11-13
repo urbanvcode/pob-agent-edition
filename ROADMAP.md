@@ -46,24 +46,24 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 0 | Foundation | ✅ |
 | 1 | Player profile & explanation modes | ✅ |
 | 2 | Character import & progress sync | ✅ 0.4.0 |
-| 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1) |
-| 4 | Optimiser (goal-based min-maxing) | ✅ (0.7.0) |
+| 3 | Guide mode | ✅ 0.5.0 (Guide mode 2: 0.6.1; Guide tab fixes and Hide panel: 0.8.0) |
+| 4 | Optimiser (goal-based min-maxing) | ✅ 0.8.0 |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
 | 6 | Crafting helper | ⬜ |
 | 7 | Levelling coach | ⬜ |
 | 8 | Farming & money advisor | ⬜ |
 | 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ 0.6.0 |
-| 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ⬜ |
+| 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ✅ 0.8.0 |
 | 11 | Create a build | ⬜ |
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ✅ 0.7.0 |
 | 14 | PoE2 edition | 💭 |
 | 15 | Install, portable version & updater | ✅ 0.3.0 |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
-| 17 | Lighter: smaller downloads and updates, less memory, disk and CPU | ⬜ |
+| 17 | Lighter: smaller downloads and updates, less memory, disk and CPU | ✅ 0.8.0 |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → 3 ✅ → **4** → 5 → 9 ✅ → 7 → 6
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → 2 ✅ → 3 ✅ → 4 ✅ → **5** → 9 ✅ → 7 → 6
 → 8 → 10 → 11 → 12/13 → 14.
 - **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
   instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
@@ -270,7 +270,7 @@ Loose ends / ideas:
 
 ---
 
-## Stage 4 — Optimiser (goal-based min-maxing) ✅ (2026-11-13, for 0.7.0)
+## Stage 4 — Optimiser (goal-based min-maxing) ✅ (2026-11-13, released in 0.8.0)
 
 **Why:** "How do I increase damage?", "I'm weak at single target", "I keep dying" — answered with PoB maths.
 
@@ -562,7 +562,7 @@ a high accuracy with zero uncited claims; disagreements and outdated facts are f
 
 ---
 
-## Stage 10 — AI chat inside PoB ⬜
+## Stage 10 — AI chat inside PoB ✅ (2026-11-13, released in 0.8.0)
 
 **Why:** ask questions without leaving PoB; the chat sees the open build and drives the tools.
 
@@ -584,10 +584,30 @@ a high accuracy with zero uncited claims; disagreements and outdated facts are f
 - Safety: same tools and rules as external clients; no game-client access.
 
 ### Steps
-1. Spike: run `claude -p` and `codex exec` from a PoB sub-script, stream output, parse JSON.
-2. Chat UI panel (input, scroll, streaming text, links).
-3. Session handling, context injection, backend picker in Options.
-4. Optional API-key backend with tool routing.
+1. ✅ Spike: `claude -p` and `codex exec` run from PoB without a console window (LuaJIT FFI pipes + job object,
+   `Agent/ChatProcess.lua`); a Node bridge (`agent-mcp/src/chat/`) parses their JSON into one event format.
+2. ✅ Chat UI panel (`Agent/ChatPanel.lua`): docked right, hideable (edge tab), streaming text, **bold**/lists,
+   `[[node/item/gem:...]]` links (hover tooltip, click highlights), `[[apply:...]]` Preview/Apply cards, quick prompts, Stop.
+3. ✅ Sessions per build and backend (`AgentCache/chat/builds/`), context injection (build, view, profile, guide,
+   edit toggle), backend picker + Sign in in Options, "AI may edit" toggle in the panel (off by default).
+4. ✅ Optional API-key backend: official `@anthropic-ai/sdk`, tool use routed to agent-mcp over MCP stdio, history in
+   `AgentCache/chat/api/`. Key in AgentEdition.json (`anthropicApiKey`), read by the bridge only, never shown.
+
+**Tested (2026-11-13):** `npm test` 86/86 (9 chat tests: parsers, edit-tool policy, fake Claude/Codex CLIs, fake
+Anthropic API with real MCP tool routing, LuaJIT process runner). Live on a test window (port 31345): "why am I weak
+at bosses?" through **Codex** streamed an answer that used profile_get, diagnose, build_summary, what_if, kb_lookup on
+the open build, with a gem link and an apply card whose Preview matched PoB's what_if (13.28m -> 9.28m DPS).
+The same question through **Claude Code** (desktop app's CLI, signed in once) streamed an answer using diagnose,
+optimise, what_if, build_summary, stats, with node and gem links and two apply cards.
+
+**Models:** a model per backend in Options, default the balanced one (Claude Code `sonnet`, Codex `gpt-6.1-sol` with
+low reasoning effort, API `claude-sonnet-5-5`); cheaper and strongest choices are opt-in. Defaults live in `Chat.MODELS`
+(Lua) and `DEFAULT_MODELS` (backends.ts); update both when the vendors rename models.
+
+### Loose ends (Stage 10)
+- Codex sends whole messages, not token deltas (`codex exec --json` has no partial output): its text arrives per message.
+- The panel's input is one line (Enter sends); a multi-line box could come with Stage 12 (UI polish).
+- Claude Code needs a one-time `claude auth login` even when the Claude desktop app is signed in (Options > Sign in).
 
 **Done when:** typing "why am I weak at bosses?" in PoB streams an answer from Claude Code or Codex
 that used the pob tools on the open build.
@@ -913,7 +933,7 @@ window no longer reads anything from `pob-mcp/`; the submodule is gone and a rel
 pob-mcp is credited in the README, THIRD_PARTY_NOTICES, `agent-mcp/README.md`, the ported files' headers
 and the release notes.
 
-## Stage 17 — Lighter: smaller downloads and updates, less memory, disk and CPU ⬜
+## Stage 17 — Lighter: smaller downloads and updates, less memory, disk and CPU ✅ (2026-11-13, released in 0.8.0)
 
 **Why:** each release zip is about 630 MB (the portable one about 665 MB), and every update downloads the whole zip
 again, although most updates change only a few MB of our own code. Unpacked, almost all of it is Path of Building's
@@ -960,16 +980,86 @@ next to the game.
   changed), and background checks (update check, icon downloads) stay rare and throttled.
 
 ### Steps
-1. `tools/measure.ps1` and a baseline on 0.4.0 (numbers written into this section).
-2. Release manifest in `build-release.ps1` and delta zips; updater delta mode with a full-zip fallback; test
-   0.N → 0.N+1 with only code changes.
-3. Data packs: tree-on-demand download in PoB (from the fork tag on GitHub), the offline message, a smaller default
-   zip; test opening an old build and a Ruthless build.
-4. RAM: profile the PoB window and agent-mcp, fix the biggest items, run a long leak test, add the idle shutdown
-   of the headless engine.
-5. Disk: cache limits and cleanup, history retention, backup cleanup.
-6. CPU: idle work in the live server and background checks.
-7. Re-measure, and record before/after in this section and in the release notes.
+1. ✅ `tools/measure.ps1` and a baseline (on 0.6.1, the current release; numbers below).
+2. ✅ Release manifest in `build-release.ps1` and delta zips; updater delta mode with a full-zip fallback; tested
+   0.7.0 → 0.7.1 with only code changes (local test builds).
+3. ✅ Data packs: tree-on-demand download in PoB (from the fork's release tag on GitHub), the offline message, a
+   smaller default zip; tested an old build (3.13) and a Ruthless build (3.28 Ruthless).
+4. ✅ RAM: profiled the PoB window and agent-mcp, fixed the biggest items, ran a long leak test, added the idle
+   shutdown of the headless engine.
+5. ✅ Disk: cache limits and cleanup; history retention (already capped); one backup only (the updater mirrors into
+   a single `<folder>.previous`).
+6. ✅ CPU: idle work in the live server; background checks were already rare (update check once a day, icons 2 at
+   a time, only for items on screen).
+7. ✅ Re-measured; before/after below and in CHANGELOG "Unreleased".
+
+### Built (2026-11-13)
+- **`tools/measure.ps1`** `[-Root] [-Release 0.6.1] [-Zip ...] [-Seconds 10] [-Json out.json] [-Compare before.json]`:
+  download sizes (GitHub or local zips), unpacked size per folder (trees split into "current" and "packs"), working
+  set / private memory / CPU (% of one core) of every process started from the folder (PoB window, agent-mcp node,
+  luajit engines), and AgentCache folders + the updater backup. Read-only.
+- **Tree packs.** `build-release.ps1` keeps the newest 3 normal tree versions (`-KeepTrees`, today 3.28-3.30) and
+  moves the other 40 (Ruthless, alternate, 2.6-3.27) out of both zips. `PathOfBuilding/src/TreeData/packs.json`
+  lists every pack file with size and SHA256 (hashed from an LF export, because raw.githubusercontent.com serves
+  the committed bytes) and the source `https://raw.githubusercontent.com/<fork>/refs/tags/agent-edition-v<ver>/src/TreeData/`.
+  With `-Publish` it tags the fork commit `agent-edition-v<ver>` and pushes the tag (a bare commit link breaks when
+  the fork branch is rebased: 0.6.1's fork commit already returns 404). `3_19/Assets.lua` stays (all trees use it).
+  `-NoPacks` builds the old full zip.
+- **PoB side** (`Agent/TreePacks.lua`): opening a build in the window that needs a missing tree shows "Passive tree
+  needed ... Download it now? N MB" and a progress popup (background thread), then opens the build. The AI's build
+  loads (live `load_build_xml`, `restore_build_xml`, `open_build_file`, headless `load_build_xml`) download right away
+  and return the offline message as the tool error. Any other path (Tree tab version list, imports) downloads in
+  `PassiveTree` itself. One keep-alive connection per pack, one retry per file, every file checked (size + SHA256)
+  before it is renamed into place, `tree.lua` last. Git checkouts have no packs.json, so nothing changes there.
+  Headless: `Agent/Headless.lua` now has a real `MakeDir` and keeps the real `require` (PoB's HeadlessWrapper hides
+  lcurl).
+- **Manifest and deltas.** Each release has `release-manifest.json` (path, size, SHA256, `only: zip|portable`) in
+  both zips and as the asset `PoB-Agent-Edition-<ver>-manifest.json`, plus delta zips
+  `PoB-Agent-Edition-<from>-to-<ver>-update.zip` from the 3 newest earlier releases that have a manifest (on GitHub
+  with `-Publish`, else in `dist\`; `-DeltaFrom` picks them). `npm ci` output is byte-identical between builds, so a
+  code-only delta holds only our changed files.
+- **Updater** (`tools/update.ps1`): if the release has a delta from the installed version and the install has
+  `release-manifest.json`, it downloads the delta, checks its SHA256 and every file against the manifest, backs up,
+  copies only changed files, removes files the new release dropped (never user files; trees that became packs stay)
+  and drops the unpacked cache of a changed timeless jewel table. Anything that doesn't fit (wrong base version,
+  missing or changed file) falls back to the full zip. `-Full` skips the delta; `-ZipFile` accepts delta zips. The
+  full-zip path now keeps downloaded tree packs (robocopy `/XD`) and afterwards removes any kept pack that no longer
+  matches packs.json. Old 0.6.x updaters still work: they take the full zip by its unchanged name.
+- **Live server CPU** (`Agent/LiveServer.lua`): focused or under the mouse = full speed; unfocused = 10 fps for 30 s
+  after AI activity, then about 3 fps; minimised = 1 fps. Once quiet in the background, one full Lua GC (PoB uses
+  `setpause 400`, so the heap may grow to 4x its live size between collections), again at most every 5 minutes.
+  New live action `memory` (Lua heap, loaded trees, window state, frame count) for leak tests.
+- **agent-mcp:** headless engines (the player's and the side engine) shut down after 5 idle minutes
+  (`POB_AGENT_IDLE_MINUTES`, 0 = never); the player's build is exported first and loaded back, unsaved edits
+  included, on the next call. Cache limits at server start (`cachePrune.ts`, `POB_AGENT_CACHE_PRUNE=off`):
+  knowledge HTTP cache 50 MB / 60 days, snapshots 100 / 90 days, icon pictures 50 MB, answers.log 2 MB. Character
+  history was already capped (200 entries, 30 build copies per character).
+- `.sha256` files are written with an LF line end (`sha256sum -c` on Linux/macOS).
+
+### Measured (2026-11-13, same PC, OCC Vortex fixture build, `tools/measure.ps1`)
+| What | Before (0.6.1) | After (0.7.0 test build) |
+|---|---|---|
+| Installer zip | 631.6 MB | **246.6 MB** |
+| Portable zip | 665.1 MB | **280.2 MB** |
+| Update when only our code changed | full zip, 631.6 MB (8.5-11 min) | **0.3 MB** delta (7 files), applied in 4 s |
+| Passive trees in the zip (unpacked) | 581 MB (43 versions) | 63 MB (3 versions + shared images); packs 3-25 MB each on demand |
+| Opening a build with a missing tree | - | 3.13: 5 MB in 3.8 s; 3.28 Ruthless: 15 MB in 22 s |
+| PoB window, unfocused, CPU | 5.9% of a core | **2.6%** |
+| PoB window, minimised, CPU | 66-98% of a core, then **crashed** | **0.6-2%** |
+| PoB window memory over time (unfocused) | grew ~1.3 MB/s (~0.6 MB/s minimised) | flat; idle GC trimmed Lua heap 299 → 200 MB |
+| Headless engine (idle) | ~315 MB kept until the AI app closes | shut down after 5 min (0 MB), build restored on demand |
+| agent-mcp server | ~53 MB | ~53-67 MB (unchanged) |
+| AgentCache (this PC) | 1 MB, no limits | capped as above |
+
+Leak test (0.7.0 test build, window in the background, an AI request every 5 minutes; stopped at 14 of 60 minutes by the player's choice): working set 1,185-1,222 MB and private 1,639-1,687 MB the whole time, no growth after minute 3; CPU 76% in minutes 1-2 (first start of a fresh install), then 2.2-6.0% of a core; Lua heap 203-292 MB. Open point: this fresh install sits about 400 MB higher than the 0.6.1 checkout with the same LiveServer (750 MB); the cause is not confirmed (no unpacked jewel .bin caches were written), worth a look in Stage 12/13.
+
+Tests: `npm test` (all pass, including new contract tests for the idle shutdown with an unsaved edit and the cache
+limits); 0.6.1 zip install updated to 0.7.0 with its **old** `update.ps1` (full zip, 9 s, builds and portable.txt
+kept); 0.7.0 → 0.7.1 delta (installer and portable installs); rollback; the new updater with a full zip (downloaded
+trees kept); a delta for the wrong version and a tampered delta are refused with nothing changed; headless and live
+loads of a 3.13 and a 3.28 Ruthless build; the offline message (HTTP 404 and timeout). Not tested: the GitHub
+download branch of the delta path (needs two real releases, so the update after 0.8.0 is its first real run) and clicking
+the window's "Passive tree needed" popup by hand.
 
 **Done when:**
 - the measured numbers are in this section, with before/after;
@@ -1061,3 +1151,4 @@ The player always runs two sessions:
 | 0.6.0 (2026-11-13) | 9 PoE knowledge engine |
 | 0.6.1 (2026-11-13) | 3 follow-up: Guide mode 2 (Guide tab, priorities, levelling, sync button) |
 | 0.7.0 (2026-11-13) | 13 Data freshness (3.30 uniques preview); roadmap: Stage 11 interview, theorycraft, prices, item targets |
+| 0.8.0 (2026-11-13) | 4 Optimiser, 10 AI chat inside PoB, 17 Lighter, Guide tab fixes (one combined release, by the player's choice) |

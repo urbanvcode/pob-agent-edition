@@ -6,7 +6,7 @@ Path of Exile 1 build in **PoB Agent Edition**. It is part of
 
 - **Live first.** It talks to the PoB Agent Edition window on `127.0.0.1:31337` (this PC only). Edits show
   up in the window at once. When PoB is closed it starts a headless PoB and works on saved build files.
-- **34 focused tools**, about 3,600 tokens of tool definitions (a test fails above 5,000).
+- **42 focused tools**, about 4,750 tokens of tool definitions (a test fails above 5,000).
 - **PoB does the maths.** Every number is PoB's own calculation; every result names the config it used.
 - **Account safety.** Instant-buyout listings only, 1 trade request per 2 seconds, inside every limit
   pathofexile.com publishes, 16 requests per question, no whispers, no game-client access. The POESESSID

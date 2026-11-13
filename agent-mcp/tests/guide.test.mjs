@@ -150,3 +150,24 @@ test("PoB's Sync character button: paced requests, import, history; refusals and
   assert.equal(r.status, 0, `charsync.lua failed:\n${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /charsync ok/);
 });
+
+test("Guide tab works when no AI request has set PoB's global build (0.6.1 crash): stages, Auto, Analyse", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const root = path.join(here, "..", "..");
+  const src = path.join(root, "PathOfBuilding", "src");
+  const runtime = path.join(root, "PathOfBuilding", "runtime");
+  const exe = path.join(root, "luajit", process.platform === "win32" ? "luajit.exe" : "luajit");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-guidetab-"));
+  const guideXml = guideMode.mergeStages([{ stage: "Act 1-3", xml: fixture }, { stage: "Endgame", xml: fixture }]);
+  fs.writeFileSync(path.join(dir, "guide.xml"), guideXml);
+  const env = {
+    ...process.env,
+    LUA_PATH: `${path.join(runtime, "lua", "?.lua")};${path.join(runtime, "lua", "?", "init.lua")};;`,
+    LUA_CPATH: `${path.join(runtime, process.platform === "win32" ? "?.dll" : "?.so")};;`,
+  };
+  const r = spawnSync(exe, [path.join(here, "guidetab.lua"), path.join(here, "fixtures", "occ-vortex.xml"), path.join(dir, "guide.xml"), dir], { cwd: src, env, encoding: "utf8", timeout: 240_000 });
+  assert.equal(r.status, 0, `guidetab.lua failed:
+${r.stdout}
+${r.stderr.slice(-1500)}`);
+  assert.match(r.stdout, /guidetab ok: 2 stages/);
+});

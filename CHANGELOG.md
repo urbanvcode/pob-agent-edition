@@ -6,6 +6,54 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-13
+
+One release for four pieces of work: the optimiser (Stage 4), the AI chat inside PoB (Stage 10), much smaller downloads and updates (Stage 17), and Guide tab fixes. Based on **Path of Building Community v2.67.2** (same as 0.7.0), with the 3.30 passive tree and unique previews.
+
+### Optimiser (Stage 4)
+
+#### Added
+- **Optimiser** (Stage 4): ask "I'm weak at single target" or "I keep dying" and the AI's new `optimise` tool picks a goal (single target / bossing, clear, tankiness, balanced, or "fix weakest" from the build's diagnosis), sets the config that goal needs for the run only (put back afterwards) and simulates every lever in PoB: passives within N points with their path, respecs (net gain per Orb of Regret), mastery effects, support gem swaps, gem levels and quality, auras, heralds and curses, utility flasks, anoints, pantheon and bandit. Results are ranked by gain per cost, each with before/after numbers, the mechanic that makes it work (explained at your explanation level, with its source) and side effects ("costs 4% EHP"). It also lists config you may be under-counting, auras that would help but don't fit your mana, and a **scaling report**: what one more step of each stat (10% more damage, +100 life, +1% max resistance, ...) is worth for your build. With a budget it adds instant-buyout gear from `plan_upgrades`; Hardcore never trades defence away for damage.
+- **AI Advisor tabs** on the Overview: Items (gear from `plan_upgrades`), Passives, Gems and Other (from the optimiser). Hover a row for its numbers and cost, click to open the tab where the change is made.
+
+### AI chat inside PoB (Stage 10)
+
+#### Added
+- **AI chat inside PoB** (Stage 10): a chat panel docked on the right of the build screen (hide it with `>`, the **AI Chat** tab on the right edge opens it again). Ask "why am I weak at bosses?" and the answer streams in from **Claude Code** or **Codex** with your own login, or from the Anthropic API with your own key. The AI works on the build in the window with the same PoB tools and rules as your AI apps, and gets the open build, your profile (play mode, league, currency, explanation mode) and your guide stage automatically.
+- In chat answers, passives, items and gems are **links**: hover for the tooltip, click to find them (tree search, Items list, Skills group). Suggested changes come as cards with **Preview** (PoB simulates it and shows before/after, nothing changes) and **Apply** (changes the build in the window; it is never saved over your file).
+- **AI may edit** toggle in the panel (off by default): off, the AI can only read and simulate, and changes come as Preview/Apply cards; on, it may change the build in the window when you ask. Quick prompts ("Why am I dying?", "Next upgrade", "Weak at bosses?"), Stop, New chat, and one conversation per build that continues where you left off.
+- **AI chat model** per backend in Options. The default is the balanced, mid-priced model, never the most expensive one: Claude Code Sonnet (Haiku cheaper, Opus strongest), Codex GPT-6.1-Sol at low reasoning effort (GPT-6-Luna cheaper, GPT-6-Astra strongest), API Sonnet 5.5 (Haiku 5.5 cheaper, Opus 5.5 strongest). The panel shows the model in use.
+- **Options > AI chat backend** with a **Sign in** button (opens the CLI's own sign-in window: `claude auth login` / `codex login`) and an optional **Anthropic API key** field. The key stays in `AgentEdition.json` on this PC, is never shown again, and is only sent to api.anthropic.com. Claude Code and Codex are found on PATH, in their usual install folders or inside the Claude / Codex desktop apps.
+
+#### Security
+- The chat never touches the game client and trade stays instant-buyout only. The CLIs run with their built-in command, file and web tools switched off, only the pob tools (edit tools only when you allow them), in their read-only sandbox, outside any project folder, and pinned to this PoB window. No POESESSID, API key or build file path is passed to a backend; Cancel ends the backend and everything it started.
+- New dependency: Anthropic's official TypeScript SDK (`@anthropic-ai/sdk` 1.3.0) for the optional API-key backend.
+
+### Lighter: smaller downloads and updates, less CPU and memory (Stage 17)
+
+#### Added
+- **Smaller downloads** (Stage 17): the zips are about 247 MB (installer, was 632 MB) and 280 MB (portable, was 665 MB). Ruthless, "alternate" and older passive trees (about 514 MB unpacked) are no longer in the zip: when you open a build that uses one, PoB asks and downloads just that tree (3-25 MB) from GitHub, checks every file, and keeps it for next time. The AI's tools download it on their own. Offline, PoB says which tree is missing and how big it is instead of failing.
+- **Small updates** (Stage 17): from this release on, **Update now** downloads only the files that changed (a few MB when only our code changed; a test update was 0.3 MB instead of 247 MB). The first small update is the one after 0.8.0; updating *to* 0.8.0 still downloads the full (now much smaller) zip. Every file is checked against the release's manifest; if anything doesn't match, the updater falls back to the full zip on its own. Passive trees you downloaded are kept across updates and rollbacks. `tools\update.ps1 -Full` forces the full zip.
+- `tools\measure.ps1`: download sizes, disk use per folder, RAM and CPU of the PoB window, the AI server and the headless engine, and the size of caches and backups, with a before/after comparison.
+
+#### Changed
+- **Less CPU and memory in the background** (Stage 17): PoB in the background now runs at about 3 frames a second when nothing happens (10 while the AI is working, 1 when minimised, full speed when focused or under the mouse) and tidies up its memory once it goes quiet. Measured with a build loaded: unfocused 5.9% -> 2.6% of a CPU core, minimised 0.6-2%.
+- The AI server shuts its background PoB engine down after 5 idle minutes (frees about 315 MB each) and brings the build back exactly as it was, unsaved changes included, on the next question. `POB_AGENT_IDLE_MINUTES` changes the wait (0 = never).
+- The AI server keeps its caches within limits: web pages for facts 50 MB / 60 days, snapshots 100 files / 90 days, item icons 50 MB, the answers log 2 MB. Character history keeps its existing limits (200 entries, 30 build copies per character).
+
+#### Fixed
+- **Minimised PoB used a full CPU core and kept growing until it crashed** (0.6.x, with a build loaded): it now idles at 1 frame a second when minimised, and its memory stays flat.
+- The release `.sha256` files end in LF, so `sha256sum -c` works on Linux and macOS too.
+
+### Guide mode fixes (follow-up to Stage 3)
+
+#### Added
+- **Hide panel** button in the Guide tab: hides the guide panel on the left so the tree uses the whole width; **Show panel** brings it and the Analyse results back. The choice is remembered.
+
+#### Fixed
+- **Guide tab crash** (0.6.1): opening the Guide tab with a guide imported stopped PoB with "attempt to index global 'build'" when no AI app had talked to the window yet. The tab and the Sync character button now always work on their own build.
+- The Guide tab now saves your stage choice, kept differences and the Overview card on a fresh install too (it could not create its `AgentCache` folder there).
+
 ## [0.7.0] - 2026-11-13
 
 Stage 13: data freshness. Based on **Path of Building Community v2.67.2** (official PoB has not released 3.30 yet), with the 3.30 passive trees and unique changes as previews.
@@ -157,7 +205,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.5.0...v0.6.0

@@ -76,6 +76,35 @@ export interface KnowledgeOptions extends VersionsOptions {
 
 const phrase = (name: string) => new RegExp(`(^|[^A-Za-z0-9])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}(?![A-Za-z0-9])`, "i");
 
+/** Something a build uses, by its exact in-game name. */
+export interface BuildName { name: string; kind: "gem" | "unique" | "passive" | "ascendancy" }
+
+/**
+ * Does a patch-note line name this thing? Stricter than a word search, because
+ * game names are made of common words:
+ * - the capitalisation must match ("Increased Area of Effect" the gem, not
+ *   "25% increased Area of Effect" the stat);
+ * - the name must not be a piece of a longer name ("Shaper" in "Shaper of
+ *   Flames", "Trickery" in "Essence of Trickery");
+ * - a passive only counts in a line about passives, and never in the Atlas
+ *   passive section (a different tree).
+ */
+export function mentions(line: PatchLine, thing: BuildName): boolean {
+  const text = line.parent ? `${line.parent} | ${line.text}` : line.text;
+  if (thing.kind === "passive" && (/atlas/i.test(line.section) || !/\b(Notable|Keystone|Passive)\b/.test(text))) return false;
+  const re = new RegExp(`(?<![A-Za-z0-9'])${thing.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9])`, "g");
+  for (let m: RegExpExecArray | null; (m = re.exec(text)); ) {
+    const before = text.slice(0, m.index), after = text.slice(m.index + m[0].length);
+    // "Essence of Trickery", "Shaper of Flames": the match is a piece of a longer name.
+    if (/[A-Z][A-Za-z']*\s+of\s+(the\s+)?$/.test(before) || /^\s+of\s+[A-Z]/.test(after)) continue;
+    // "Velka, the Tide Witch": a class name right after another capitalised word is the tail of a name.
+    const previous = /([A-Za-z']+)\s+$/.exec(before)?.[1];
+    if (thing.kind === "ascendancy" && previous && /^[A-Z]/.test(previous) && !/^(The|A|An)$/.test(previous)) continue;
+    return true;
+  }
+  return false;
+}
+
 function normaliseMod(line: string): string {
   return line.toLowerCase().replace(/[–—]/g, "-").replace(/[+\s]/g, "");
 }
@@ -357,7 +386,7 @@ export class Knowledge {
    * Official patch notes. `version` is a full version ("3.30.0b") or a league
    * ("3.30" = the content update and every patch after it); default: the live league.
    */
-  async patch(options: { version?: string; filter?: string; names?: string[]; max?: number; subjectOnly?: string[] } = {}): Promise<PatchResult> {
+  async patch(options: { version?: string; filter?: string; names?: string[]; build?: BuildName[]; max?: number; subjectOnly?: string[] } = {}): Promise<PatchResult> {
     const version = await this.versions.info();
     const notes: string[] = [];
     const asked = (options.version ?? "").trim().toLowerCase().replace(/^v/, "");
@@ -397,13 +426,15 @@ export class Knowledge {
     if (skipped.length) notes.push(`Not read yet (request limit per question, to stay polite): ${skipped.join(", ")}. Call again to read more; what was read is cached.`);
     if (version.announced && !asked) notes.push(`GGG has announced ${version.announced.version} (${version.announced.url}); it is not live yet, so these are the notes of the live league. Ask for version "${majorOf(version.announced.version)}" to read the announced changes.`);
 
-    const names = (options.names ?? []).filter((n) => n.trim().length > 2);
-    const patterns = names.map((n) => ({ name: n, re: phrase(n) }));
+    const build = (options.build ?? []).filter((n) => n.name.trim().length > 2);
+    const names = [...(options.names ?? []).filter((n) => n.trim().length > 2), ...build.map((n) => n.name)];
+    const patterns = (options.names ?? []).filter((n) => n.trim().length > 2).map((n) => ({ name: n, re: phrase(n) }));
     const filterWords = options.filter ? keyWords(options.filter) : [];
     const filterPhrase = options.filter?.trim().toLowerCase();
     const facts: Fact[] = [];
     const sections: PatchResult["sections"] = [];
     const matched = new Set<string>();
+    let ruthless = 0;
     for (const thread of read) {
       const count = new Map<string, number>();
       const perName = new Map<string, number>();
@@ -411,7 +442,13 @@ export class Knowledge {
         count.set(line.section, (count.get(line.section) ?? 0) + 1);
         const hay = `${line.section}: ${line.parent ?? ""} ${line.text}`;
         let hit: string | undefined;
-        if (patterns.length) {
+        if (build.length) {
+          // Ruthless is a separate game mode: its section does not describe the normal game.
+          if (/ruthless/i.test(line.section)) { if (build.some((n) => mentions(line, n))) ruthless++; continue; }
+          hit = build.find((n) => mentions(line, n))?.name;
+          if (!hit) continue;
+          matched.add(hit);
+        } else if (patterns.length) {
           // A common word ("Resistance") only counts when the line starts with it, i.e. is about it.
           hit = patterns.find((p) => p.re.test(options.subjectOnly?.includes(p.name) ? line.text.slice(0, p.name.length + 6) : `${line.parent ?? ""} | ${line.text}`))?.name;
           if (!hit) continue;
@@ -424,6 +461,7 @@ export class Knowledge {
       }
       for (const [section, lines] of count) sections.push({ thread: thread.title, section: section || "(no heading)", lines });
     }
+    if (ruthless) notes.push(`${ruthless} more line${ruthless === 1 ? "" : "s"} in the Ruthless-specific section name${ruthless === 1 ? "s" : ""} something in the build; they apply to Ruthless mode only (read them with filter "Ruthless").`);
     this.log("patch", `${scope} ${options.filter ?? ""} ${names.length ? `[${names.length} names]` : ""}`.trim(), facts);
     return { version, scope, threads: read, facts, sections, unmatched: names.filter((n) => !matched.has(n)), notes };
   }

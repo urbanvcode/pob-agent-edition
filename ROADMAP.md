@@ -52,7 +52,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 6 | Crafting helper | ⬜ |
 | 7 | Levelling coach | ⬜ |
 | 8 | Farming & money advisor | ⬜ |
-| 9 | PoE knowledge (poewiki, poedb, glossary) | ⬜ |
+| 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ |
 | 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ⬜ |
 | 11 | Create a build | ⬜ |
 | 12 | UI polish | ⬜ |
@@ -389,7 +389,7 @@ setup, investment and estimated profit.
 
 ---
 
-## Stage 9 — PoE knowledge engine (accurate, current, cited) ⬜
+## Stage 9 — PoE knowledge engine (accurate, current, cited) ✅ (2026-11-13)
 
 **Goal:** the AI "understands PoE in and out" **without guessing**. Every factual claim comes from a
 current, named source; if no source supports it, the AI says it doesn't know (and how to find out).
@@ -466,19 +466,59 @@ current, named source; if no source supports it, the AI says it doesn't know (an
 - **Logging:** which sources each answer used (local log) to audit mistakes.
 
 ### Steps
-1. Source hierarchy, schema and local KB store; accuracy rules in agentGuide/AGENTS.md.
-2. GGG official connectors (patch notes, trade data endpoints) + versioning.
-3. poewiki connector (API + Cargo) with revision timestamps.
-4. poedb connector with parser tests.
-5. Game-file dataset via PoB's exporter (needs PoE1 install path; read-only).
-6. Entity linking + conflict detection + freshness/staleness.
-7. Tools: `kb_search`, `kb_entity`, `kb_mechanic`, `kb_patch_changes`, `kb_verify`, `kb_compare_games`.
-8. Evaluation set + automated accuracy checks.
-9. Glossary + Teach-mode integration; patch "what changed for my build" report.
+- [x] 1. Source hierarchy, fact schema and store; accuracy rules in the agent guide and AGENTS.md.
+  Every fact has `source`, `url`, `game`, `game_version`, `retrieved_at` (`agent-mcp/src/knowledge/types.ts`);
+  a fact that cannot be cited is never printed. The store is the page cache under `AgentCache/knowledge/http`
+  (one JSON file per page with URL, time and the game version it was read under) plus `answers.log`
+  (which sources each answer used).
+- [x] 2. GGG official: the patch-notes forum (thread list and the staff post of each thread; player replies
+  are never read) and the live version from it. **Not used:** the trade data endpoints, because
+  pathofexile.com's robots.txt disallows `/api/` for automated clients and the knowledge engine obeys
+  robots.txt (the trade tools keep using the trade API inside GGG's published rate limits, as before).
+- [x] 3. poewiki (and poe2wiki for labelled comparisons): MediaWiki API with the page's last-edit time, and
+  the Cargo `versions` table (release dates), so each passage is tagged with the version that was live when
+  the page was last edited.
+- [x] 4. poedb: item box and "Version history" of a page, with parser tests on a fixture and a live drill.
+- [x] 5. Game files, **partly**: the installed client is detected read-only (Steam or standalone; build and
+  last patch time) and used as the freshness signal: patched after our data was read means the version is
+  re-checked. **Not done:** reading the game's data tables. PoB's exporter needs the Oodle extractor
+  (`bun_extract_file.exe`), which PoB does not ship; we do not download executables. Until the player
+  installs it, the top tier for data is PoB's own export of the game files (`src/Data`).
+- [x] 6. Conflicts and freshness. PoB and poedb mod lines of a unique are compared and differences reported;
+  wiki pages edited before the current league are flagged "may be outdated"; official patch notes that name
+  the topic are listed first; cached pages are re-read after a patch (the cache is tied to the game version).
+  Entity linking is by exact name across PoB, poedb, the wiki and the patch notes (no id table yet).
+- [x] 7. Tools, two instead of seven to keep the tool definitions small (about 350 tokens):
+  `kb_lookup { query, claim?, source?, refresh? }` covers search, entity, mechanic, verify, PoE2 comparison
+  and refresh; `kb_patch { version?, filter?, build? }` covers patch changes and "for my build".
+- [x] 8. Evaluation set: `agent-mcp/tests/knowledge-eval.json`, 121 questions (mechanics, items, gems,
+  3.30 patch changes, PoE1-vs-PoE2 traps, claim checks, unknown things). `npm run test:kb` runs it against
+  the live sources together with a parser drill and a check of every glossary quote.
+  Result on 2026-11-13 (3.30.0): 121/121, 100 glossary quotes confirmed, 0 uncited facts.
+- [x] 9. Glossary (62 PoE1 terms, 38 with a PoE2 comparison; each with a short quoted source) and the
+  "what changed for my build" report (`kb_patch { build: true }`).
 
 **Done when:** factual answers always carry current sources and versions; the evaluation set passes at
 a high accuracy with zero uncited claims; disagreements and outdated facts are flagged; "what changed in
-3.30 for my build" is accurate and sourced.
+3.30 for my build" is accurate and sourced. **Met on 2026-11-13.**
+
+### Loose ends and ideas (Stage 9)
+- [ ] Game data tables (mods, bases, quest rewards) from the installed game: needs the Oodle extractor
+  next to PoB's exporter (`PathOfBuilding/src/Export/ggpk`); then `src/Export` can build a per-patch dataset.
+- [ ] After each new league: run `npm run test:kb`, fix what it reports, and move the glossary's `V1` /
+  `CHECKED` forward (entries checked for an older league are flagged in every answer until then).
+- [ ] `kb_lookup` claim check is a word-and-number match with the evidence shown; it does not understand
+  negation ("cannot" vs "can"). The AI must read the quoted sentence.
+- [ ] The wiki's own search ranks poorly for free text ("resistance cap"); the engine tries exact titles
+  and single words first. Topics that are neither a page title nor a glossary term can miss.
+- [ ] poedb's "Version history" lists every line that contains the name, so a short name ("Grace") also
+  shows lines about other things ("Kalisa's Grace").
+- [ ] Only uniques and gems are read from PoB's data; passives come from `tree_search`, mods from `affixes`.
+- [ ] poe.ninja as an economy source is covered by the trade tools (`currency`, `price_check`), not by the
+  knowledge engine.
+- [ ] An SQLite store with full-text search over everything read so far, and a diff between two patches
+  ("what changed for Lightning Arrow since 3.28") beyond what the patch notes and poedb's history give.
+- [ ] Stage 10's in-PoB chat should show the citations as links.
 
 ---
 

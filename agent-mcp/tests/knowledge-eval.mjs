@@ -128,12 +128,13 @@ try {
   const league = majorOf(version.current.version);
   const all = await call(() => kb.patch({ version: league }));
   // Take real gem names from the league's own notes, then ask for them the way kb_patch { build: true } does.
-  const names = [...new Set(all.facts.flatMap((f) => kb.pob.namesIn(f.text)).filter((n) => kb.pob.gem(n)))].slice(0, 4).map((n) => kb.pob.gem(n).name);
-  const mine = await call(() => kb.patch({ version: league, names: [...names, "Zzyzx Flibbertigibbet"] }));
+  // Gem names as the notes write them at the start of a line ("Winter Orb: Now ...").
+  const names = [...new Set(all.facts.filter((f) => /Skill Gem Changes/.test(f.title)).map((f) => /^([A-Z][A-Za-z' ]+?):/.exec(f.text)?.[1]).filter((n) => n && kb.pob.gem(n)))].slice(0, 4);
+  const mine = await call(() => kb.patch({ version: league, build: [...names, "Zzyzx Flibbertigibbet"].map((name) => ({ name, kind: "gem" })) }));
   console.log(`  ${league}: asked for ${names.join(", ") || "(no gem is named in these notes)"} -> ${mine.facts.length} lines; not named: ${mine.unmatched.join(", ")}`);
   for (const f of mine.facts) {
     if (citationProblems(f).length || f.source !== "ggg" || !/^https:\/\/www\.pathofexile\.com\/forum\/view-thread\/\d+$/.test(f.url)) fail("build", `a patch line is not tied to the official thread: ${f.title}`);
-    if (!names.some((n) => f.text.toLowerCase().includes(n.toLowerCase()))) fail("build", `a returned line names none of the asked names: "${f.text.slice(0, 120)}"`);
+    if (!names.some((n) => f.text.includes(n))) fail("build", `a returned line names none of the asked names: "${f.text.slice(0, 120)}"`);
     if (majorOf(f.game_version) !== league) fail("build", `a line from ${f.game_version} was returned for ${league}`);
   }
   if (names.length && mine.facts.length < names.length) fail("build", "fewer lines than names that the notes do mention");

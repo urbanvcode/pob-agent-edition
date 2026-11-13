@@ -6,6 +6,19 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Added
+- **Knowledge engine** (Stage 9): the AI now looks game facts up instead of answering from memory. Every fact it gets carries its source, a link, the game version it describes and the date it was read, so answers can be checked. Sources, highest first: GGG's official patch notes, Path of Building's data, poedb, poewiki. When they disagree, or when a wiki page was last edited before the current league, the answer says so.
+- `kb_lookup`: facts about a mechanic, unique item, gem or term. It can also check a statement ("the block cap is 75%": supported, contradicted or not found, with the sentence it rests on) and fetch the Path of Exile 2 side for a comparison, always labelled as PoE2.
+- `kb_patch`: GGG's official patch notes for a league or a single patch, filtered by text, or **only the lines that name something in your open build** (gems, unique items, keystones, notables, ascendancy). Lines that only apply to Ruthless are kept apart.
+- A glossary of 62 Path of Exile 1 terms for players coming from Path of Exile 2 (resistance cap, spell suppression, reservation, links, flasks, ailments, crafting orbs, maps, ...), each with a short quoted source and, where it helps, how PoE2 differs.
+- The current game version is detected from GGG's patch-notes forum and the wiki's version table. If Path of Exile is installed (Steam or standalone), its last patch time is read (read-only) so the version is re-checked right after a patch.
+
+### Notes
+- Fetching is polite: each site's robots.txt is obeyed, requests are paced and capped per question, pages are cached in `AgentCache\knowledge`, and a site that asks for a pause is left alone. Nothing personal is sent; the client identifies itself as `pob-agent-edition`.
+- Wiki text is community-written ([poewiki](https://www.poewiki.net) and [poe2wiki](https://www.poe2wiki.net), CC BY-NC-SA 3.0) and poedb is unofficial; both are quoted briefly with a link and ranked below official sources.
+- Reading the game's own data tables is not included yet: it needs an extra extractor tool that Path of Building does not ship.
+- For developers: `npm run test:kb` in `agent-mcp` checks the engine against the live sites (121 questions, every glossary quote, each site's parser).
+
 ## [0.5.0] - 2026-11-13
 
 Stage 3: guide mode. Based on **Path of Building Community v2.67.2** (same as 0.4.0).

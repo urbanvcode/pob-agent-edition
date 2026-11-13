@@ -21,7 +21,7 @@ const { parseVersions, titleFit } = await import("../build/knowledge/sources/poe
 const { PobData, parseUniqueBlock } = await import("../build/knowledge/sources/pobdata.js");
 const { parseAppManifest, parseLibraryFolders } = await import("../build/knowledge/sources/game.js");
 const { Versions } = await import("../build/knowledge/versions.js");
-const { Knowledge } = await import("../build/knowledge/engine.js");
+const { Knowledge, mentions } = await import("../build/knowledge/engine.js");
 const { GLOSSARY } = await import("../build/knowledge/glossary-data.js");
 const { findGlossary, wikiUrl } = await import("../build/knowledge/glossary.js");
 const { citationProblems, compareVersions, majorOf, SOURCES } = await import("../build/knowledge/types.js");
@@ -499,10 +499,43 @@ test("kb_patch { build: true }: names come from the open build in PoB, lines fro
     assert.match(text, /Source: ggg .*\| PoE1 3\.30\.0 \| posted 2026-11-11/);
     assert.match(text, /- \[Skill Gem Changes \[Vortex\]\] "Vortex: test-only line for the build check\."/);
     assert.ok(!/Winter Orb: Now fires/.test(text), "a gem the build does not use was reported");
-    const notNamed = /Not named in these notes \(\d+\): (.*)/.exec(text)?.[1] ?? "";
-    for (const name of ["Elemental Overload", "Occultist", "Heretic's Veil"]) assert.ok(notNamed.includes(name), `${name} should be listed as not named: ${notNamed}`);
+    const notNamed = /Not named in these notes: (.*)/.exec(text)?.[1] ?? "";
+    assert.match(notNamed, /unique items: Heretic's Veil; ascendancy: Occultist; \d+ keystones and notables\./);
+    assert.ok(!/gems: [^;]*\bVortex\b/.test(notNamed), "Vortex was found, so it must not be listed as not named");
     assert.match(text, /General changes .* can affect a build without naming/);
   } finally {
     context.pob.close();
   }
+});
+
+test("build names in patch notes: exact names only, no look-alikes, Ruthless kept apart", async () => {
+  const line = (text, section = "Skill Gem Changes", parent) => ({ section, text, ...(parent ? { parent } : {}) });
+  const gem = (name) => ({ name, kind: "gem" });
+  const passive = (name) => ({ name, kind: "passive" });
+  // A support gem's name is also an everyday stat: only the capitalised name counts.
+  assert.equal(mentions(line("Summon Flame Golem: Golems now grant 15% increased Area of Effect (previously 20%)."), gem("Increased Area of Effect")), false);
+  assert.equal(mentions(line("Increased Area of Effect Support: now has a lower cost."), gem("Increased Area of Effect")), true);
+  assert.equal(mentions(line("Decreased the efficacy of player Item Rarity."), gem("Efficacy")), false);
+  assert.equal(mentions(line("Winter Orb: Now fires 2 Projectiles."), gem("Winter Orb")), true);
+  // A name that is a piece of a longer name is a different thing.
+  assert.equal(mentions(line("The Elementalist's Shaper of Flames Notable Passive Skill now grants Hits always Ignite.", "Ascendancy Changes"), passive("Shaper")), false);
+  assert.equal(mentions(line("Added a new Essence, Essence of Trickery.", "Endgame Changes"), passive("Trickery")), false);
+  assert.equal(mentions(line("Fixed a bug with uniques dropped by Velka, the Tide Witch.", "Bug Fixes"), { name: "Witch", kind: "ascendancy" }), false);
+  // Passives: only in a line about passives, never the Atlas tree; sub-points belong to their parent line.
+  assert.equal(mentions(line("The Pathfinder's Master Surgeon Notable Passive Skill now has 50% less Life Flask Recovery Rate.", "Ascendancy Changes"), passive("Master Surgeon")), true);
+  assert.equal(mentions(line("Master Surgeon now grants more map drops.", "Atlas Passive Tree Changes"), passive("Master Surgeon")), false);
+  assert.equal(mentions(line("If Bismuth Flask Charges are consumed, Penetrate 30% Elemental Resistances.", "Ascendancy Changes", "The Pathfinder's Master Distiller Notable Passive Skill now grants bonuses:"), passive("Master Distiller")), true);
+  assert.equal(mentions(line("The Occultist's Void Beacon Notable Passive Skill now grants more.", "Ascendancy Changes"), { name: "Occultist", kind: "ascendancy" }), true);
+  assert.equal(mentions(line("Hyrri's Ire: Now grants 30% chance to Suppress Spell Damage.", "Unique Item Changes"), { name: "Hyrri's Ire", kind: "unique" }), true);
+
+  const thread = "https://www.pathofexile.com/forum/view-thread/4013680";
+  const body = fixture("thread-content-update.html").replace("<h3>Skill Gem Changes</h3>", "<h3>Ruthless-specific Changes</h3><ul><li>The Pathfinder's Nature's Boon Notable Passive Skill now grants more (test-only line).</li></ul><h3>Skill Gem Changes</h3>");
+  const { kb } = engine({ overrides: { [thread]: { status: 200, body } } });
+  const r = await kb.patch({ build: [{ name: "Pathfinder", kind: "ascendancy" }, gem("Winter Orb"), gem("Increased Area of Effect"), passive("Elemental Overload")] });
+  allCited(r.facts);
+  assert.equal(r.facts.filter((f) => /\[Pathfinder\]/.test(f.title)).length, 4);
+  assert.equal(r.facts.filter((f) => /\[Winter Orb\]/.test(f.title)).length, 1);
+  assert.ok(!r.facts.some((f) => /Nature's Boon/.test(f.text)), "a Ruthless-only line was reported as a change to the build");
+  assert.ok(r.notes.some((n) => /1 more line in the Ruthless-specific section/.test(n)));
+  assert.deepEqual(r.unmatched, ["Increased Area of Effect", "Elemental Overload"]);
 });

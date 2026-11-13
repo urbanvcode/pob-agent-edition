@@ -4,7 +4,7 @@
  * check, PoE2 comparison) and kb_patch (official patch notes, also "what
  * changed for my build").
  */
-import { Knowledge, type LookupResult, type LookupSource, type PatchResult, type VerifyResult } from "../knowledge/engine.js";
+import { Knowledge, type BuildName, type LookupResult, type LookupSource, type PatchResult, type VerifyResult } from "../knowledge/engine.js";
 import { glossaryTerms } from "../knowledge/glossary.js";
 import { citationProblems, KbError, SOURCES, type Fact } from "../knowledge/types.js";
 import type { VersionInfo } from "../knowledge/versions.js";
@@ -58,7 +58,7 @@ export function formatVerify(claim: string, r: VerifyResult): string {
 }
 
 /** Patch notes are many lines from few threads: cite each thread once, then its lines. */
-export function formatPatch(r: PatchResult, what: string, limit = 40): string {
+export function formatPatch(r: PatchResult, what: string, limit = 40, things?: BuildName[]): string {
   const lines = [versionLine(r.version), ""];
   if (r.facts.length) {
     lines.push(`${r.facts.length} line${r.facts.length === 1 ? "" : "s"}${what ? ` ${what}` : ""} in the official ${r.scope} patch notes${r.facts.length > limit ? ` (first ${limit} shown; narrow with filter)` : ""}:`);
@@ -76,7 +76,14 @@ export function formatPatch(r: PatchResult, what: string, limit = 40): string {
     const threads = r.threads.map((t) => `"${t.title}" (${t.version}, posted ${day(t.posted_at)}, ${t.url})`);
     lines.push(`Official patch notes read for ${r.scope}: ${threads.join("; ") || "none"}`, `No line${what ? ` ${what}` : ""} in these notes.`);
   }
-  if (r.unmatched.length) lines.push("", `Not named in these notes (${r.unmatched.length}): ${r.unmatched.join(", ")}`);
+  if (r.unmatched.length && things) {
+    // Gems, uniques and the ascendancy by name; passives only as a count (a build has dozens).
+    const left = (kind: BuildName["kind"]) => things.filter((t) => t.kind === kind && r.unmatched.includes(t.name)).map((t) => t.name);
+    const parts = [["gems", left("gem")], ["unique items", left("unique")], ["ascendancy", left("ascendancy")]].filter(([, names]) => names.length).map(([label, names]) => `${label}: ${(names as string[]).join(", ")}`);
+    const passives = left("passive").length;
+    if (passives) parts.push(`${passives} keystones and notables`);
+    lines.push("", `Not named in these notes: ${parts.join("; ")}.`);
+  } else if (r.unmatched.length) lines.push("", `Not named in these notes (${r.unmatched.length}): ${r.unmatched.join(", ")}`);
   if (!r.facts.length || r.unmatched.length) {
     const sections = r.sections.filter((s) => s.lines > 0).map((s) => `${s.section} (${s.lines})`);
     lines.push("", `Sections in these notes: ${[...new Set(sections)].join(", ")}.`, "General changes (to a mechanic, an ascendancy, monsters) can affect a build without naming its gems or items: read a section with filter before saying nothing changed.");
@@ -87,15 +94,16 @@ export function formatPatch(r: PatchResult, what: string, limit = 40): string {
 }
 
 /** Gems, unique items, keystones, notables and the ascendancy of the open build (from PoB). */
-export async function buildNames(pob: Pob): Promise<{ names: string[]; build: string }> {
+export async function buildNames(pob: Pob): Promise<{ names: BuildName[]; build: string }> {
   const link = await pob.link();
   const { summary } = await link.call("summary");
-  const names = new Set<string>();
-  for (const group of summary?.groups ?? []) for (const gem of group.gems ?? []) if (gem.name) names.add(String(gem.name).replace(/^(Awakened|Anomalous|Divergent|Phantasmal) /, ""));
-  for (const item of summary?.items ?? []) if (item.name && /^(UNIQUE|RELIC)$/i.test(String(item.rarity ?? ""))) names.add(String(item.name).split(",")[0].trim());
-  for (const key of ["keystones", "notables"]) for (const node of summary?.tree?.[key] ?? []) names.add(String(node));
-  for (const key of ["ascendancy", "className"]) if (summary?.[key] && summary[key] !== "None") names.add(String(summary[key]));
-  return { names: [...names], build: String(summary?.name ?? "the open build") };
+  const names = new Map<string, BuildName>();
+  const add = (name: unknown, kind: BuildName["kind"]) => { const n = String(name ?? "").trim(); if (n && n !== "None" && !names.has(n)) names.set(n, { name: n, kind }); };
+  for (const group of summary?.groups ?? []) for (const gem of group.gems ?? []) add(String(gem.name ?? "").replace(/^(Awakened|Anomalous|Divergent|Phantasmal) /, ""), "gem");
+  for (const item of summary?.items ?? []) if (item.name && /^(UNIQUE|RELIC)$/i.test(String(item.rarity ?? ""))) add(String(item.name).split(",")[0], "unique");
+  for (const key of ["keystones", "notables"]) for (const node of summary?.tree?.[key] ?? []) add(node, "passive");
+  add(summary?.ascendancy, "ascendancy");
+  return { names: [...names.values()], build: String(summary?.name ?? "the open build") };
 }
 
 function wrap<T>(run: () => Promise<T>): Promise<T> {
@@ -143,8 +151,8 @@ export function knowledgeTools(provided?: Knowledge): Tool[] {
         const filter = typeof args.filter === "string" && args.filter.trim() ? args.filter.trim() : undefined;
         if (args.build === true) {
           const { names, build } = await buildNames(pob);
-          const result = await engine.patch({ version, filter, names });
-          return `Checked ${names.length} names from ${build} (gems, unique items, keystones, notables, ascendancy).\n` + formatPatch(result, `naming something in ${build}`);
+          const result = await engine.patch({ version, filter, build: names });
+          return `Checked ${names.length} names from ${build} (gems, unique items, keystones, notables, ascendancy).\n` + formatPatch(result, `naming something in ${build}`, 40, names);
         }
         const result = await engine.patch({ version, filter });
         if (!filter && result.facts.length > 60) {

@@ -55,6 +55,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Before stating a game fact (a mechanic, an item, a gem, a patch change) call `kb_lookup { query }`. Your own memory may be outdated or mix in PoE2: it only tells you what to look up, it is never the answer.
 - Every fact comes with its source, link, game version and date. Cite them, and quote numbers and wording exactly. If nothing is found, say it could not be verified and how to check; don't fill the gap.
 - Source ranking when they disagree: game data > official GGG > PoB data > poedb > poewiki. Pass on the flags: "may be outdated" (written before the current patch) and "sources disagree". PoE2 facts (`source: "poe2"`, or the glossary's comparison) are always labelled and only used for comparisons.
+- Teach mode: `kb_lookup` on a PoE1 term returns its glossary entry first (a short explanation with its quoted source and how PoE2 differs); use that for the first explanation, then `profile_mark_learned`.
 - `kb_lookup { query, claim }` checks a statement: supported / contradicted / not found, with the sentence it rests on.
 - `kb_patch` reads GGG's official patch notes: `{ version: "3.30" }` a league, `{ filter }` a text or section, `{ build: true }` only the lines naming the open build's gems, uniques, keystones, notables and ascendancy. General changes can affect a build without naming its parts: say what was and wasn't checked.
 - "Is this good for my build?" is not a fact from a text: simulate it (`what_if`). Numbers for the player's build always come from PoB.

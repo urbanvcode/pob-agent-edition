@@ -36,6 +36,7 @@ License: GPL-3.0-or-later (see `LICENSE` at the repository root).
 | Advice | `suggest_gems`, `suggest_passives`, `suggest_jewels`, `anoint`, `affixes` |
 | Trade | `leagues`, `trade_search`, `plan_upgrades`, `currency`, `price_check` |
 | Atlas | `atlas_get`, `atlas_search`, `atlas_edit` |
+| Knowledge | `kb_lookup`, `kb_patch` |
 
 The working rules for the AI (diagnosis order, profile, trade safety, saving) are sent as server
 instructions (`src/guide.ts`); `AGENTS.md` at the repository root is the human-readable copy.
@@ -58,6 +59,30 @@ AI app ── MCP (stdio) ── agent-mcp ── JSON lines ──▶ PoB Agent
   `Tools.lua` (summary, diagnose, edits, what-if, suggestions), `Advice.lua` (support gems, boss check, jewels,
   item affixes, notes).
 
+## Knowledge engine (`src/knowledge/`)
+
+`kb_lookup` and `kb_patch` return game facts that can be cited: each has a `source`, a `url`, the `game`
+and `game_version` it describes and `retrieved_at`. Nothing in an answer comes from the engine itself.
+
+| Rank | Source | What is read | File |
+|---|---|---|---|
+| 1 | Installed game | Only whether and when the client was patched (Steam manifest or `Content.ggpk` time), as the signal to re-check the version. Read-only; the path is never shown | `sources/game.ts` |
+| 2 | GGG, pathofexile.com | The patch-notes forum: thread list and the staff post of a thread (never player replies) | `sources/ggg.ts` |
+| 3 | Path of Building data | Uniques and gems from `PathOfBuilding/src/Data` (no network) | `sources/pobdata.ts` |
+| 4 | [poedb.tw](https://poedb.tw) | A page's item box and version history (unofficial, datamined) | `sources/poedb.ts` |
+| 5 | [poewiki.net](https://www.poewiki.net), [poe2wiki.net](https://www.poe2wiki.net) | Page text with its last-edit time; the versions table. Community-written, CC BY-NC-SA 3.0: quoted briefly with a link | `sources/poewiki.ts` |
+
+- `fetcher.ts`: one polite fetcher for all sites. It obeys robots.txt (a disallowed address is never
+  requested), sends one request at a time with a pause per site, caches every page on disk
+  (`AgentCache/knowledge/http`), caps the requests of one question, never retries a site that answered
+  429 or 503, and identifies itself as `pob-agent-edition/<version> (agent-mcp)`.
+- `versions.ts`: the live game version (GGG's forum plus the wiki's release dates). Cached pages are tied
+  to the version they were read under, so a patch makes them count as old.
+- `engine.ts`: lookup (glossary, PoB, wiki, poedb, patch notes that name the topic; outdated and
+  conflicting facts flagged), claim check, patch notes for a league or for the names in a build.
+- `glossary-data.ts`: 62 PoE1 terms with a short quoted source and a PoE2 comparison.
+- `answers.log` in the cache folder lists which sources each answer used.
+
 ## Build and test
 
 ```powershell
@@ -65,6 +90,7 @@ npm ci
 npm run build
 npm test            # unit tests + headless contract tests on tests/fixtures (no window, no network)
 npm run test:live   # smoke test against a running PoB Agent Edition window
+npm run test:kb     # knowledge engine against the live sites: parsers, glossary quotes, 121 questions
 ```
 
 Run it by hand: `node build/index.js` (speaks MCP on stdin/stdout).
@@ -78,7 +104,10 @@ Run it by hand: `node build/index.js` (speaks MCP on stdin/stdout).
 | `POB_AGENT_PORT` | `31337` | Port of the PoB window's live API |
 | `POB_PATH`, `POB_CMD` | found next to this folder | PoB's `src` folder and the LuaJIT executable |
 | `POB_AGENT_SETTINGS` | `<user folder>/AgentEdition.json` | Profile and POESESSID file |
-| `POB_AGENT_CACHE` | `<user folder>/AgentCache` | Snapshots |
+| `POB_AGENT_CACHE` | `<user folder>/AgentCache` | Snapshots and the knowledge cache |
+| `POB_KB_OFFLINE` | off | `1`: knowledge tools use only what is cached |
+| `POB_KB_INTERVAL_MS`, `POB_KB_MAX_REQUESTS` | `1500`, `8` | Pause between requests to one site; requests per question |
+| `POB_KB_GAME`, `POB_KB_LOG` | on | `off`: do not look for the installed game; do not write `answers.log` |
 | `POB_TIMEOUT_MS` | `60000` | How long to wait for PoB |
 | `POE_TRADE_MAX_REQUESTS_PER_CALL` | `16` | Trade requests per question |
 | `POE_SESSION_ID` | from PoB's Options | Overrides the POESESSID |

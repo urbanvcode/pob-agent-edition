@@ -139,3 +139,31 @@ export async function ninjaItemLines(league: string, type: string): Promise<Ninj
     throw e;
   }
 }
+
+// --- exchange categories (Fragment, Essence, Oil, ...) for the farming advisor -------------------
+export interface ExchangeInfo { prices: Map<string, number>; at: number; stale: boolean }
+
+/** poe.ninja exchange overview of one category (name -> chaos): memory/disk 2 h, an older copy when poe.ninja is down. */
+export async function exchangePrices(league: string, type: string): Promise<ExchangeInfo> {
+  const key = `x|${league}|${type}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < ITEMS_FRESH_MS) return { prices: hit.rates, at: hit.at, stale: false };
+  const file = `exchange-${safe(league)}-${safe(type)}.json`;
+  const disk = readDisk<Array<[string, number]>>(file);
+  if (disk && Date.now() - disk.at < ITEMS_FRESH_MS) return { prices: new Map(disk.data), at: disk.at, stale: false };
+  try {
+    const url = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}`;
+    const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error(`poe.ninja ${type} request failed (${response.status})`);
+    const body = await response.json() as { lines?: unknown[] };
+    const prices = body?.lines?.length ? parseRates(body) : new Map<string, number>();
+    prices.delete("Chaos Orb");
+    const at = Date.now();
+    cache.set(key, { at, rates: prices });
+    writeDisk(file, [...prices]);
+    return { prices, at, stale: false };
+  } catch (e) {
+    if (disk && Date.now() - disk.at < STALE_OK_MS) return { prices: new Map(disk.data), at: disk.at, stale: true };
+    throw e;
+  }
+}

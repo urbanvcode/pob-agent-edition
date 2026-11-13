@@ -12,6 +12,7 @@ import type { TradeApiClient } from "../trade/client.js";
 import { adviceTools, atlasTools } from "./advice.js";
 import { characterTools } from "./character.js";
 import { editTools } from "./edit.js";
+import { farmingTools } from "./farming.js";
 import { guideTools } from "./guides.js";
 import { knowledgeTools } from "./knowledge.js";
 import { levellingTools } from "./levelling.js";
@@ -61,6 +62,7 @@ export function internalTools(trade: TradeApiClient): Tool[] {
     ...levellingTools,
     ...trades,
     ...atlasTools,
+    ...farmingTools(trade),
     ...knowledgeTools(),
   ];
   for (const t of list) if (WRITES[t.name]) t.writes = WRITES[t.name];
@@ -147,13 +149,14 @@ export function allTools(trade: TradeApiClient, internal: Tool[] = internalTools
     }, { trade: true });
 
   const atlas = routed("atlas",
-    "Atlas tree (150 points). No args: points, notables, points per mechanic, bonuses, share link. query: find passives (ids, cost). Change it: add/remove ids (with paths), replace the list, or link (atlas URL).",
-    { query: S.str(), limit: S.num(), add: S.list(S.str()), remove: S.list(S.str()), replace: S.list(S.str()), link: S.str() }, [],
+    "Atlas tree (150 points). No args: points, notables, points per mechanic, bonuses, share link. query: find passives (ids, cost). Change it: add/remove ids (with paths), replace the list, or link (atlas URL). farm: \"true\" or a strategy = content the build can do, strategies (atlas preset, Threads, prices), progression, SSF targets; goal (\"5 div\", item) = time to afford; log {strategy,maps,minutes,chaos,spent} records a session.",
+    { query: S.str(), limit: S.num(), add: S.list(S.str()), remove: S.list(S.str()), replace: S.list(S.str()), link: S.str(), farm: S.str(), goal: S.str(), log: S.obj() }, [],
     (a) => {
+      if (has(a, "farm", "goal", "log")) return [get("farming_plan"), { farm: a.farm, goal: a.goal, log: a.log }];
       if (has(a, "add", "remove", "replace", "link")) return [get("atlas_edit"), { add: a.add, remove: a.remove, replace: a.replace, link: a.link }];
       if (has(a, "query")) return [get("atlas_search"), { query: a.query, limit: a.limit }];
       return [get("atlas_get"), {}];
-    });
+    }, { trade: true });
 
   return [
     profile, keep("status"), keep("list_builds"), keep("open_build"), keep("save_build"), view,

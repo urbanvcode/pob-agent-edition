@@ -35,12 +35,13 @@ const tokens = (value) => Math.ceil(JSON.stringify(value).length / 4);
 // Raise TOOL_BUDGET by a stage's share when that stage adds its tools.
 // Stage 5 used 78 of its 400 (plan_upgrades budget, prices own).
 // Stage 6 used 99 of its 350 (affixes craft, base, ilvl).
+// Stage 8 used 130 of its 350 (atlas farm, goal, log).
 // Stage 7 used 65 of its 350 (guide levelling).
-const TOOL_BUDGET = 3342, GUIDE_BUDGET = 950;
+const TOOL_BUDGET = 3472, GUIDE_BUDGET = 950;
 test("tool definitions stay within the budget (3,100 now, 5,000 with every reserved stage)", () => {
   const total = tokens(defs);
   assert.ok(total <= TOOL_BUDGET, `tool definitions are about ${total} tokens (budget ${TOOL_BUDGET})`);
-  assert.ok(TOOL_BUDGET + 350 + 350 + 450 <= 5000);
+  assert.ok(TOOL_BUDGET + 450 <= 5000); // only Stage 11 still reserved
 });
 
 test("agent guide stays short", () => {

@@ -25,7 +25,7 @@ TOOLS BY TASK
 - Guides: guide { source } imports (Mobalytics: ask for its PoB link); guide compares; next: true ranks steps; accept stops flagging deliberate differences.
 - Levelling (below 90): guide { levelling: "next" } = act and next steps; "plan" = act by act (gems, labs, bandit, Pantheon, resists). Explain PoE1 basics briefly; pass on "may be outdated".
 - Budget ("I have 3 div"): plan_upgrades { budget } = best set within the total, simulated together; SSF gets rares to keep. What to sell: prices { own: true }.
-- Atlas: atlas; explain each league mechanic for a newcomer.
+- Atlas: atlas; explain each league mechanic for a newcomer. "How do I make currency?" / "what can I farm?": atlas { farm: true } (goal: time to afford; log: the player's measured profit). Never invent profit per hour.
 - Mechanic lines in results (optimise, kb_lookup glossary): explain per the explanation mode, then profile { learned }.
 
 FACTS (never from memory)

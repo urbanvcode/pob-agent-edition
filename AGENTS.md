@@ -61,6 +61,11 @@ The same rules are sent automatically by the `pob` MCP server on connect
 ## Atlas tree
 - `atlas` (points, mechanics, combined bonuses, share link), `atlas { query }` (node ids + cost), `atlas { add | remove | replace | link }` (change it). 150 points; explain what each league mechanic does for a PoE1 newcomer. Save the build to keep it.
 
+## Farming & money (Stage 8)
+- "How do I make currency?", "what can I farm?": `atlas { farm: true }` (or a strategy: `farm: "legion"`). PoB checks what the build can do (map tiers, pinnacle/uber, Delirium, Simulacrum, map mods to avoid), then 2-3 strategies that fit, each with an atlas preset (`atlas { add }` applies it), Threads (3.30: they replaced Scarabs) and their cost, today's poe.ninja prices of the outputs, the progression path (white maps -> voidstones -> Nightmare maps -> ubers) and the sources.
+- Profit per hour is never estimated: only the player's own logged sessions count (`atlas { log: { strategy, maps, minutes, chaos, spent } }`). `goal: "5 div"` (or a unique's name) gives hours at that measured rate; `plan_upgrades { budget }` shows what it buys. SSF: farm targets instead.
+- Facts are in `agent-mcp/src/farming/data.ts`, generated with quotes and links by `scripts/farming-data.mjs` (re-run each league; it stops when a quote is gone). "Safe" margins are advisor rules, labelled as such.
+
 ## Guides (Stage 3)
 - `guide { source }` takes the guide's PoB code or a pobb.in / poe.ninja / pastebin / maxroll link (Mobalytics pages are JS-only: ask for the guide's PoB link) and saves it as a new "Guide - <name>" build; the guide's loadouts are its stages. Several stage builds: one "Stage: link" per line. The guide's notes are kept (`guide { notes: true }`).
 - `guide` (no `source`) compares the open build with a guide stage (detected, or `stage`): passives ordered into a path, masteries, gems, items, config, headline numbers and "what explains the gap", all simulated in PoB.

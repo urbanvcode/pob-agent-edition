@@ -58,11 +58,11 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
-| 15 | Install, portable version & updater | ⬜ (next after the 0.2.0 release) |
-| 16 | Own MCP server (replace pob-mcp) | ✅ built, release 0.2.0 pending |
+| 15 | Install, portable version & updater | 🔜 next |
+| 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → **16** → **15** → 2 → 3 → 4 → 5 → 9 → 7 → 6
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → **15** → 2 → 3 → 4 → 5 → 9 → 7 → 6
 → 8 → 10 → 11 → 12/13 → 14.
 - **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
   instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
@@ -583,7 +583,7 @@ settings and AI connections working; Roll back returns to the old one.
 **Note:** the repo is public (2026-11-13), so the check needs no login. GitHub's `/releases/latest`
 skips pre-releases (all 0.x releases are pre-releases), so read `/releases` and take the newest by version.
 
-## Stage 16 — Own MCP server (replace pob-mcp) ✅ (built 2026-11-13, release 0.2.0 pending)
+## Stage 16 — Own MCP server (replace pob-mcp) ✅ (2026-11-13, released in 0.2.0)
 
 **Why:** pob-mcp (our fork of ianderse/pob-mcp) is about 27,000 lines of TypeScript, of which about
 1,800 are ours. It was built headless-first, with the live window added later. Measured 2026-11-13:
@@ -777,3 +777,4 @@ The player always runs two sessions:
 | Version | Stages |
 |---|---|
 | 0.1.0 (2026-11-13) | 0 Foundation, 1 Player profile |
+| 0.2.0 (2026-11-13) | 16 Own MCP server (agent-mcp) |

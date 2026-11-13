@@ -6,7 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
-Stage 16: our own MCP server. **After updating, run `Install.cmd` again and restart your AI app** so it connects to the new server.
+## [0.2.0] - 2026-11-13
+
+Stage 16: our own MCP server. Based on **Path of Building Community v2.67.2** (same as 0.1.0). **After updating, run `Install.cmd` again and restart your AI app** so it connects to the new server.
 
 ### Added
 - **`agent-mcp`, our own MCP server**, replaces the pob-mcp fork. It is built around the PoB Agent Edition window: 34 focused tools instead of 115, and about 3,600 tokens of tool definitions instead of about 16,000, so every AI conversation starts lighter and answers get shorter. It is based on and inspired by [pob-mcp](https://github.com/ianderse/pob-mcp) by ianderse (GPL-3.0), from which the build operations, the trade client and other parts are ported. Thank you!
@@ -78,5 +80,6 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/urbanvcode/pob-agent-edition/releases/tag/v0.1.0

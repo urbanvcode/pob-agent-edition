@@ -141,10 +141,10 @@ Built:
 - Tests: `tests/unit/playerProfile.test.ts`; smoke passes; checked in a second instance (port 31338).
 
 Loose ends:
-- [ ] Click **Save** in Options › Agent profile with a real mouse (rendering and the MCP→Overview path were
+- [x] Click **Save** in Options › Agent profile with a real mouse (rendering and the MCP→Overview path were
   verified; the Save click itself couldn't be automated).
-- [ ] Restart Claude Code / Codex / Antigravity (new tools) and PoB Agent Edition (new UI) to pick it up.
-- [ ] Set your profile (Options or tell the AI): trade/SSF, hardcore/softcore, league, currency, goals, explanation mode.
+- [x] Restart Claude Code / Codex / Antigravity (new tools) and PoB Agent Edition (new UI) to pick it up.
+- [x] Set your profile (Options or tell the AI): trade/SSF, hardcore/softcore, league, currency, goals, explanation mode.
 - [ ] Maybe: MCP tool `live_open_options` so the AI can open the profile editor for the player.
 
 **Done when:** switching to SSF or Deep dive visibly changes AI answers; profile survives restarts and

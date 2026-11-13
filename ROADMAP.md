@@ -53,7 +53,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 7 | Levelling coach | ⬜ |
 | 8 | Farming & money advisor | ⬜ |
 | 9 | PoE knowledge (GGG patch notes, PoB data, poedb, poewiki, glossary) | ✅ 0.6.0 |
-| 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ⬜ |
+| 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ✅ |
 | 11 | Create a build | ⬜ |
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ✅ |
@@ -562,7 +562,7 @@ a high accuracy with zero uncited claims; disagreements and outdated facts are f
 
 ---
 
-## Stage 10 — AI chat inside PoB ⬜
+## Stage 10 — AI chat inside PoB ✅ (2026-11-13)
 
 **Why:** ask questions without leaving PoB; the chat sees the open build and drives the tools.
 
@@ -584,10 +584,26 @@ a high accuracy with zero uncited claims; disagreements and outdated facts are f
 - Safety: same tools and rules as external clients; no game-client access.
 
 ### Steps
-1. Spike: run `claude -p` and `codex exec` from a PoB sub-script, stream output, parse JSON.
-2. Chat UI panel (input, scroll, streaming text, links).
-3. Session handling, context injection, backend picker in Options.
-4. Optional API-key backend with tool routing.
+1. ✅ Spike: `claude -p` and `codex exec` run from PoB without a console window (LuaJIT FFI pipes + job object,
+   `Agent/ChatProcess.lua`); a Node bridge (`agent-mcp/src/chat/`) parses their JSON into one event format.
+2. ✅ Chat UI panel (`Agent/ChatPanel.lua`): docked right, hideable (edge tab), streaming text, **bold**/lists,
+   `[[node/item/gem:...]]` links (hover tooltip, click highlights), `[[apply:...]]` Preview/Apply cards, quick prompts, Stop.
+3. ✅ Sessions per build and backend (`AgentCache/chat/builds/`), context injection (build, view, profile, guide,
+   edit toggle), backend picker + Sign in in Options, "AI may edit" toggle in the panel (off by default).
+4. ✅ Optional API-key backend: official `@anthropic-ai/sdk`, tool use routed to agent-mcp over MCP stdio, history in
+   `AgentCache/chat/api/`. Key in AgentEdition.json (`anthropicApiKey`), read by the bridge only, never shown.
+
+**Tested (2026-11-13):** `npm test` 86/86 (9 chat tests: parsers, edit-tool policy, fake Claude/Codex CLIs, fake
+Anthropic API with real MCP tool routing, LuaJIT process runner). Live on a test window (port 31345): "why am I weak
+at bosses?" through **Codex** streamed an answer that used profile_get, diagnose, build_summary, what_if, kb_lookup on
+the open build, with a gem link and an apply card whose Preview matched PoB's what_if (13.28m -> 9.28m DPS).
+The same question through **Claude Code** (desktop app's CLI, signed in once) streamed an answer using diagnose,
+optimise, what_if, build_summary, stats, with node and gem links and two apply cards.
+
+### Loose ends (Stage 10)
+- Codex sends whole messages, not token deltas (`codex exec --json` has no partial output): its text arrives per message.
+- The panel's input is one line (Enter sends); a multi-line box could come with Stage 12 (UI polish).
+- Claude Code needs a one-time `claude auth login` even when the Claude desktop app is signed in (Options > Sign in).
 
 **Done when:** typing "why am I weak at bosses?" in PoB streams an answer from Claude Code or Codex
 that used the pob tools on the open build.

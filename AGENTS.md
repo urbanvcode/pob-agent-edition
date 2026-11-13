@@ -67,6 +67,12 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - "Is this good for my build?" is not a fact from a text: simulate it (`what_if`). Numbers for the player's build always come from PoB.
 - Fetching is polite: robots.txt is obeyed, requests are paced and capped per question, pages are cached (`AgentCache\knowledge`). If a site asks for a pause, say so; don't retry.
 
+## AI chat inside PoB (Stage 10)
+- PoB has its own chat panel (right edge of the build screen). It runs `agent-mcp/build/chat/bridge.js`, which starts Claude Code (`claude -p --output-format stream-json`), Codex (`codex exec --json`) or the Anthropic API with a fresh agent-mcp server pinned to that window (`POB_AGENT_PORT`, `POB_LIVE=only`). No new MCP tools: the chat uses the same tools and rules.
+- In the panel the AI writes `[[node:Name]]`, `[[item:Name]]`, `[[gem:Name]]` (clickable links) and `[[apply:Label|{"ops":[...]}]]` (Preview = what_if, Apply = edit, both by PoB). Edit tools are off unless the player switches on "AI may edit".
+- Backend, sign-in and API key: Options > AI chat backend. The key (`anthropicApiKey` in AgentEdition.json) is read by the bridge only; never print it or pass it on a command line.
+- Tests: `npm test` includes `tests/chat.test.mjs` (fake CLIs and a fake API). Live: the actions `chat_send { message }` / `chat_state { last }` drive the panel of a test window (port 31345).
+
 ## Trade rules (account safety)
 - Instant buyout only. Never whisper, auto-buy or touch the game client — the user clicks the buyout.
 - Requests are paced (1 per 2 s), kept inside every limit pathofexile.com publishes, and capped at 16 per question. If the site asks for a pause, tell the user; don't retry in a loop.

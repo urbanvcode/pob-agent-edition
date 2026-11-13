@@ -60,6 +60,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 14 | PoE2 edition | 💭 |
 | 15 | Install, portable version & updater | ✅ 0.3.0 |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
+| 17 | Lighter: smaller downloads and updates, less memory, disk and CPU | ⬜ |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
 Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → 16 ✅ → 15 ✅ → **2** → 3 → 4 → 5 → 9 → 7 → 6
@@ -739,6 +740,72 @@ on the new server in Claude Code, Claude Desktop and Codex; tool definitions ≤
 window no longer reads anything from `pob-mcp/`; the submodule is gone and a release is published;
 pob-mcp is credited in the README, THIRD_PARTY_NOTICES, `agent-mcp/README.md`, the ported files' headers
 and the release notes.
+
+## Stage 17 — Lighter: smaller downloads and updates, less memory, disk and CPU ⬜
+
+**Why:** each release zip is about 630 MB (the portable one about 665 MB), and every update downloads the whole zip
+again, although most updates change only a few MB of our own code. Unpacked, almost all of it is Path of Building's
+own data (measured on 0.3.0):
+
+| Part | Unpacked | What it is |
+|---|---|---|
+| `PathOfBuilding/src/TreeData` | 583 MB | 43 passive tree versions with their images; about 309 MB are Ruthless and "alternate" variants |
+| `PathOfBuilding/src/Data` | 205 MB | 170 MB of it is the timeless jewel lookup tables |
+| `PathOfBuilding/runtime` | 28 MB | the PoB program |
+| `agent-mcp` | 26 MB | our MCP server with its Node packages |
+| `node\` (portable only) | about 33 MB | bundled Node.js |
+
+The player also wants the running app to be efficient, using little memory (RAM), disk space and CPU while it runs
+next to the game.
+
+### Features
+- **Measure first** (`tools/measure.ps1`, with the results kept in this section). It measures:
+  - download sizes and the unpacked size per folder;
+  - RAM of the PoB window (idle, with a big build, after an hour), of the agent-mcp server and of the headless engine;
+  - CPU of an idle, unfocused PoB window (the live server keeps frames running; about 7% of a core was measured
+    in Stage 0);
+  - disk used by caches and history in `Documents\Path of Building` after a week of use.
+  Every change below reports before/after numbers from this script.
+- **Smaller updates (the biggest win):** every release publishes a file manifest (path, size, SHA256). The updater
+  compares it with the installed files and downloads only what changed, as a small delta zip per release (for
+  example `update-0.4.0-to-0.5.0.zip`), checked file by file against the manifest. It falls back to the full zip if
+  anything doesn't match. Target: an update that changes only our code is under 50 MB.
+- **Optional data packs:** the Ruthless tree variants (PoE1's harder, low-drop mode) and very old tree versions
+  move out of the main zip. When a build needs a tree that isn't installed, PoB says so and downloads just that
+  tree folder from our fork's release tag on GitHub (HTTPS, checked against the manifest). Offline, it shows a
+  clear message instead of failing. The default zip keeps the current and recent trees.
+- **Memory (RAM):**
+  - PoB window: find what stays in memory (all tree versions loaded? icon cache, images, history, timeless jewel
+    tables), load lazily or free what isn't used, and check that nothing grows over hours (leak test).
+  - agent-mcp: keep caches bounded (trade results, knowledge cache, poe.ninja prices), stream large results, and
+    close the headless engine after a few idle minutes instead of keeping a second PoB in memory.
+  - The AI side: tool results stay compact (numbers first) so the AI's context stays small, and the tool
+    definitions stay within the 5,000-token budget.
+- **Disk:** bounded caches with cleanup (icon cache, trade and knowledge caches), character history keeps only the
+  last N copies of the build per character, the timeless jewel tables are unpacked once and never duplicated, and
+  the updater removes old `.previous` backups after a successful start (keeping one).
+- **CPU:** the live server does less work while PoB is unfocused (longer select timeout, no redraw when nothing
+  changed), and background checks (update check, icon downloads) stay rare and throttled.
+
+### Steps
+1. `tools/measure.ps1` and a baseline on 0.4.0 (numbers written into this section).
+2. Release manifest in `build-release.ps1` and delta zips; updater delta mode with a full-zip fallback; test
+   0.N → 0.N+1 with only code changes.
+3. Data packs: tree-on-demand download in PoB (from the fork tag on GitHub), the offline message, a smaller default
+   zip; test opening an old build and a Ruthless build.
+4. RAM: profile the PoB window and agent-mcp, fix the biggest items, run a long leak test, add the idle shutdown
+   of the headless engine.
+5. Disk: cache limits and cleanup, history retention, backup cleanup.
+6. CPU: idle work in the live server and background checks.
+7. Re-measure, and record before/after in this section and in the release notes.
+
+**Done when:**
+- the measured numbers are in this section, with before/after;
+- an update that changes only our code downloads under 50 MB;
+- the default zip is clearly smaller and still opens old and Ruthless builds (downloading the tree when needed,
+  with a clear message when offline);
+- the PoB window and agent-mcp use clearly less RAM and CPU when idle, with no growth over a long run;
+- caches stay within their limits.
 
 ## Stage X — Cross-cutting (ongoing)
 - **Testing**: headless tests per feature; real-window checks via second instance on port 31338 +

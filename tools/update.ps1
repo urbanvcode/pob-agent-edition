@@ -7,8 +7,11 @@
   - installer zip (PoB-Agent-Edition-<ver>-win64.zip)
   - portable zip (PoB-Agent-Edition-<ver>-win64-portable.zip, has node\node.exe)
   - git clone (has .git): git pull + submodules + rebuild of agent-mcp
-  Zip installs download the matching zip of the release from GitHub over HTTPS and check its SHA256
-  against the release's .sha256 file. The current folder is copied to "<folder>.previous" first
+  Zip installs download only what changed when they can: from 0.7.0 on every release has a manifest
+  (path, size, SHA256 of every file) and small delta zips (PoB-Agent-Edition-<from>-to-<to>-update.zip).
+  Each file of a delta is checked against the manifest. If anything is missing or does not match, the
+  updater falls back to the matching full zip of the release, checked against its .sha256 file.
+  Passive trees that PoB downloaded on demand (tree packs) are kept. The current folder is copied to "<folder>.previous" first
   (-Rollback restores it). Builds and settings in Documents\Path of Building are never touched, and
   neither is the portable data folder (UserData, portable.txt). AI app connections are renewed only
   if they were set up before.
@@ -24,7 +27,11 @@
   update (git installs).
 
 .PARAMETER ZipFile
-  Update from a release zip you downloaded yourself (its .sha256 next to it is checked when present).
+  Update from a release zip or delta zip you downloaded yourself (its .sha256 next to it is checked
+  when present).
+
+.PARAMETER Full
+  Always download the full zip (no delta update).
 
 .PARAMETER Restart
   Start PoB Agent Edition again when done.
@@ -39,6 +46,7 @@ param(
     [switch]$Restart,
     [switch]$Yes,
     [string]$ZipFile,
+    [switch]$Full,
     [string]$Root,   # set when the script re-runs itself from a temp copy
     [string]$Repo = 'urbanvcode/pob-agent-edition'
 )
@@ -65,7 +73,7 @@ if (-not $Check -and $PSCommandPath -and -not $PSCommandPath.StartsWith($Work, [
     $argv = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $copy, '-Root', $Root, '-Repo', $Repo)
     if ($Version) { $argv += @('-Version', $Version) }
     if ($ZipFile) { $argv += @('-ZipFile', (Resolve-Path $ZipFile).Path) }
-    foreach ($s in @('Rollback', 'Restart', 'Yes')) { if ((Get-Variable $s).Value) { $argv += "-$s" } }
+    foreach ($s in @('Rollback', 'Restart', 'Yes', 'Full')) { if ((Get-Variable $s).Value) { $argv += "-$s" } }
     & powershell.exe @argv
     exit $LASTEXITCODE
 }
@@ -142,15 +150,140 @@ function Copy-Program($from, $to, [string[]]$keepDirs = @()) {
         if ($keepDirs -contains $item.Name) { continue }
         $dest = Join-Path $to $item.Name
         if ($item.PSIsContainer) {
-            $rc = @($item.FullName, $dest, '/MIR', '/R:2', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP',
-                    '/XD', (Join-Path $dest 'runtime\SimpleGraphic\Screenshots'), (Join-Path $dest 'UserData'),
-                    '/XF', 'imgui.ini', 'SimpleGraphic.cfg')
+            $xd = @((Join-Path $dest 'runtime\SimpleGraphic\Screenshots'), (Join-Path $dest 'UserData'))
+            # Passive trees PoB downloaded on demand (tree packs) are not in the zip: keep them
+            $treeDest = Join-Path $dest 'src\TreeData'
+            if ($item.Name -eq 'PathOfBuilding' -and (Test-Path $treeDest)) {
+                foreach ($t in Get-ChildItem $treeDest -Directory | Where-Object { $_.Name -match '^\d+_\d+' }) {
+                    if (-not (Test-Path (Join-Path $item.FullName "src\TreeData\$($t.Name)\tree.lua"))) { $xd += $t.FullName }
+                }
+            }
+            $rc = @($item.FullName, $dest, '/MIR', '/R:2', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS', '/NP', '/XD') + $xd + @('/XF', 'imgui.ini', 'SimpleGraphic.cfg')
             & robocopy.exe @rc | Out-Null
             if ($LASTEXITCODE -ge 8) { throw "Copying $($item.Name) failed (robocopy code $LASTEXITCODE). A file may still be in use." }
         } else {
             Copy-Item -LiteralPath $item.FullName $dest -Force
         }
     }
+}
+
+# --- Manifests and delta updates (0.7.0 and newer) ---------------------------------------------------
+function Read-Manifest([string]$file) {
+    if (-not (Test-Path -LiteralPath $file)) { return $null }
+    $doc = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+    $map = @{}
+    foreach ($e in $doc.files) { $map[$e.path] = $e }
+    return [pscustomobject]@{ Version = $doc.version; Files = $map }
+}
+# Files of the other zip type are not installed here
+function Applies($e) {
+    if (-not $e.only) { return $true }
+    if ($InstallType -eq 'portable') { return $e.only -eq 'portable' }
+    return $e.only -eq 'zip'
+}
+function Sha([string]$file) { (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower() }
+function Pack-Ids([string]$programRoot) {
+    $f = Join-Path $programRoot 'PathOfBuilding\src\TreeData\packs.json'
+    if (-not (Test-Path $f)) { return @() }
+    return @((Get-Content $f -Raw | ConvertFrom-Json).packs.PSObject.Properties.Name)
+}
+# Tree packs kept from before that no longer match the new packs.json are dropped (PoB downloads them again).
+function Check-TreePacks {
+    $f = Join-Path $Root 'PathOfBuilding\src\TreeData\packs.json'
+    if (-not (Test-Path $f)) { return }
+    $packs = (Get-Content $f -Raw | ConvertFrom-Json).packs
+    foreach ($p in $packs.PSObject.Properties) {
+        $dir = Join-Path $Root "PathOfBuilding\src\TreeData\$($p.Name)"
+        if (-not (Test-Path (Join-Path $dir 'tree.lua'))) { continue }
+        $bad = $false
+        foreach ($file in $p.Value.files) {
+            $path = Join-Path $dir ($file.path.Replace('/', '\'))
+            if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -ne $file.size -or (Sha $path) -ne $file.sha256) { $bad = $true; break }
+        }
+        if ($bad) { Remove-Item (Join-Path $dir 'tree.lua') -Force; Say "  [-]  passive tree $($p.Name) changed in this release: PoB downloads it again when a build needs it" }
+    }
+}
+
+# Works out what a delta zip (extracted to $deltaRoot) changes. Returns $null (with the reason in
+# $script:DeltaWhy) when it does not fit this install; then the full zip is used instead.
+function Plan-Delta([string]$deltaRoot) {
+    $script:DeltaWhy = ''
+    $infoFile = Join-Path $deltaRoot 'delta.json'
+    if (-not (Test-Path $infoFile)) { $script:DeltaWhy = 'it has no delta.json'; return $null }
+    $info = Get-Content $infoFile -Raw | ConvertFrom-Json
+    if ($info.from -ne $Current) { $script:DeltaWhy = "it updates v$($info.from), this is v$Current"; return $null }
+    $new = Read-Manifest (Join-Path $deltaRoot 'release-manifest.json')
+    $old = Read-Manifest (Join-Path $Root 'release-manifest.json')
+    if (-not $new -or $new.Version -ne $info.to) { $script:DeltaWhy = 'its manifest is missing'; return $null }
+    if (-not $old) { $script:DeltaWhy = 'this install has no release-manifest.json'; return $null }
+    $copy = New-Object System.Collections.Generic.List[object]
+    foreach ($e in $new.Files.Values) {
+        if (-not (Applies $e)) { continue }
+        $dest = Join-Path $Root ($e.path.Replace('/', '\'))
+        $was = $old.Files[$e.path]
+        # Unchanged since the installed release and still there with the same size: nothing to do
+        if ($was -and $was.sha256 -eq $e.sha256 -and (Test-Path -LiteralPath $dest) -and (Get-Item -LiteralPath $dest).Length -eq $e.size) { continue }
+        $src = Join-Path $deltaRoot ($e.path.Replace('/', '\'))
+        if (-not (Test-Path -LiteralPath $src)) {
+            if ((Test-Path -LiteralPath $dest) -and (Sha $dest) -eq $e.sha256) { continue }
+            $script:DeltaWhy = "$($e.path) is not in the delta"; return $null
+        }
+        if ((Get-Item -LiteralPath $src).Length -ne $e.size -or (Sha $src) -ne $e.sha256) { $script:DeltaWhy = "$($e.path) does not match the manifest"; return $null }
+        $copy.Add([pscustomobject]@{ Src = $src; Dest = $dest; Path = $e.path })
+    }
+    # Files the old release had and the new one doesn't. Trees that became packs stay (still valid).
+    $packIds = @(Pack-Ids $deltaRoot)
+    if (-not $packIds.Count) { $packIds = @(Pack-Ids $Root) }
+    $remove = New-Object System.Collections.Generic.List[string]
+    foreach ($e in $old.Files.Values) {
+        if ($new.Files.ContainsKey($e.path) -or -not (Applies $e)) { continue }
+        $m = [regex]::Match($e.path, '^PathOfBuilding/src/TreeData/([^/]+)/')
+        if ($m.Success -and $packIds -contains $m.Groups[1].Value) { continue }
+        $remove.Add((Join-Path $Root ($e.path.Replace('/', '\'))))
+    }
+    return [pscustomobject]@{ From = $info.from; To = $info.to; Copy = $copy; Remove = $remove; Manifest = (Join-Path $deltaRoot 'release-manifest.json') }
+}
+
+function Apply-Delta($plan) {
+    Say "Replacing $($plan.Copy.Count) changed files, removing $($plan.Remove.Count)..."
+    foreach ($c in $plan.Copy) {
+        New-Item -ItemType Directory -Force (Split-Path $c.Dest) | Out-Null
+        Copy-Item -LiteralPath $c.Src $c.Dest -Force
+        # A changed timeless jewel table: drop its unpacked cache so PoB unpacks the new one
+        $j = [regex]::Match($c.Path, '^PathOfBuilding/src/Data/TimelessJewelData/(\w+)\.zip')
+        if ($j.Success) { Remove-Item (Join-Path $Root "PathOfBuilding\src\Data\TimelessJewelData\$($j.Groups[1].Value).bin") -Force -ErrorAction SilentlyContinue }
+    }
+    foreach ($r in $plan.Remove) { if (Test-Path -LiteralPath $r) { Remove-Item -LiteralPath $r -Force } }
+    Copy-Item -LiteralPath $plan.Manifest (Join-Path $Root 'release-manifest.json') -Force
+}
+
+function Extract-Zip([string]$zip, [string]$to) {
+    if (Test-Path $to) { Remove-Item $to -Recurse -Force }
+    New-Item -ItemType Directory -Force $to | Out-Null
+    & (Join-Path $env:SystemRoot 'System32\tar.exe') -x -f $zip -C $to; if ($LASTEXITCODE -ne 0) { throw "Extracting $(Split-Path $zip -Leaf) failed." }
+    return (Get-ChildItem $to -Directory | Select-Object -First 1)
+}
+
+function Download-Checked($asset, $sumAsset, [string]$dir) {
+    $file = Join-Path $dir $asset.name
+    $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest very slow on PS 5.1
+    Invoke-WebRequest $asset.browser_download_url -OutFile $file -UseBasicParsing -TimeoutSec 600
+    Invoke-WebRequest $sumAsset.browser_download_url -OutFile "$file.sha256" -UseBasicParsing -TimeoutSec 60
+    $expected = ((Get-Content "$file.sha256" -TotalCount 1) -split '\s+')[0].ToLower()
+    $actual = Sha $file
+    if ($expected -notmatch '^[0-9a-f]{64}$' -or $expected -ne $actual) { throw "SHA256 check of $($asset.name) failed (expected $expected, got $actual). Nothing was changed." }
+    return $file
+}
+
+function Finish-Update([string]$target) {
+    $now = (Get-Content (Join-Path $Root 'VERSION') -TotalCount 1).Trim()
+    if ($now -ne $target) { throw "Update incomplete (VERSION says $now). Run tools\update.ps1 -Rollback." }
+    Check-TreePacks
+    Ok "updated to v$target"
+    Reconnect
+    Start-Pob
+    Say "Done. To go back: tools\update.ps1 -Rollback" Green
+    Done 0
 }
 
 function Make-Backup {
@@ -244,6 +377,17 @@ try {
         if (Test-Path $dl) { Remove-Item $dl -Recurse -Force }
         New-Item -ItemType Directory -Force $dl | Out-Null
         $target = $null
+        if ((Split-Path $zip -Leaf) -match '-update\.zip$') {
+            $droot = Extract-Zip $zip (Join-Path $dl 'x')
+            $plan = Plan-Delta $droot.FullName
+            if (-not $plan) { throw "This delta zip does not fit this install ($script:DeltaWhy). Use the full zip of that release." }
+            if (-not $Yes -and (Read-Host "Update v$Current -> v$($plan.To) from $(Split-Path $zip -Leaf)? [Y/n]") -notmatch '^([yY]|)$') { Done 1 }
+            Wait-Closed
+            Make-Backup
+            Apply-Delta $plan
+            Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue
+            Finish-Update $plan.To
+        }
     } else {
     Say 'Asking GitHub for the newest release...'
     $rel = Pick-Release (Get-Releases)
@@ -251,24 +395,45 @@ try {
     $target = $rel.tag_name -replace '^v', ''
     if (-not $Version -and (Compare-Ver $target $Current) -le 0) { Ok "already up to date (v$Current)"; Start-Pob; Done 0 }
 
+    $dl = Join-Path $Work $target
+    if (Test-Path $dl) { Remove-Item $dl -Recurse -Force }
+    New-Item -ItemType Directory -Force $dl | Out-Null
+    $askedUpdate = $false
+
+    # Small update first: the delta zip from this version, when the release has one
+    $deltaName = "PoB-Agent-Edition-$Current-to-$target-update.zip"
+    $dAsset = $rel.assets | Where-Object { $_.name -eq $deltaName } | Select-Object -First 1
+    $dSum = $rel.assets | Where-Object { $_.name -eq "$deltaName.sha256" } | Select-Object -First 1
+    if (-not $Full -and $dAsset -and $dSum -and (Test-Path (Join-Path $Root 'release-manifest.json'))) {
+        if (-not $Yes -and (Read-Host "Update v$Current -> v$target ($([math]::Round($dAsset.size / 1MB, 1)) MB)? [Y/n]") -notmatch '^([yY]|)$') { Done 1 }
+        $plan = $null
+        try {
+            Say "Downloading $deltaName ($([math]::Round($dAsset.size / 1MB, 1)) MB, only the changed files)..."
+            $dzip = Download-Checked $dAsset $dSum $dl
+            Ok 'SHA256 verified'
+            $droot = Extract-Zip $dzip (Join-Path $dl 'delta')
+            $plan = Plan-Delta $droot.FullName
+            if (-not $plan) { Warn "The small update does not fit this install ($script:DeltaWhy): downloading the full zip instead." }
+        } catch { Warn "The small update failed ($($_.Exception.Message)): downloading the full zip instead." }
+        if ($plan) {
+            Wait-Closed
+            Make-Backup
+            Apply-Delta $plan
+            Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue
+            Finish-Update $target
+        }
+        $askedUpdate = $true   # the question was asked for the small update
+    }
+
     $suffix = if ($InstallType -eq 'portable') { '-win64-portable.zip' } else { '-win64.zip' }
     $zipName = "PoB-Agent-Edition-$target$suffix"
     $asset = $rel.assets | Where-Object { $_.name -eq $zipName } | Select-Object -First 1
     $sumAsset = $rel.assets | Where-Object { $_.name -eq "$zipName.sha256" } | Select-Object -First 1
     if (-not $asset -or -not $sumAsset) { throw "Release v$target has no $zipName (+ .sha256). Download it by hand from $($rel.html_url)." }
-    if (-not $Yes -and (Read-Host "Update v$Current -> v$target? [Y/n]") -notmatch '^([yY]|)$') { Done 1 }
+    if (-not $Yes -and -not $askedUpdate -and (Read-Host "Update v$Current -> v$target ($([math]::Round($asset.size / 1MB)) MB)? [Y/n]") -notmatch '^([yY]|)$') { Done 1 }
 
-    $dl = Join-Path $Work $target
-    if (Test-Path $dl) { Remove-Item $dl -Recurse -Force }
-    New-Item -ItemType Directory -Force $dl | Out-Null
-    $zip = Join-Path $dl $zipName
     Say "Downloading $zipName ($([math]::Round($asset.size / 1MB, 1)) MB)..."
-    $ProgressPreference = 'SilentlyContinue'   # the progress bar makes Invoke-WebRequest very slow on PS 5.1
-    Invoke-WebRequest $asset.browser_download_url -OutFile $zip -UseBasicParsing -TimeoutSec 600
-    Invoke-WebRequest $sumAsset.browser_download_url -OutFile "$zip.sha256" -UseBasicParsing -TimeoutSec 60
-    $expected = ((Get-Content "$zip.sha256" -TotalCount 1) -split '\s+')[0].ToLower()
-    $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-    if ($expected -notmatch '^[0-9a-f]{64}$' -or $expected -ne $actual) { throw "SHA256 check failed (expected $expected, got $actual). Nothing was changed." }
+    $zip = Download-Checked $asset $sumAsset $dl
     Ok 'SHA256 verified'
     }
 
@@ -286,14 +451,8 @@ try {
     Say 'Replacing the program files...'
     # Portable: the bundled Node.js is replaced too (it is part of the release), unless it is in use.
     Copy-Program $newRoot.FullName $Root
-    $now = (Get-Content (Join-Path $Root 'VERSION') -TotalCount 1).Trim()
-    if ($now -ne $target) { throw "Update incomplete (VERSION says $now). Run tools\update.ps1 -Rollback." }
-    Ok "updated to v$target"
     Remove-Item $dl -Recurse -Force -ErrorAction SilentlyContinue
-    Reconnect
-    Start-Pob
-    Say "Done. To go back: tools\update.ps1 -Rollback" Green
-    Done 0
+    Finish-Update $target
 } catch {
     Say "Update failed: $($_.Exception.Message)" Red
     if (Test-Path $Backup) { Say "Your previous version is kept in $Backup (tools\update.ps1 -Rollback)." }

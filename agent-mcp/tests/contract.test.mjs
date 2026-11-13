@@ -282,3 +282,16 @@ test("import a PoB export code as a new build", async () => {
 test("unknown tools and engine restarts are reported clearly", async () => {
   await fails("lua_get_stats", {}, /Unknown tool "lua_get_stats"/);
 });
+
+test("an idle headless engine shuts down and comes back with the build, unsaved edits included", async () => {
+  const pob = context.pob;
+  await ok("open_build", { name: "occ-vortex" });
+  await ok("set_config", { values: { enemyIsBoss: "Pinnacle" } }); // an unsaved edit
+  const before = await ok("stats");
+  await pob.closeIdle(Date.now() + 1, 0);
+  assert.deepEqual(pob.engines(), { headless: false, side: false, parked: true });
+  const after = await ok("stats");
+  assert.equal(after, before);
+  assert.equal(pob.engines().headless, true);
+  assert.equal(pob.engines().parked, false);
+});

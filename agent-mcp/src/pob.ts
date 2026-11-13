@@ -20,6 +20,8 @@ export type Reply = { ok: boolean; error?: string; [key: string]: any };
 export class ToolError extends Error {}
 
 const TIMEOUT_MS = parseInt(process.env.POB_TIMEOUT_MS || "60000", 10);
+/** Headless engines idle this long are shut down (each is a second PoB in memory); 0 keeps them. */
+const IDLE_MS = Math.max(0, parseFloat(process.env.POB_AGENT_IDLE_MINUTES ?? "5") || 0) * 60_000;
 
 abstract class Link {
   abstract readonly kind: "live" | "headless";
@@ -27,6 +29,15 @@ abstract class Link {
   private waiting: Array<{ resolve: (line: string) => void; reject: (e: Error) => void }> = [];
   private queue: Promise<unknown> = Promise.resolve();
   protected dead: Error | null = null;
+  private busy = 0;
+  private lastUsed = Date.now();
+  /** Requests sent so far (lets the idle check see whether the link was used meanwhile). */
+  served = 0;
+
+  /** How long nothing was asked of this link (0 while a request runs). */
+  idleFor(now = Date.now()): number {
+    return this.busy > 0 ? 0 : now - this.lastUsed;
+  }
 
   protected onData(chunk: string): void {
     this.buffer += chunk;
@@ -80,7 +91,12 @@ abstract class Link {
         throw new Error(`PoB sent an unreadable reply to ${action}`);
       }
     };
+    this.busy++;
+    this.served++;
+    this.lastUsed = Date.now();
+    const done = () => { this.busy--; this.lastUsed = Date.now(); };
     const result = this.queue.then(run, run);
+    result.then(done, done);
     this.queue = result.catch(() => undefined);
     return result;
   }
@@ -202,6 +218,9 @@ export class Pob {
   private starting: Promise<HeadlessLink> | null = null;
   /** The build loaded in the headless engine (the window knows its own). */
   headlessBuild: LoadedBuild | null = null;
+  /** The headless build (with unsaved edits) while its engine is shut down for being idle. */
+  private parked: string | null = null;
+  private idleTimer: NodeJS.Timeout | null = null;
 
   private async tryLive(): Promise<LiveLink | null> {
     if (liveMode() === "off") return null;
@@ -236,9 +255,25 @@ export class Pob {
       if (lost) throw new ToolError(`The headless PoB engine stopped and lost the build "${lost.name}". Use open_build to load it again.`);
     }
     if (!this.starting) {
-      this.starting = HeadlessLink.start().finally(() => { this.starting = null; });
+      this.starting = (async () => {
+        const link = await HeadlessLink.start();
+        if (this.parked !== null && this.headlessBuild) {
+          // Shut down while idle: bring the build back exactly as it was, unsaved edits included.
+          const reply = await link.request("load_build_xml", { xml: this.parked, name: this.headlessBuild.name });
+          if (!reply.ok) {
+            link.close();
+            const lost = this.headlessBuild;
+            this.headlessBuild = null;
+            this.parked = null;
+            throw new ToolError(`The headless PoB engine could not reload "${lost.name}" after its idle pause (${reply.error ?? "error"}). Use open_build to load it again.`);
+          }
+        }
+        this.parked = null;
+        return link;
+      })().finally(() => { this.starting = null; });
     }
     this.headless = await this.starting;
+    this.armIdle();
     return this.headless;
   }
 
@@ -246,7 +281,45 @@ export class Pob {
   async sideLink(): Promise<Link> {
     if (this.side?.alive) return this.side;
     this.side = await HeadlessLink.start();
+    this.armIdle();
     return this.side;
+  }
+
+  private armIdle(): void {
+    if (!IDLE_MS || this.idleTimer) return;
+    this.idleTimer = setInterval(() => { void this.closeIdle(); }, Math.max(1000, Math.min(IDLE_MS / 2, 60_000)));
+    this.idleTimer.unref();
+  }
+
+  /** Shuts down headless engines nobody used for IDLE_MS. The player's headless build is parked as XML. */
+  async closeIdle(now = Date.now(), idleMs = IDLE_MS): Promise<void> {
+    if (this.side && (!this.side.alive || this.side.idleFor(now) >= idleMs)) {
+      this.side.close();
+      this.side = null;
+    }
+    const h = this.headless;
+    if (h && h.alive && !this.starting && h.idleFor(now) >= idleMs) {
+      let xml: string | null = null;
+      if (this.headlessBuild) {
+        const before = h.served;
+        const reply = await h.request("export_build_xml").catch(() => null);
+        if (!reply?.ok || typeof reply.xml !== "string") return; // keep it running rather than lose the build
+        if (h.served !== before + 1 || this.headless !== h) return; // used meanwhile
+        xml = reply.xml;
+      }
+      this.parked = xml;
+      this.headless = null;
+      h.close();
+    }
+    if (!this.headless && !this.side && this.idleTimer) {
+      clearInterval(this.idleTimer);
+      this.idleTimer = null;
+    }
+  }
+
+  /** Engines running now (for tests). */
+  engines(): { headless: boolean; side: boolean; parked: boolean } {
+    return { headless: !!this.headless?.alive, side: !!this.side?.alive, parked: this.parked !== null };
   }
 
   async isLive(): Promise<boolean> {
@@ -254,6 +327,8 @@ export class Pob {
   }
 
   close(): void {
+    if (this.idleTimer) clearInterval(this.idleTimer);
+    this.idleTimer = null;
     this.live?.close();
     this.headless?.close();
     this.side?.close();

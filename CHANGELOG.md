@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-13
+
+Stage 13: data freshness. Based on **Path of Building Community v2.67.2** (official PoB has not released 3.30 yet), with the 3.30 passive trees and unique changes as previews.
+
 ### Added
 - **3.30 unique changes (preview)** from Path of Building's open pull request #10438 by Can Uysal: Pre 3.30.0 versions of Steelworm, Malachai's Loop, Shavronne's Wrappings, The Hallowed Monarch, Shadowstitch and Rotmother's Mutiny, and Steelworm's "8 Steel Shards" projectile bonus now counts (new config option "Consumed 8 Steel Shards Recently?"). Like the 3.30 tree preview, it is removed automatically once an official Path of Building release includes it.
 
@@ -153,7 +157,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.4.0...v0.5.0

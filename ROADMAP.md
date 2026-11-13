@@ -56,7 +56,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 10 | AI chat inside PoB (Claude Code / Codex CLI / API key) | ⬜ |
 | 11 | Create a build | ⬜ |
 | 12 | UI polish | ⬜ |
-| 13 | Data freshness | ✅ |
+| 13 | Data freshness | ✅ 0.7.0 |
 | 14 | PoE2 edition | 💭 |
 | 15 | Install, portable version & updater | ✅ 0.3.0 |
 | 16 | Own MCP server (replace pob-mcp) | ✅ 0.2.0 |
@@ -670,7 +670,7 @@ what things really cost.
 4. Charts: DPS/EHP history (Stage 2), scaling report (Stage 4).
 5. Fixes from real-mouse testing; accessibility (font size, contrast).
 
-## Stage 13 — Data freshness ✅ (2026-11-13)
+## Stage 13 — Data freshness ✅ (2026-11-13, released in 0.7.0)
 1. ✅ 3.30 **uniques** preview from PoB PR #10438: one `PathOfBuilding` commit "Preview: 3.30 uniques from
    PoB PR #10438" (Steelworm, Malachai's Loop, Shavronne's Wrappings, The Hallowed Monarch, Shadowstitch,
    Rotmother's Mutiny; Steelworm's 8-shard wording now parses). The PR is based on PoB's `dev`, so only its own
@@ -1060,3 +1060,4 @@ The player always runs two sessions:
 | 0.5.0 (2026-11-13) | 3 Guide mode |
 | 0.6.0 (2026-11-13) | 9 PoE knowledge engine |
 | 0.6.1 (2026-11-13) | 3 follow-up: Guide mode 2 (Guide tab, priorities, levelling, sync button) |
+| 0.7.0 (2026-11-13) | 13 Data freshness (3.30 uniques preview); roadmap: Stage 11 interview, theorycraft, prices, item targets |

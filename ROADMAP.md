@@ -30,7 +30,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 4. **Respect the mode.** Trade → buying; SSF → crafting/farming/drop targets; Mixed → both, clearly labelled.
 5. **Never overwrite** the player's builds; AI changes go to new files or new specs.
 6. **Safe by default.** No game-client automation; rate limits; secrets never printed.
-7. **Works in every client.** Features live in pob-mcp tools + PoB Agent Edition, so Claude, Codex,
+7. **Works in every client.** Features live in agent-mcp tools + PoB Agent Edition, so Claude, Codex,
    Antigravity and the in-PoB chat all get them.
 8. **PoB base stays official.** Upstream work only as removable previews.
 9. **No guessing.** Facts come from current, cited sources (Stage 9 hierarchy: game data > official GGG >
@@ -59,7 +59,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
 | 15 | Updater & update reminder | ⬜ (2nd) |
-| 16 | Own MCP server (replace pob-mcp) | 🔜 (next) |
+| 16 | Own MCP server (replace pob-mcp) | ✅ built, release 0.2.0 pending |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
 Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → **16** → **15** → 2 → 3 → 4 → 5 → 9 → 7 → 6
@@ -552,7 +552,7 @@ builds, settings and AI connections working; Roll back returns to the old one.
 **Note:** the repo is public (2026-11-13), so the check needs no login. GitHub's `/releases/latest`
 skips pre-releases (all 0.x releases are pre-releases), so read `/releases` and take the newest by version.
 
-## Stage 16 — Own MCP server (replace pob-mcp) ⬜
+## Stage 16 — Own MCP server (replace pob-mcp) ✅ (built 2026-11-13, release 0.2.0 pending)
 
 **Why:** pob-mcp (our fork of ianderse/pob-mcp) is about 27,000 lines of TypeScript, of which about
 1,800 are ours. It was built headless-first, with the live window added later. Measured 2026-11-13:
@@ -600,19 +600,52 @@ than to pob-mcp.
   - Calculation and game-data credit stays with Path of Building Community (unchanged).
 
 ### Steps
-1. Inventory: list every pob-mcp tool, mark keep, merge or drop, and record the actual use (AGENTS.md
-   workflows plus Stage 2-11 needs). Agree the final tool list with the player.
-2. Move the Lua handlers into `PathOfBuilding/src/Agent/Handlers/` and add the headless runner. The live
-   window and pob-mcp keep working (pob-mcp points at the new path).
-3. `agent-mcp` skeleton: connection to the live window and headless fallback, agent guide, tool registry,
-   token-budget test.
-4. Port in this order: session + profile → read/diagnose → edit/what-if → trade/plan_upgrades → atlas.
-   Each tool gets a contract test against a fixture build (headless) and a live smoke test.
-5. Run side by side: the installer registers the new server as `pob` and the old one as `pob-legacy`
-   (opt-in), and the AGENTS.md workflows are checked on both. Close the parity gaps.
-6. Remove the `pob-mcp` submodule, then update the installer, `build-release.ps1`, README, THIRD_PARTY_NOTICES
-   and the Advisor card path. Check every item of "Credit to pob-mcp, always" above before you remove it.
-7. Release (minor version) with a changelog note telling players to rerun `Install.cmd`; it credits pob-mcp.
+1. ✅ Inventory and tool list agreed with the player: the 28 planned tools plus `tree_search`, `suggest_passives`,
+   `anoint` and `affixes` (the player asked to keep anoints, passive/mastery suggestions and affix tiers). 31 tools.
+2. ✅ Lua handlers moved into `PathOfBuilding/src/Agent/Handlers/` (`Core.lua`, `Ops.lua` ported; `Tools.lua` new)
+   and the headless runner `Agent/Headless.lua` (real Inflate built in). `POB_AGENT_LUA_DIR` is gone.
+3. ✅ `agent-mcp` skeleton: connection (window checked on every call, headless fallback, second engine for
+   `compare`), agent guide as server instructions, tool registry, token-budget test.
+4. ✅ All tools ported or written, each with a headless contract test on a fixture build; live smoke test.
+5. ✅ Parity checked against the AGENTS.md workflows on a second PoB window (port 31338). The `pob-legacy`
+   side-by-side install was skipped: pob-mcp leaves in the same release, so there was nothing to keep it for.
+6. ✅ `pob-mcp` submodule removed; installer, `build-release.ps1`, `check-secrets.ps1`, `update-pob.ps1`, README,
+   THIRD_PARTY_NOTICES, AGENTS.md and docs updated; every "Credit to pob-mcp, always" item checked.
+7. ⬜ Release 0.2.0 (repo-control session): changelog note tells players to rerun `Install.cmd`; credits pob-mcp.
+
+Built:
+- `agent-mcp/` (TypeScript, MCP SDK, Node 20; about 2,700 lines against pob-mcp's 27,000): 31 tools, about 3,000
+  tokens of tool definitions (was about 16,000; `npm test` fails above 5,000). Files: `src/pob.ts` (connection),
+  `src/tools/*.ts` (session, read, edit, advice, trade), `src/trade/*` (client, governor, upgrade planner),
+  `src/profile.ts`, `src/guide.ts`.
+- New in PoB (`Agent/Handlers/Tools.lua`): `summary`, `diagnose`, `stats`, `edit` (typed ops), `what_if` (applies
+  ops, measures, rolls back with PoB's own undo states inside one frame, so the window never flickers),
+  `tree_search`, `suggest_passives`, `anoint`, `affixes`, `config_search`; `restore_build_xml` in the live server.
+- Every result names its config assumptions (enemy, charges, flasks). `save_build` refuses to overwrite without
+  `overwrite: true`; `open_build` refuses to replace unsaved changes without `discard_unsaved: true`.
+- Trade: governor and limits ported unchanged; instant buyout is now fixed in code (no env switch); league
+  defaults to the profile, else the current challenge league; stat filters by text.
+- Installer: one-line MCP entry (the server finds PoB next to itself). Claude Code is also set up when there is
+  no `claude` command (the Claude desktop app's Claude Code): it edits `~/.claude.json` through Node.
+- Fixed on the way (bugs in the ported pob-mcp code): flask on/off did not change the numbers until reload;
+  picking a mastery re-imported the tree and dropped tattoos.
+- Tests: 25 pass (`npm test`: token budget, tool list, profile, governor, trade client limits, upgrade scoring,
+  and contract tests for every non-trade tool headless). Live smoke test passes on port 31338, with real trade
+  calls (`leagues`, `price_check`, `trade_search`, `plan_upgrades`). Codex CLI ran the full workflow
+  (profile_get → status → diagnose → atlas_get → what_if) on the new server. Claude Code connected and listed
+  all 31 tools; a full headless conversation could not be run (the bundled CLI is not logged in outside the app).
+
+Loose ends:
+- [ ] Player: after 0.2.0 is out (or now, from this folder) run `Install.cmd`, restart Claude / Codex /
+  Antigravity and PoB Agent Edition, then ask "check my build" once in Claude Code and once in Claude Desktop.
+  Until then the AI apps still use the old `pob-mcp` folder, which stays on disk (ignored by git) and can be
+  deleted afterwards.
+- [ ] Antigravity is not set up by the installer (copy the `pob` entry from `mcp-config.json`).
+- [ ] The contract fixture uses the 3.13 tree (no masteries); add a current-tree fixture that is not a
+  player's build. Masteries were tested by hand on a 3.28 build.
+- [ ] Dropped pob-mcp features come back in their stages: optimiser (4), economy (5), crafting (6),
+  levelling (7), farming (8). Hit damage by type is not in `diagnose` yet (PoB does not export it per type).
+- [ ] `open_build` takes PoB codes but does not fetch pobb.in / pastebin links (Stage 3).
 
 **Done when:** every AGENTS.md workflow (profile, diagnose, plan_upgrades, atlas, save as new file) works
 on the new server in Claude Code, Claude Desktop and Codex; tool definitions ≤ 5,000 tokens; the PoB
@@ -622,7 +655,7 @@ and the release notes.
 
 ## Stage X — Cross-cutting (ongoing)
 - **Testing**: headless tests per feature; real-window checks via second instance on port 31338 +
-  `take_screenshot`; unit tests in pob-mcp; never zero the timeless jewel caches.
+  `take_screenshot`; `npm test` in agent-mcp; never zero the timeless jewel caches.
 - **Safety**: trade governor, instant buyout only, no game-client automation, secrets in AgentEdition.json
   only, character import read-only.
 - **Docs**: README, AGENTS.md, agentGuide.ts kept in sync; ROADMAP ticked each chat.
@@ -642,7 +675,7 @@ and the release notes.
 ---
 
 ## Key context for any chat
-- Paths (repo root): `PathOfBuilding\` (fork), `pob-mcp\`, `luajit\` (pinned LuaJIT 14d8a7a2),
+- Paths (repo root): `PathOfBuilding\` (fork), `agent-mcp\` (our MCP server), `luajit\` (pinned LuaJIT 14d8a7a2),
   `tools\`, `atlastree-export\`. Builds: `Documents\Path of Building\Builds`.
   Player settings/secrets: `Documents\Path of Building\AgentEdition.json` (never committed).
 - Launch: "PoB Agent Edition" (Start menu). Restart: `tools/restart-pob.ps1 -Background`.
@@ -653,7 +686,7 @@ and the release notes.
   `src/Data/TimelessJewelData/*.bin` aren't 0 bytes.
 - PoB gotchas: `DrawString` RIGHT/CENTER are viewport-relative (use `Viz.text`); font lacks •, –, …;
   EditControl `filter` lists characters to **remove**; PoB's `DownloadPage` isn't binary safe.
-- Keep `pob-mcp/src/server/agentGuide.ts` and `AGENTS.md` in sync.
+- Keep `agent-mcp/src/guide.ts` and `AGENTS.md` in sync. New tools: `agent-mcp/src/tools/` + `PathOfBuilding/src/Agent/Handlers/Tools.lua` + a contract test.
 - Commits on branch `agent` in both sub-repos, pushed to the private GitHub repos (see `docs/DEVELOPMENT.md`).
   Record user-facing changes in `CHANGELOG.md` under "Unreleased".
 - Player preferences: account safety first, instant buyout only, explain PoE1 for a PoE2 player

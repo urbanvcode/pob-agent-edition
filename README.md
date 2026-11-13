@@ -2,7 +2,7 @@
 
 **Let Claude, Codex or any MCP-capable AI read, analyse and improve your Path of Exile build inside Path of Building, live.**
 
-PoB Agent Edition is a Path of Building Community fork with a built-in AI connection, plus an MCP server that gives AI assistants more than 100 Path of Building tools. Ask "why do I keep dying?" or "what is the best upgrade for 50 chaos?" and the AI answers with PoB's own calculations, edits the build in the open window and finds instant-buyout trade items that fit your build.
+PoB Agent Edition is a Path of Building Community fork with a built-in AI connection, plus its own MCP server with about 30 focused Path of Building tools. Ask "why do I keep dying?" or "what is the best upgrade for 50 chaos?" and the AI answers with PoB's own calculations, edits the build in the open window and finds instant-buyout trade items that fit your build.
 
 [![Latest release](https://img.shields.io/github/v/release/urbanvcode/pob-agent-edition?include_prereleases&label=release)](https://github.com/urbanvcode/pob-agent-edition/releases)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue)
@@ -69,22 +69,14 @@ Prefer not to run the installer? Both ways below work without it. All the instal
    ```json
    "pob": {
      "command": "node",
-     "args": ["C:/Games/PoB Agent Edition/pob-mcp/build/index.js"],
-     "env": {
-       "POB_LUA_ENABLED": "true",
-       "POB_CMD": "C:/Games/PoB Agent Edition/luajit/luajit.exe",
-       "POB_PATH": "C:/Games/PoB Agent Edition/PathOfBuilding/src",
-       "POB_TIMEOUT_MS": "60000",
-       "POE_TRADE_ENABLED": "true",
-       "POE_TRADE_ONLINE_STATUS": "securable"
-     }
+     "args": ["C:/Games/PoB Agent Edition/agent-mcp/build/index.js"]
    }
    ```
 
    **Claude Code**: run this in a terminal:
 
    ```bash
-   claude mcp add pob --scope user -e POB_LUA_ENABLED=true -e "POB_CMD=C:/Games/PoB Agent Edition/luajit/luajit.exe" -e "POB_PATH=C:/Games/PoB Agent Edition/PathOfBuilding/src" -e POB_TIMEOUT_MS=60000 -e POE_TRADE_ENABLED=true -e POE_TRADE_ONLINE_STATUS=securable -- node "C:/Games/PoB Agent Edition/pob-mcp/build/index.js"
+   claude mcp add pob --scope user -- node "C:/Games/PoB Agent Edition/agent-mcp/build/index.js"
    ```
 
    **Codex**: add this to `%USERPROFILE%\.codex\config.toml`:
@@ -92,19 +84,11 @@ Prefer not to run the installer? Both ways below work without it. All the instal
    ```toml
    [mcp_servers.pob]
    command = "node"
-   args = ["C:/Games/PoB Agent Edition/pob-mcp/build/index.js"]
-
-   [mcp_servers.pob.env]
-   POB_LUA_ENABLED = "true"
-   POB_CMD = "C:/Games/PoB Agent Edition/luajit/luajit.exe"
-   POB_PATH = "C:/Games/PoB Agent Edition/PathOfBuilding/src"
-   POB_TIMEOUT_MS = "60000"
-   POE_TRADE_ENABLED = "true"
-   POE_TRADE_ONLINE_STATUS = "securable"
+   args = ["C:/Games/PoB Agent Edition/agent-mcp/build/index.js"]
    ```
 
-   **Other apps**: use the same command, args and env in their MCP settings.
-5. Builds are read from `Documents\Path of Building\Builds`. To use another folder, add `"POB_DIRECTORY": "D:/My/Builds"` to `env`.
+   **Other apps**: use the same command and args in their MCP settings.
+5. The server finds PoB and LuaJIT next to itself, so no other settings are needed. Builds are read from `Documents\Path of Building\Builds`; to use another folder, add `"env": { "POB_DIRECTORY": "D:/My/Builds" }`.
 6. Restart the AI app.
 </details>
 
@@ -114,11 +98,11 @@ Prefer not to run the installer? Both ways below work without it. All the instal
 ```powershell
 git clone --recurse-submodules https://github.com/urbanvcode/pob-agent-edition.git
 cd pob-agent-edition
-cd pob-mcp; npm ci; npm run build; cd ..
+cd agent-mcp; npm ci; npm run build; cd ..
 .\Install.cmd    # optional: or follow the manual steps above
 ```
 
-To update later, run `git pull`, then `git submodule update --init` and `npm ci && npm run build` in `pob-mcp`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+To update later, run `git pull`, then `git submodule update --init` and `npm ci && npm run build` in `agent-mcp`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 </details>
 
 <details>
@@ -189,7 +173,7 @@ Not supported yet, because Path of Building's runtime is Windows-only. It may wo
 ## Credits and license
 
 - [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding) by Openarl and the PoB Community team (MIT license, see `PathOfBuilding/LICENSE.md`).
-- [pob-mcp](https://github.com/ianderse/pob-mcp) by ianderse (GPL-3.0).
+- [pob-mcp](https://github.com/ianderse/pob-mcp) by ianderse (GPL-3.0). Our MCP server (`agent-mcp/`) is based on and inspired by it: versions up to 0.1.0 shipped a fork of pob-mcp, and the Lua build operations, the trade client and other parts are ported from it. Thank you!
 - Atlas tree data: [grindinggear/atlastree-export](https://github.com/grindinggear/atlastree-export).
 - [LuaJIT](https://luajit.org/) (MIT).
 

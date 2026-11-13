@@ -5,7 +5,7 @@
 .DESCRIPTION
   Uses only committed code: `git archive` of each repo, so uncommitted work and local files
   (builds, AgentEdition.json, settings) can never end up in a release.
-  Steps: secret scan, export PathOfBuilding + pob-mcp + root files, build the MCP server,
+  Steps: secret scan, export PathOfBuilding + root files (with agent-mcp), build the MCP server,
   drop dev dependencies, add LuaJIT, zip to dist\PoB-Agent-Edition-<version>-win64.zip.
 
 .PARAMETER Version
@@ -36,7 +36,7 @@ $notes = $m.Groups[1].Value.Trim()
 
 & (Join-Path $PSScriptRoot 'check-secrets.ps1'); if ($LASTEXITCODE -ne 0) { throw 'Secret scan failed.' }
 
-foreach ($r in @('PathOfBuilding', 'pob-mcp')) {
+foreach ($r in @('PathOfBuilding')) {
     $dirty = & git -C (Join-Path $Root $r) status --porcelain --untracked-files=no
     if ($dirty) { Write-Host "Note: $r has uncommitted changes; they are NOT included (release uses committed code)." -ForegroundColor Yellow }
 }
@@ -48,7 +48,7 @@ Write-Host 'Exporting committed code...'
 $tarFile = Join-Path $env:TEMP 'pob-agent-release\part.tar'
 Run git @('-C', $Root, 'archive', '--format=tar', '-o', $tarFile, 'HEAD')
 Run $Tar @('-x', '-f', $tarFile, '-C', $Stage)
-foreach ($r in @('PathOfBuilding', 'pob-mcp')) {
+foreach ($r in @('PathOfBuilding')) {
     $dest = Join-Path $Stage $r
     New-Item -ItemType Directory -Force $dest | Out-Null
     Run git @('-C', (Join-Path $Root $r), 'archive', '--format=tar', '-o', $tarFile, 'HEAD')
@@ -57,7 +57,7 @@ foreach ($r in @('PathOfBuilding', 'pob-mcp')) {
 Remove-Item $tarFile -Force
 
 Write-Host 'Building the MCP server...'
-Push-Location (Join-Path $Stage 'pob-mcp')
+Push-Location (Join-Path $Stage 'agent-mcp')
 try {
     Run npm @('ci', '--no-audit', '--no-fund')
     Run npm @('run', 'build')
@@ -66,7 +66,7 @@ try {
 
 # Not needed by players
 foreach ($p in @('PathOfBuilding\spec', 'PathOfBuilding\tests', 'PathOfBuilding\runtime-win32.zip', 'PathOfBuilding\.github',
-                 'pob-mcp\.github', 'pob-mcp\.auto', 'pob-mcp\.claude', 'pob-mcp\tests')) {
+                 'agent-mcp\tests', '.github')) {
     $full = Join-Path $Stage $p
     if (Test-Path $full) { Remove-Item $full -Recurse -Force }
 }

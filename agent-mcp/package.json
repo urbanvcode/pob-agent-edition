@@ -1,0 +1,40 @@
+{
+  "name": "pob-agent-mcp",
+  "version": "0.2.0",
+  "description": "MCP server for PoB Agent Edition: drives the Path of Building window (or a headless engine) for AI assistants. Based on pob-mcp by ianderse.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "main": "build/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "test": "npm run build && node --test tests/unit.test.mjs tests/contract.test.mjs",
+    "test:unit": "npm run build && node --test tests/unit.test.mjs",
+    "test:live": "npm run build && node tests/live-smoke.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "bottleneck": "^2.19.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "overrides": {
+    "@hono/node-server": "^2.0.11"
+  },
+  "contributors": [
+    {
+      "name": "ianderse and the pob-mcp contributors",
+      "url": "https://github.com/ianderse/pob-mcp"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/urbanvcode/pob-agent-edition.git",
+    "directory": "agent-mcp"
+  }
+}

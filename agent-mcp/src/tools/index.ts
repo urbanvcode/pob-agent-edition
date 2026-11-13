@@ -1,0 +1,20 @@
+/** The complete tool list, in the order clients show it. */
+import type { Tool } from "../registry.js";
+import type { TradeApiClient } from "../trade/client.js";
+import { adviceTools, atlasTools } from "./advice.js";
+import { editTools } from "./edit.js";
+import { readTools } from "./read.js";
+import { profileTools, sessionTools } from "./session.js";
+import { checkLeague, tradeTools } from "./trade.js";
+
+export function allTools(trade: TradeApiClient): Tool[] {
+  return [
+    ...profileTools((league) => checkLeague(trade, league)),
+    ...sessionTools,
+    ...readTools,
+    ...editTools,
+    ...adviceTools,
+    ...tradeTools(),
+    ...atlasTools,
+  ];
+}

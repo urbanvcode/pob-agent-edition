@@ -5,7 +5,7 @@
 .DESCRIPTION
   Finds the newest official PathOfBuildingCommunity release tag, re-applies our
   Agent Edition commits on top of it (git rebase --onto), checks that the code
-  still compiles with our LuaJIT and runs pob-mcp's bridge smoke test.
+  still compiles with our LuaJIT and runs agent-mcp's headless contract tests.
 
   Our commits live on the "agent" branch of the PathOfBuilding submodule. The official repo is the
   "upstream" remote (added automatically); "origin" is our private fork.
@@ -29,7 +29,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $Root   = Split-Path -Parent $PSScriptRoot
 $Repo   = if ($env:POB_AGENT_REPO) { $env:POB_AGENT_REPO } else { Join-Path $Root 'PathOfBuilding' }
-$McpDir = Join-Path $Root 'pob-mcp'
+$McpDir = Join-Path $Root 'agent-mcp'
 $LuaJit = Join-Path $Root 'luajit\luajit.exe'
 
 function RepoGit { & git -C $Repo @args; if ($LASTEXITCODE -ne 0) { throw "git $($args -join ' ') failed" } }
@@ -127,7 +127,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "Bridge smoke test..."
+Write-Host "Headless contract tests..."
 $env:POB_LIVE = 'off'
 $env:POB_LUA_ENABLED = 'true'
 $env:POB_CMD = $LuaJit
@@ -135,8 +135,8 @@ $env:POB_PATH = Join-Path $Repo 'src'
 $env:PATH = "$(Split-Path $LuaJit);$env:PATH"
 Push-Location $McpDir
 try {
-    & node tests/smoke/bridge.mjs
-    if ($LASTEXITCODE -ne 0) { throw "bridge smoke test failed" }
+    & npm test
+    if ($LASTEXITCODE -ne 0) { throw "agent-mcp tests failed" }
 } finally { Pop-Location }
 
 Write-Host "Updated PoB Agent Edition to $Tag." -ForegroundColor Green

@@ -20,7 +20,7 @@ Treat the POESESSID like a password. If it ever leaks, log out of pathofexile.co
 
 | Rule | Value |
 |---|---|
-| Listings | Instant buyout only (`POE_TRADE_ONLINE_STATUS=securable`) |
+| Listings | Instant buyout only. This is fixed and cannot be switched off |
 | Pace | At most 1 request every 2 seconds |
 | Per question | At most 16 trade requests |
 | Rate limits | Every limit pathofexile.com publishes is respected before it is reached. If the site asks for a pause, the AI tells you and does not retry |
@@ -30,7 +30,6 @@ Treat the POESESSID like a password. If it ever leaks, log out of pathofexile.co
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `POE_TRADE_ENABLED` | `true` (set by the installer) | Turn the trade tools on or off |
-| `POE_TRADE_ONLINE_STATUS` | `securable` | Which listings to search (`securable` means instant buyout) |
+| `POE_TRADE_MAX_REQUESTS_PER_CALL` | `16` | Trade requests allowed per question |
 | `POB_LIVE` | `auto` | `auto`, `only` or `off`: whether to use the open PoB Agent Edition window |
 | `POB_AGENT_PORT` | `31337` | Port of the live API (`127.0.0.1` only) |

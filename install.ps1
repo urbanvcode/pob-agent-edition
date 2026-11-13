@@ -5,7 +5,7 @@
 .DESCRIPTION
   Run it from the extracted release folder (or a git checkout), usually through Install.cmd.
   - Checks Node.js 20+ and offers to install it with winget if it is missing.
-  - Builds the MCP server if this is a source checkout (pob-mcp\build missing).
+  - Builds the MCP server if this is a source checkout (agent-mcp\build missing).
   - Creates Start menu and desktop shortcuts for PoB Agent Edition.
   - Adds the "pob" MCP server to Claude Desktop, Claude Code and Codex when they are installed.
   - Writes mcp-config.json for any other MCP client.
@@ -31,7 +31,7 @@ $Root = $PSScriptRoot
 $AppName = 'PoB Agent Edition'
 $PobExe = Join-Path $Root 'PathOfBuilding\runtime\Path{space}of{space}Building.exe'
 $PobExeAlt = Join-Path $Root 'PathOfBuilding\runtime\Path of Building.exe'
-$McpDir = Join-Path $Root 'pob-mcp'
+$McpDir = Join-Path $Root 'agent-mcp'
 $McpEntry = Join-Path $McpDir 'build\index.js'
 $LuaJit = Join-Path $Root 'luajit\luajit.exe'
 $PobSrc = Join-Path $Root 'PathOfBuilding\src'
@@ -58,6 +58,20 @@ Get-ChildItem (Join-Path $env:LOCALAPPDATA 'Packages') -Directory -Filter 'Claud
 $CodexDir = Join-Path $env:USERPROFILE '.codex'
 $CodexConfig = Join-Path $CodexDir 'config.toml'
 $HasClaudeCli = [bool](Get-Command claude -ErrorAction SilentlyContinue)
+# Claude Code inside the Claude desktop app has no `claude` command; its user config is this file
+$ClaudeCodeConfig = Join-Path $env:USERPROFILE '.claude.json'
+
+# Sets (or with no entry: removes) mcpServers.pob in Claude Code's config. Done with Node so the
+# large file is rewritten exactly (PowerShell 5.1's JSON round trip changes it).
+function Set-ClaudeCodePob($entryJson) {
+    $env:POB_CC_FILE = $ClaudeCodeConfig
+    $env:POB_CC_ENTRY = $entryJson
+    $js = 'const fs=require("fs");const f=process.env.POB_CC_FILE;const j=JSON.parse(fs.readFileSync(f,"utf8"));j.mcpServers=j.mcpServers||{};if(process.env.POB_CC_ENTRY){j.mcpServers.pob=JSON.parse(process.env.POB_CC_ENTRY)}else{delete j.mcpServers.pob}fs.writeFileSync(f,JSON.stringify(j,null,2));'
+    & node -e $js
+    $ok = $LASTEXITCODE -eq 0
+    $env:POB_CC_FILE = $null; $env:POB_CC_ENTRY = $null
+    return $ok
+}
 
 function Backup($file) { if (Test-Path $file) { Copy-Item $file "$file.bak" -Force } }
 
@@ -102,6 +116,10 @@ if ($Uninstall) {
         }
     }
     if ($HasClaudeCli) { & claude mcp remove pob --scope user *> $null; Ok "Claude Code: removed pob (if it was there)" }
+    elseif ((Test-Path $ClaudeCodeConfig) -and (Get-Command node -ErrorAction SilentlyContinue)) {
+        Backup $ClaudeCodeConfig
+        if (Set-ClaudeCodePob '') { Ok "Claude Code: removed pob" } else { Warn "Claude Code: could not edit $ClaudeCodeConfig" }
+    }
     if (Test-Path $CodexConfig) { Backup $CodexConfig; Write-TextFile $CodexConfig (Remove-CodexPob (Get-Content $CodexConfig -Raw -Encoding UTF8)); Ok "Codex: removed pob" }
     Say "Done. You can delete this folder now; your builds are not touched." Green
     exit 0
@@ -160,14 +178,9 @@ foreach ($l in $targets) {
 }
 
 # --- MCP server entry -----------------------------------------------------------------------
+# The server finds PoB and LuaJIT next to itself; only the Builds folder is passed (Documents may be redirected).
 $envVars = [ordered]@{
-    POB_LUA_ENABLED         = 'true'
-    POB_CMD                 = (Fwd $LuaJit)
-    POB_PATH                = (Fwd $PobSrc)
-    POB_DIRECTORY           = (Fwd $BuildsDir)
-    POB_TIMEOUT_MS          = '60000'
-    POE_TRADE_ENABLED       = 'true'
-    POE_TRADE_ONLINE_STATUS = 'securable'
+    POB_DIRECTORY = (Fwd $BuildsDir)
 }
 $server = [ordered]@{ command = 'node'; args = @((Fwd $McpEntry)); env = $envVars }
 
@@ -193,7 +206,11 @@ if ($HasClaudeCli) {
     & claude mcp remove pob --scope user *> $null
     & claude mcp add-json pob $json --scope user
     if ($LASTEXITCODE -eq 0) { Ok "Claude Code: added 'pob' (user scope)" } else { Warn "Claude Code: could not add. Run: claude mcp add-json pob (see mcp-config.json)" }
-} else { Say "  [-]  Claude Code CLI not found (skipped)" }
+} elseif (Test-Path $ClaudeCodeConfig) {
+    Backup $ClaudeCodeConfig
+    $json = ([ordered]@{ type = 'stdio'; command = 'node'; args = @((Fwd $McpEntry)); env = $envVars } | ConvertTo-Json -Depth 8 -Compress)
+    if (Set-ClaudeCodePob $json) { Ok "Claude Code: added 'pob' ($ClaudeCodeConfig)" } else { Warn "Claude Code: could not edit $ClaudeCodeConfig (see mcp-config.json)" }
+} else { Say "  [-]  Claude Code not found (skipped)" }
 
 # Codex
 if (Test-Path $CodexDir) {
@@ -217,3 +234,4 @@ Say "  1. Restart your AI app."
 Say "  2. Open '$AppName' from the Start menu and load a build."
 Say "  3. Ask the AI: ""Check my build in PoB: what's wrong with it?"""
 Say "  Trade searches: paste your POESESSID in PoB Agent Edition > Options (never in a chat)."
+if (Test-Path (Join-Path $Root 'pob-mcp')) { Say "  Note: the old 'pob-mcp' folder is no longer used; you can delete it." }

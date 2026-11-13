@@ -6,6 +6,34 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+Stage 16: our own MCP server. **After updating, run `Install.cmd` again and restart your AI app** so it connects to the new server.
+
+### Added
+- **`agent-mcp`, our own MCP server**, replaces the pob-mcp fork. It is built around the PoB Agent Edition window: 31 focused tools instead of 115, and about 3,000 tokens of tool definitions instead of about 16,000, so every AI conversation starts lighter and answers get shorter. It is based on and inspired by [pob-mcp](https://github.com/ianderse/pob-mcp) by ianderse (GPL-3.0), from which the build operations, the trade client and other parts are ported. Thank you!
+- `diagnose`: the whole health check in one call, in priority order (resistances, max hit and EHP, recovery and mana, damage), with a list of findings.
+- `what_if`: try any mix of gear, gem, passive and config changes, see before/after numbers, and the build is rolled back exactly. Nothing flickers in the window.
+- `edit_items`, `edit_skills`, `edit_tree` and `set_config` change the open build and report before/after numbers. `edit_tree` takes the shortest path to a passive and picks mastery effects.
+- `suggest_passives` (nearby notables, keystones and mastery effects ranked by gain per point), `anoint` (best amulet anoints with oil recipes) and `affixes` (affix tiers and crafting-bench mods from PoB's data).
+- `snapshot`, `restore` and `compare` (current build, snapshots or saved builds: stats, tree, items, gems). Comparing never touches the window.
+- `trade_search` takes stat filters as plain text and can simulate each result in a gear slot. `price_check` shows the cheapest instant-buyout listings and warns about bait prices.
+- Every result names the config it was calculated with (enemy, charges, active flasks).
+- The server finds PoB by itself: the AI app's config is one line, with no paths to LuaJIT or PoB. It switches to the PoB window as soon as you open it (no reconnect step), and works on saved build files when PoB is closed.
+- `open_build` can import a PoB export code. It refuses to replace unsaved changes unless you agree.
+
+### Changed
+- Tool names are shorter (`status`, `open_build`, `save_build`, `set_view`, `stats`, `leagues`, ...). The old `lua_*` and `live_*` tools are gone; see `AGENTS.md`.
+- `save_build` never overwrites your file by accident: AI changes need a new name unless you ask for an overwrite.
+- Trade searches are instant buyout only, with no setting to turn that off. Pace and limits are unchanged (1 request per 2 seconds, inside every limit pathofexile.com publishes, 16 per question).
+- Trade tools use the profile league, or the current challenge league when none is set.
+- The PoB window no longer loads anything from the MCP server's folder: its AI handlers live in the PoB fork (`src/Agent/Handlers/`).
+
+### Removed
+- The `pob-mcp` folder and its 115 tools. Watch mode, poe.ninja arbitrage, shopping lists, crafting advisors, levelling plans, cluster-jewel and Watcher's Eye advisors, boss readiness and config presets are not in the new server; the roadmap rebuilds them in their own stages (optimiser, economy, crafting, levelling, farming). You can delete the old `pob-mcp` folder after running `Install.cmd`.
+
+### Fixed
+- Turning a flask on or off through the AI now changes the calculated numbers at once (before, only after reloading the build).
+- Choosing a mastery effect through the AI no longer drops tattoos and other passive overrides.
+
 ## [0.1.0] - 2026-11-13
 
 First private preview. Based on **Path of Building Community v2.67.2**, with the 3.30 passive trees taken early from [PoB PR #10437](https://github.com/PathOfBuildingCommunity/PathOfBuilding/pull/10437).

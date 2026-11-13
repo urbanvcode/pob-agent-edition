@@ -3,7 +3,7 @@
   Scans what would be pushed for secrets and personal data.
 
 .DESCRIPTION
-  For the root repo and both submodules it checks:
+  For the root repo and the PathOfBuilding submodule it checks:
   - files in the git index (what a commit contains) for session IDs, tokens, private keys,
     your Windows user folder path and your personal git e-mail;
   - author/committer e-mails of commits not yet on the remote (should be a GitHub no-reply address).
@@ -11,7 +11,7 @@
 #>
 $ErrorActionPreference = 'Continue'  # git writes warnings to stderr; failures are checked by exit code
 $Root = Split-Path -Parent $PSScriptRoot
-$repos = @($Root, (Join-Path $Root 'PathOfBuilding'), (Join-Path $Root 'pob-mcp'))
+$repos = @($Root, (Join-Path $Root 'PathOfBuilding'))
 
 $patterns = @(
     # no quote characters here: Windows PowerShell 5.1 mangles them in native arguments

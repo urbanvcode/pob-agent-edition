@@ -11,6 +11,8 @@ Settings.xml
 mcp-config.json
 
 # --- Local / machine specific ---
+# old MCP server checkout (replaced by agent-mcp in 0.2.0); safe to delete
+pob-mcp/
 *.lnk
 luajit-src/
 atlastree-export/

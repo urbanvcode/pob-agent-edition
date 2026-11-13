@@ -51,6 +51,8 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - Show before/after numbers; switch the window to the relevant tab (`live_set_view`).
 
 ## Developing this project
+- **Every finished stage is released on GitHub**: changelog → new minor version → `tools\build-release.ps1 -Version x.y.z -Publish` (steps in ROADMAP.md › Releases). Add user-facing changes to `CHANGELOG.md` under "Unreleased" as you go.
+- The repos are public: never commit secrets, personal paths or a personal e-mail (commits use the GitHub no-reply address); run `tools\check-secrets.ps1` before pushing.
 - Update PoB: `tools/update-pob.ps1` (`-Check` first). Dev helpers: `tools/restart-pob.ps1`, `tools/snap-pob.ps1`.
 - Don't run PoB's `HeadlessWrapper.lua` directly for tests without pob-mcp's Inflate fix; check `src/Data/TimelessJewelData/*.bin` aren't 0 bytes if numbers look off.
 - pob-mcp tests: `npm run test:smoke` (headless) and `npx jest tests/unit`.

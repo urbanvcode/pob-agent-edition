@@ -45,7 +45,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 |---|---|---|
 | 0 | Foundation | ✅ |
 | 1 | Player profile & explanation modes | ✅ |
-| 2 | Character import & progress sync | 🔜 |
+| 2 | Character import & progress sync | ⬜ |
 | 3 | Guide mode | ⬜ |
 | 4 | Optimiser (goal-based min-maxing) | ⬜ |
 | 5 | Economy: budgets, trade and SSF | ⬜ |
@@ -58,11 +58,21 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
-| 15 | Updater & update reminder (before first public release) | ⬜ |
+| 15 | Updater & update reminder | ⬜ (2nd) |
+| 16 | Own MCP server (replace pob-mcp) | 🔜 (next) |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
-Recommended order: 1 → 2 → 3 → 4 → 5 → 9 → 7 → 6 → 8 → 10 → 11 → 12/13 → 14.
-(1 and 2 are small and everything else uses them; 9 makes every later answer better.)
+Stage numbers are names, not the order. **Build order:** 0 ✅ → 1 ✅ → **16** → **15** → 2 → 3 → 4 → 5 → 9 → 7 → 6
+→ 8 → 10 → 11 → 12/13 → 14.
+- **16 first:** Stages 2-11 each add MCP tools. Built after 16, they are written once on our own server
+  instead of on pob-mcp and then ported again, and every chat stops paying about 16,000 tokens of tool definitions.
+- **15 second:** the repo is public now, so players need the update reminder. Its AI part (`update_check`)
+  is then built on the new server too.
+- 2 is small and the later stages use it; 9 makes every later answer better.
+
+**Every finished stage is released on GitHub** (see "Releases" at the end): stage done → changelog → new
+minor version (0.2.0, 0.3.0, ...) → `tools\build-release.ps1 -Version x.y.z -Publish`.
+v0.1.0 = Stage 0 + Stage 1.
 
 ---
 
@@ -542,6 +552,62 @@ builds, settings and AI connections working; Roll back returns to the old one.
 **Note:** the repo is public (2026-11-13), so the check needs no login. GitHub's `/releases/latest`
 skips pre-releases (all 0.x releases are pre-releases), so read `/releases` and take the newest by version.
 
+## Stage 16 — Own MCP server (replace pob-mcp) ⬜
+
+**Why:** pob-mcp (our fork of ianderse/pob-mcp) is about 27,000 lines of TypeScript, of which about
+1,800 are ours. It was built headless-first, with the live window added later. Measured 2026-11-13:
+**115 tools, about 16,000 tokens of tool definitions** loaded into the AI's context every conversation.
+AGENTS.md and the stages rely on only about 20 of them. The PoB window's live API also loads its Lua
+handlers from `pob-mcp/lua/`, so PoB itself depends on pob-mcp. A server of our own, designed around the
+live window, the player profile and our rules, gives shorter and better answers and one codebase we fully
+understand.
+**Do it next** (build order: 16 → 15 → 2 ...), so Stages 2-11 add their tools to the new server rather
+than to pob-mcp.
+
+### Design
+- **Where:** `agent-mcp/` in this repo (no submodule). TypeScript + the official MCP SDK on Node 20,
+  the same as the installer sets up today. GPL-3.0 like the rest of the repo; porting pob-mcp code is
+  allowed under its GPL-3.0.
+- **Live first:** talks to the PoB Agent Edition window (`127.0.0.1:31337`). Headless fallback runs PoB
+  with our own runner (`PathOfBuilding/src/Agent/Headless.lua`, Inflate fix built in) for saved build files.
+- **Lua handlers move into the PoB fork** (`src/Agent/Handlers/`), used by both the live server and the
+  headless runner. `POB_AGENT_LUA_DIR` and the dependency on `pob-mcp/lua/` go away.
+- **About 30 focused tools** (merge where one call can do the job):
+  - Session: `status`, `open_build`, `save_build` (always a new name unless asked), `set_view`,
+    `open_options`, `list_builds`.
+  - Profile: `profile_get`, `profile_set`, `profile_mark_learned`.
+  - Read: `build_summary` (class, skills, gear, tree, config assumptions), `stats` (filtered),
+    `diagnose` (resists → max hit → EHP → recovery/mana → damage, in AGENTS.md order, one call).
+  - Edit and simulate: `edit_items`, `edit_skills`, `edit_tree`, `set_config`, `what_if` (apply
+    changes, return before/after, roll back unless asked to keep), `snapshot` / `restore`, `compare`.
+  - Trade: `leagues`, `trade_search` (instant buyout only), `plan_upgrades`, `price_check`.
+    Port our rate governor and limits unchanged.
+  - Atlas: `atlas_get`, `atlas_search`, `atlas_edit`.
+  - Later stages add their own (character sync, guides, crafting, levelling, knowledge).
+- **Output rules:** numbers first, compact text, every result names its config assumptions (boss,
+  charges, flasks), and errors say what to do next. The agent guide is sent as server instructions (AGENTS.md
+  stays the human copy).
+- **Budget:** all tool definitions together ≤ 5,000 tokens (a test fails above it).
+
+### Steps
+1. Inventory: list every pob-mcp tool, mark keep, merge or drop, and record the actual use (AGENTS.md
+   workflows plus Stage 2-11 needs). Agree the final tool list with the player.
+2. Move the Lua handlers into `PathOfBuilding/src/Agent/Handlers/` and add the headless runner. The live
+   window and pob-mcp keep working (pob-mcp points at the new path).
+3. `agent-mcp` skeleton: connection to the live window and headless fallback, agent guide, tool registry,
+   token-budget test.
+4. Port in this order: session + profile → read/diagnose → edit/what-if → trade/plan_upgrades → atlas.
+   Each tool gets a contract test against a fixture build (headless) and a live smoke test.
+5. Run side by side: the installer registers the new server as `pob` and the old one as `pob-legacy`
+   (opt-in), and the AGENTS.md workflows are checked on both. Close the parity gaps.
+6. Remove the `pob-mcp` submodule, then update the installer, `build-release.ps1`, README, THIRD_PARTY_NOTICES
+   (keep the credit to ianderse/pob-mcp for ported code) and the Advisor card path.
+7. Release (minor version) with a changelog note telling players to rerun `Install.cmd`.
+
+**Done when:** every AGENTS.md workflow (profile, diagnose, plan_upgrades, atlas, save as new file) works
+on the new server in Claude Code, Claude Desktop and Codex; tool definitions ≤ 5,000 tokens; the PoB
+window no longer reads anything from `pob-mcp/`; the submodule is gone and a release is published.
+
 ## Stage X — Cross-cutting (ongoing)
 - **Testing**: headless tests per feature; real-window checks via second instance on port 31338 +
   `take_screenshot`; unit tests in pob-mcp; never zero the timeless jewel caches.
@@ -584,8 +650,20 @@ skips pre-releases (all 0.x releases are pre-releases), so read `/releases` and 
 ## How to continue in a new chat
 Open a new chat in the repo folder and say, for example:
 
-> Read ROADMAP.md and AGENTS.md. We're doing **Stage 1** (player profile). Plan it, ask me anything
+> Read ROADMAP.md and AGENTS.md. We're doing **Stage 16** (own MCP server). Plan it, ask me anything
 > unclear, then build it step by step.
 
-At the end of each chat: tick finished steps here, note new loose ends/ideas, commit, and update
-the status table.
+At the end of each chat: tick finished steps here, note new loose ends/ideas, add user-facing changes to
+`CHANGELOG.md` under "Unreleased", commit, push, and update the status table.
+
+## Releases
+**Every finished stage gets a GitHub release.** When a stage's "Done when" is met:
+1. Run `tools\check-secrets.ps1`, then push both forks (`agent`) and the root (`main`).
+2. Move "Unreleased" in `CHANGELOG.md` to `## [0.N.0] - <date>` (one minor version per stage; fixes in
+   between are patch releases, e.g. 0.2.1). Name the stage in the section's first line.
+3. `powershell -ExecutionPolicy Bypass -File tools\build-release.ps1 -Version 0.N.0 -Publish`
+4. Check the release page (zip + .sha256 present, notes correct) and mark the stage ✅ with the version.
+
+| Version | Stages |
+|---|---|
+| 0.1.0 (2026-11-13) | 0 Foundation, 1 Player profile |

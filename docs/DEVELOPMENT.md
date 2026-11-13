@@ -67,6 +67,8 @@ Dev helpers: `tools\restart-pob.ps1 [-Background]`, `tools\snap-pob.ps1` (screen
 
 ## Releasing
 
+Every finished roadmap stage is released: one minor version per stage (0.2.0, 0.3.0, ...), with patch releases (0.2.1) for fixes in between.
+
 1. Move the **Unreleased** entries in `CHANGELOG.md` to a new `## [x.y.z] - YYYY-MM-DD` section and update the compare links at the bottom.
 2. Commit, then run:
 

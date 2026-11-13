@@ -12,6 +12,8 @@ import path from "path";
 import { n } from "./format.js";
 import { cacheDir, USER_AGENT } from "./paths.js";
 import { ToolError } from "./pob.js";
+import { parseBudgetText } from "./economy/budget.js";
+import { NINJA_ITEM_TYPES, ninjaItemLines } from "./trade/ninja.js";
 
 // --- sources -------------------------------------------------------------------------
 const SITES: Array<{ name: string; re: RegExp; raw: (id: string) => string }> = [
@@ -218,20 +220,8 @@ export function headline(me: any, guide: any): string[] {
 }
 
 // --- prices (poe.ninja, cached 30 minutes; only what a ranking needs) --------------------
-const NINJA_TYPES = ["UniqueWeapon", "UniqueArmour", "UniqueAccessory", "UniqueFlask", "UniqueJewel", "SkillGem"] as const;
-const priceCache = new Map<string, { at: number; lines: any[] }>();
-
-async function ninjaLines(league: string, type: string): Promise<any[]> {
-  const key = `${league}|${type}`;
-  const hit = priceCache.get(key);
-  if (hit && Date.now() - hit.at < 1_800_000) return hit.lines;
-  const url = `https://poe.ninja/poe1/api/economy/stash/current/item/overview?league=${encodeURIComponent(league)}&type=${type}`;
-  const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(20_000) });
-  if (!response.ok) throw new Error(`poe.ninja ${type} request failed (${response.status})`);
-  const lines = ((await response.json()) as any).lines ?? [];
-  priceCache.set(key, { at: Date.now(), lines });
-  return lines;
-}
+const NINJA_TYPES = NINJA_ITEM_TYPES;
+const ninjaLines = (league: string, type: string): Promise<any[]> => ninjaItemLines(league, type);
 
 /** Cheapest poe.ninja price in chaos for a unique (exact name) or a gem; undefined when not listed. */
 export async function ninjaPrice(league: string, name: string, kind: "unique" | "gem", slot = ""): Promise<{ chaos: number; name: string } | undefined> {
@@ -260,11 +250,11 @@ export function tradeLink(league: string, query: Record<string, unknown>): strin
   return `https://www.pathofexile.com/trade/search/${encodeURIComponent(league)}?q=${encodeURIComponent(JSON.stringify(q))}`;
 }
 
-/** "2 div", "150c", "1.5 divine", "300" -> chaos. */
+/** "2 div", "150c", "3 div + 150c", "300" -> chaos (Stage 5 parser). */
 export function parseBudget(text: string, divine: number): number | undefined {
-  const m = /^\s*([\d.]+)\s*(c|chaos|d|div|divs|divine|divines)?\s*$/i.exec(text);
-  if (!m) return undefined;
-  const v = parseFloat(m[1]);
-  if (!Number.isFinite(v)) return undefined;
-  return m[2] && /^d/i.test(m[2]) ? v * divine : v;
+  try {
+    return parseBudgetText(text, new Map(divine > 0 ? [["Divine Orb", divine]] : [])).chaos;
+  } catch {
+    return undefined;
+  }
 }

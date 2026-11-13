@@ -13,14 +13,14 @@ import type { Reply } from "../pob.js";
 import type { TradeApiClient } from "./client.js";
 import { priceInChaos, tradeItemToPoBText } from "./itemText.js";
 import { currencyRates } from "./ninja.js";
-import type { TradeQuery } from "./types.js";
+import type { ItemListing, TradeQuery } from "./types.js";
 
 /** Listings the buyer can secure with instant buyout. The only status we search. */
 export const INSTANT_BUYOUT = "securable" as const;
 
 export type TestStats = Record<string, number | undefined>;
 
-interface PobLink {
+export interface PobLink {
   kind: "live" | "headless";
   call(action: string, params?: Record<string, unknown>): Promise<Reply>;
 }
@@ -52,10 +52,10 @@ export interface UpgradeCandidate {
   seller?: string;
 }
 
-const DEFAULT_SLOTS = ["Helmet", "Body Armour", "Gloves", "Boots", "Belt", "Amulet", "Ring 1"];
+export const DEFAULT_SLOTS = ["Helmet", "Body Armour", "Gloves", "Boots", "Belt", "Amulet", "Ring 1"];
 const RES = [["FireResist", "Fire"], ["ColdResist", "Cold"], ["LightningResist", "Lightning"]] as const;
 
-function weightsFor(focus: string) {
+export function weightsFor(focus: string) {
   if (focus === "dps") return [{ label: "Full DPS", stat: "FullDPS", weightMult: 1.0 }];
   if (focus === "defence") return [{ label: "Effective Hit Pool", stat: "TotalEHP", weightMult: 1.0 }];
   return [{ label: "Full DPS", stat: "FullDPS", weightMult: 1.0 }, { label: "Effective Hit Pool", stat: "TotalEHP", weightMult: 0.5 }];
@@ -108,6 +108,86 @@ export async function ratesOrChaosOnly(league: string, notes: string[]): Promise
   }
 }
 
+/** One listing from a slot search, priced and simulated in the build. */
+export interface SlotEntry {
+  listing: ItemListing;
+  chaos: number;
+  text: string;
+  stats: TestStats;
+  rarity?: string;
+  ev: ReturnType<typeof evaluateCandidate>;
+}
+
+export interface SlotResult {
+  slot: string;
+  searchId: string;
+  base: TestStats;
+  current?: { name?: string; baseName?: string; rarity?: string };
+  entries: SlotEntry[];
+}
+
+/** Budget or rate-limit stops end the whole plan; other errors skip the slot. */
+export const isStop = (msg: string) => /Stopped after|asks for a pause|slow down/i.test(msg);
+
+/**
+ * One slot: PoB's weighted best-upgrade query, limited to instant buyout and
+ * maxPrice, the top `perSlot` listings fetched and each simulated in the slot.
+ * Returns a note string instead when the slot gives nothing.
+ */
+export async function searchSlot(lua: PobLink, trade: TradeApiClient, league: string, slot: string,
+  o: { focus: string; maxPrice: number; perSlot: number; rates: Map<string, number> }): Promise<SlotResult | string> {
+  const { query } = await lua.call("generate_weighted_trade_query", { slot, options: { statWeights: weightsFor(o.focus) } });
+  const q = (typeof query === "string" ? JSON.parse(query) : query) as TradeQuery;
+  if (!q?.query) return `${slot}: PoB produced no query`;
+  q.query.status = { option: INSTANT_BUYOUT };
+  const filters = (q.query.filters ??= {});
+  filters.trade_filters = { filters: { ...(filters.trade_filters?.filters ?? {}), price: { max: o.maxPrice } } };
+  const search = await trade.searchItems(league, q);
+  if (!search.result?.length) return `${slot}: nothing under ${Math.round(o.maxPrice)}c`;
+  const listings = await trade.fetchItems(search.result.slice(0, o.perSlot), search.id);
+  const usable = listings
+    .map((l) => ({ l, chaos: priceInChaos(l.listing.price, o.rates) }))
+    .filter((x): x is { l: ItemListing; chaos: number } => x.chaos !== undefined && x.chaos <= o.maxPrice * 1.001);
+  if (!usable.length) return `${slot}: no listings with a known price under ${Math.round(o.maxPrice)}c`;
+  const texts = usable.map((x) => tradeItemToPoBText(x.l.item));
+  let report;
+  try {
+    report = (await lua.call("test_items", { slot, items: texts })).result;
+  } catch (error) {
+    return `${slot}: PoB could not test items (${error instanceof Error ? error.message : String(error)})`;
+  }
+  const entries: SlotEntry[] = [];
+  (report.results as Array<{ ok: boolean; stats?: TestStats; rarity?: string }>).forEach((r, i) => {
+    if (!r.ok || !r.stats) return;
+    entries.push({ listing: usable[i].l, chaos: usable[i].chaos, text: texts[i], stats: r.stats, rarity: r.rarity, ev: evaluateCandidate(report.base, r.stats, o.focus) });
+  });
+  return { slot, searchId: search.id, base: report.base, current: report.current, entries };
+}
+
+/** Not an upgrade: overall score too low, or a big loss on the focused stat. */
+export function isUpgrade(ev: ReturnType<typeof evaluateCandidate>, focus: string): boolean {
+  if (ev.score <= 0.5) return false;
+  if (focus !== "defence" && ev.dpsPct < -5) return false;
+  if (focus !== "dps" && ev.ehpPct < -5) return false;
+  return true;
+}
+
+export function toCandidate(league: string, r: SlotResult, e: SlotEntry): UpgradeCandidate {
+  const price = e.listing.listing.price!;
+  return {
+    slot: r.slot,
+    name: [e.listing.item.name, e.listing.item.typeLine].filter(Boolean).join(", "),
+    rarity: e.rarity,
+    priceChaos: e.chaos,
+    priceText: `${price.amount} ${price.currency}`,
+    ...e.ev,
+    value: e.ev.score / Math.max(e.chaos, 1),
+    url: tradeUrl(league, r.searchId, e.listing.id),
+    itemText: e.text,
+    seller: e.listing.listing.account?.name,
+  };
+}
+
 export async function planUpgrades(lua: PobLink, trade: TradeApiClient, args: UpgradeArgs): Promise<{ candidates: UpgradeCandidate[]; notes: string[] }> {
   const budget = Math.max(1, args.budget_chaos ?? 50);
   const focus = args.focus ?? "balanced";
@@ -118,61 +198,17 @@ export async function planUpgrades(lua: PobLink, trade: TradeApiClient, args: Up
 
   const candidates: UpgradeCandidate[] = [];
   for (const slot of slots) {
-    let searchId: string;
-    let listings;
+    let r: SlotResult | string;
     try {
-      const { query } = await lua.call("generate_weighted_trade_query", { slot, options: { statWeights: weightsFor(focus) } });
-      const q = (typeof query === "string" ? JSON.parse(query) : query) as TradeQuery;
-      if (!q?.query) { notes.push(`${slot}: PoB produced no query`); continue; }
-      q.query.status = { option: INSTANT_BUYOUT };
-      const filters = (q.query.filters ??= {});
-      filters.trade_filters = { filters: { ...(filters.trade_filters?.filters ?? {}), price: { max: budget } } };
-      const search = await trade.searchItems(args.league, q);
-      searchId = search.id;
-      if (!search.result?.length) { notes.push(`${slot}: nothing under ${budget}c`); continue; }
-      listings = await trade.fetchItems(search.result.slice(0, perSlot), search.id);
+      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notes.push(`${slot}: ${msg}`);
-      // Budget or rate-limit stops end the whole plan; other errors skip the slot.
-      if (/Stopped after|asks for a pause|slow down/i.test(msg)) break;
+      if (isStop(msg)) break;
       continue;
     }
-
-    const usable = listings
-      .map((l) => ({ l, chaos: priceInChaos(l.listing.price, rates) }))
-      .filter((x) => x.chaos !== undefined && x.chaos <= budget * 1.001);
-    if (!usable.length) { notes.push(`${slot}: no listings with a known price under ${budget}c`); continue; }
-    const texts = usable.map((x) => tradeItemToPoBText(x.l.item));
-    let report;
-    try {
-      report = (await lua.call("test_items", { slot, items: texts })).result;
-    } catch (error) {
-      notes.push(`${slot}: PoB could not test items (${error instanceof Error ? error.message : String(error)})`);
-      continue;
-    }
-    (report.results as Array<{ ok: boolean; stats?: TestStats; rarity?: string }>).forEach((r, i) => {
-      if (!r.ok || !r.stats) return;
-      const { l, chaos } = usable[i];
-      const ev = evaluateCandidate(report.base, r.stats, focus);
-      // Not an upgrade: overall score too low, or a big loss on the focused stat.
-      if (ev.score <= 0.5) return;
-      if (focus !== "defence" && ev.dpsPct < -5) return;
-      if (focus !== "dps" && ev.ehpPct < -5) return;
-      const price = l.listing.price!;
-      candidates.push({
-        slot,
-        name: [l.item.name, l.item.typeLine].filter(Boolean).join(", "),
-        rarity: r.rarity,
-        priceChaos: chaos!,
-        priceText: `${price.amount} ${price.currency}`,
-        ...ev,
-        value: ev.score / Math.max(chaos!, 1),
-        url: tradeUrl(args.league, searchId, l.id),
-        itemText: texts[i],
-        seller: l.listing.account?.name,
-      });
-    });
+    if (typeof r === "string") { notes.push(r); continue; }
+    for (const e of r.entries) if (isUpgrade(e.ev, focus)) candidates.push(toCandidate(args.league, r, e));
   }
 
   candidates.sort((a, b) => b.value - a.value || b.score - a.score);

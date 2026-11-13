@@ -23,6 +23,8 @@ export const LIMITS: Limit[] = [
   { sub: "snapshots", match: /\.xml$/, maxFiles: 100, maxAgeDays: 90 },
   // PoB's item icon cache: pictures only (index.json stays); PoB downloads a missing icon again.
   { sub: "icons", match: /\.png$/i, maxBytes: 50 * 1024 * 1024 },
+  // poe.ninja rates and unique/gem prices (Stage 5): fetched again when older than a few hours anyway.
+  { sub: "economy", match: /\.json$/, maxBytes: 30 * 1024 * 1024, maxAgeDays: 14 },
 ];
 
 /** Deletes the oldest matching files until the folder is within its limits. Returns what was removed. */

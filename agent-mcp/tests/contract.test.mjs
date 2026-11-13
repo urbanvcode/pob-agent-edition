@@ -295,3 +295,24 @@ test("an idle headless engine shuts down and comes back with the build, unsaved 
   assert.equal(pob.engines().headless, true);
   assert.equal(pob.engines().parked, false);
 });
+
+test("cache limits: oldest files go first, only matching files are touched", async () => {
+  const { pruneDir, trimLog } = await import("../build/cachePrune.js");
+  const dir = fs.mkdtempSync(path.join(tmp, "prune-"));
+  const now = Date.now();
+  for (let i = 0; i < 6; i++) {
+    const f = path.join(dir, `s${i}.xml`);
+    fs.writeFileSync(f, "x".repeat(100));
+    fs.utimesSync(f, new Date(now - i * 86_400_000), new Date(now - i * 86_400_000));
+  }
+  fs.writeFileSync(path.join(dir, "index.json"), "{}");
+  assert.deepEqual(pruneDir(dir, { match: /\.xml$/, maxFiles: 4 }, now), { files: 2, bytes: 200 });
+  assert.deepEqual(fs.readdirSync(dir).sort(), ["index.json", "s0.xml", "s1.xml", "s2.xml", "s3.xml"]);
+  assert.equal(pruneDir(dir, { match: /\.xml$/, maxAgeDays: 1.5 }, now).files, 2);
+  assert.equal(pruneDir(dir, { match: /\.xml$/, maxBytes: 150 }, now).files, 1);
+  const log = path.join(dir, "answers.log");
+  fs.writeFileSync(log, Array.from({ length: 1000 }, (_, i) => `line ${i}`).join("\n"));
+  trimLog(log, 1000);
+  const text = fs.readFileSync(log, "utf8");
+  assert.ok(text.length <= 1000 && text.endsWith("line 999") && text.startsWith("line "));
+});

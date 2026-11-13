@@ -83,4 +83,4 @@ powershell -ExecutionPolicy Bypass -File tools\build-release.ps1 -Version x.y.z 
 powershell -ExecutionPolicy Bypass -File tools\build-release.ps1 -Version x.y.z -Publish   # + tag + GitHub release
 ```
 
-The release is built from committed code only (`git archive`), after a secret scan. Versions below 1.0.0 are published as pre-releases.
+The release is built from committed code only (`git archive`), after a secret scan. Releases are published as **Latest** (shown in the repo sidebar); add `-PreRelease` for a test build that should not be Latest. The in-app updater offers both.

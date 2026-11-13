@@ -17,11 +17,16 @@
 
 .PARAMETER Publish
   Also tag v<Version> and create a GitHub release with the changelog section as notes.
-  The release is marked as a pre-release while the version is below 1.0.0.
+  It becomes the "Latest" release (shown in the repo sidebar), since 0.6.1 is the public beta.
+
+.PARAMETER PreRelease
+  Publish as a pre-release instead (for test builds): not shown as Latest on GitHub.
+  The in-app updater still offers it.
 #>
 param(
     [Parameter(Mandatory)][string]$Version,
-    [switch]$Publish
+    [switch]$Publish,
+    [switch]$PreRelease
 )
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
@@ -143,7 +148,7 @@ Write-Host "SHA256 $phash"
 
 if ($Publish) {
     $tag = "v$Version"
-    $pre = if ([version]$Version -lt [version]'1.0.0') { '--prerelease' } else { $null }
+    $pre = if ($PreRelease) { '--prerelease' } else { '--latest' }
     $notesFile = Join-Path $env:TEMP 'pob-agent-release\notes.md'
     # UTF-8 without BOM (PowerShell 5.1's -Encoding UTF8 adds one, which shows up in GitHub release notes)
     $install = "**Install:** download ``$Name.zip``, extract it, double-click ``Install.cmd`` (needs Node.js 20+, which it offers to install).`n" +

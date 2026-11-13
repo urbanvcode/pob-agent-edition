@@ -73,6 +73,17 @@ function Set-ClaudeCodePob($entryJson) {
     return $ok
 }
 
+# Claude Code rewrites its config while it runs, which can undo our edit: check that it is still there.
+function Test-ClaudeCodePob($entryPath) {
+    $env:POB_CC_FILE = $ClaudeCodeConfig
+    $env:POB_CC_ARG = $entryPath
+    $js = 'const j=JSON.parse(require("fs").readFileSync(process.env.POB_CC_FILE,"utf8"));const p=j.mcpServers&&j.mcpServers.pob;process.exit(p&&p.args&&p.args[0]===process.env.POB_CC_ARG?0:1);'
+    & node -e $js
+    $ok = $LASTEXITCODE -eq 0
+    $env:POB_CC_FILE = $null; $env:POB_CC_ARG = $null
+    return $ok
+}
+
 function Backup($file) { if (Test-Path $file) { Copy-Item $file "$file.bak" -Force } }
 
 function Read-JsonFile($file) {
@@ -209,7 +220,15 @@ if ($HasClaudeCli) {
 } elseif (Test-Path $ClaudeCodeConfig) {
     Backup $ClaudeCodeConfig
     $json = ([ordered]@{ type = 'stdio'; command = 'node'; args = @((Fwd $McpEntry)); env = $envVars } | ConvertTo-Json -Depth 8 -Compress)
-    if (Set-ClaudeCodePob $json) { Ok "Claude Code: added 'pob' ($ClaudeCodeConfig)" } else { Warn "Claude Code: could not edit $ClaudeCodeConfig (see mcp-config.json)" }
+    $claudeRunning = [bool](Get-Process -Name claude -ErrorAction SilentlyContinue)
+    if (-not (Set-ClaudeCodePob $json)) { Warn "Claude Code: could not edit $ClaudeCodeConfig (see mcp-config.json)" }
+    else {
+        if ($claudeRunning) { Start-Sleep -Seconds 3 }
+        if (Test-ClaudeCodePob (Fwd $McpEntry)) {
+            Ok "Claude Code: added 'pob' ($ClaudeCodeConfig)"
+            if ($claudeRunning) { Warn "Claude is running. If the AI still uses the old tools after a restart, close Claude completely and run Install.cmd again." }
+        } else { Warn "Claude Code: Claude overwrote the change because it is running. Close Claude completely and run Install.cmd again." }
+    }
 } else { Say "  [-]  Claude Code not found (skipped)" }
 
 # Codex

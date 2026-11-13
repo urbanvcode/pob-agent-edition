@@ -47,7 +47,7 @@ PoB Agent Edition is a Path of Building Community fork with a built-in AI connec
    - adds **PoB Agent Edition** to the Start menu and the desktop,
    - connects the AI apps it finds (Claude Desktop, Claude Code, Codex) to the `pob` MCP server,
    - writes `mcp-config.json` for any other MCP app.
-4. **Restart your AI app**, open **PoB Agent Edition** and load a build.
+4. **Restart your AI app**, open **PoB Agent Edition** and load a build. If the AI does not see the `pob` tools afterwards, close the AI app completely and run `Install.cmd` once more: Claude rewrites its settings file while it is open and can undo the change.
 5. Optional, for trade searches: open **Options > Trade session ID** in PoB Agent Edition and paste your POESESSID ([how to find it](docs/TRADE.md#finding-your-poesessid)).
 
 Your normal Path of Building keeps working as before. Agent Edition is a separate program and reads the same `Documents\Path of Building\Builds` folder.

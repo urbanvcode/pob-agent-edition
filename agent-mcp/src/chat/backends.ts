@@ -178,6 +178,24 @@ export async function runClaude(req: ChatRequest, emit: Emit): Promise<string | 
 
 const toml = (v: unknown) => JSON.stringify(v);
 
+/**
+ * Codex built-in features switched off in the chat (`codex exec --disable <name>`, names from
+ * `codex features list`, Codex CLI 0.167). What is left: the pob MCP tools, which Codex calls
+ * through its code-mode `exec` (a JavaScript sandbox without file or process access), plus
+ * apply_patch and sub-agents, which the read-only sandbox and the same switches still bind.
+ * Verified 2026-11-14 with a dummy secret file: the shell, file reads, image viewing, the
+ * player's ChatGPT connected apps (Gmail, GitHub, ...), plugins and the browser are gone, and
+ * neither Codex nor a sub-agent it spawned could read the file. Codex refuses an unknown name,
+ * so a renamed feature makes the chat fail closed instead of running with a shell.
+ */
+export const CODEX_DISABLED_FEATURES = [
+  "shell_tool", "unified_exec", "unified_exec_tty", "shell_snapshot", // shell / command execution
+  "view_image", "image_generation", // local image files, image tools
+  "browser_use", "browser_use_external", "in_app_browser", "computer_use", // browser and desktop control
+  "apps", "plugins", "remote_plugin", "tool_suggest", "skill_search", "skill_mcp_dependency_install", "workspace_dependencies", // connected apps, plugins, installs
+  "multi_agent", "goals", "memories", "hooks", "sleep_tool",
+];
+
 export function codexArgs(req: ChatRequest): string[] {
   const env = Object.entries(serverEnv(req)).map(([k, v]) => `${k}=${toml(v)}`).join(", ");
   const cfg = [
@@ -188,12 +206,14 @@ export function codexArgs(req: ChatRequest): string[] {
     `mcp_servers.pob.startup_timeout_sec=30`,
     `approval_policy="never"`,
     `sandbox_mode="read-only"`,
+    `web_search="disabled"`,
     // The player's own Codex setting can be high effort; chat answers do well with low (less quota).
     `model_reasoning_effort="low"`,
   ];
   if (!req.allowEdits) cfg.push(`mcp_servers.pob.disabled_tools=${toml(EDIT_TOOLS)}`);
   const resume = req.session && /^[\w-]{8,80}$/.test(req.session);
   const args = ["exec", ...(resume ? ["resume", req.session as string] : []), "--json", "--skip-git-repo-check", "--ignore-user-config"];
+  for (const f of CODEX_DISABLED_FEATURES) args.push("--disable", f);
   for (const c of cfg) args.push("-c", c);
   args.push("-m", modelFor(req));
   args.push("-");

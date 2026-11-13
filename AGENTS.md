@@ -69,7 +69,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## AI chat inside PoB (Stage 10)
 - PoB has its own chat panel (right edge of the build screen). It runs `agent-mcp/build/chat/bridge.js`, which starts Claude Code (`claude -p --output-format stream-json`), Codex (`codex exec --json`) or the Anthropic API with a fresh agent-mcp server pinned to that window (`POB_AGENT_PORT`, `POB_LIVE=only`). No new MCP tools: the chat uses the same tools and rules.
-- In the panel the AI writes `[[node:Name]]`, `[[item:Name]]`, `[[gem:Name]]` (clickable links) and `[[apply:Label|{"ops":[...]}]]` (Preview = what_if, Apply = edit, both by PoB). Edit tools are off unless the player switches on "AI may edit".
+- In the panel the AI writes `[[node:Name]]`, `[[item:Name]]`, `[[gem:Name]]` (clickable links) and `[[apply:Label|{"ops":[...]}]]` (Preview = what_if, Apply = edit, both by PoB). Edit tools are off unless the player switches on "AI may edit". Claude Code runs with `--tools ""`; Codex with its shell, image viewer, connected apps, plugins, browser and web search disabled (`CODEX_DISABLED_FEATURES` in `agent-mcp/src/chat/backends.ts`, read-only sandbox). Never re-enable them for the chat; `tests/chat.test.mjs` guards it.
 - Backend, sign-in and API key: Options > AI chat backend. The key (`anthropicApiKey` in AgentEdition.json) is read by the bridge only; never print it or pass it on a command line.
 - Tests: `npm test` includes `tests/chat.test.mjs` (fake CLIs and a fake API). Live: the actions `chat_send { message }` / `chat_state { last }` drive the panel of a test window (port 31345).
 

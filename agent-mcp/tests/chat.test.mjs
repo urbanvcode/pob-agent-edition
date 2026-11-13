@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ClaudeParser, CodexParser } from "../build/chat/events.js";
-import { EDIT_TOOLS, chatRules, claudeArgs, codexArgs, modelFor } from "../build/chat/backends.js";
+import { CODEX_DISABLED_FEATURES, EDIT_TOOLS, chatRules, claudeArgs, codexArgs, modelFor } from "../build/chat/backends.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const BRIDGE = path.join(here, "..", "build", "chat", "bridge.js");
@@ -91,6 +91,37 @@ test("edit tools are off unless the panel allows them", () => {
   assert.equal(modelFor({ backend: "api", message: "x" }), "claude-sonnet-5-5");
   assert.match(chatRules(false), /Edits are off/);
   assert.match(chatRules(true), /allowed edits/);
+});
+
+test("Codex in the chat has no shell, file, web, app or browser tools (new and resumed sessions)", () => {
+  for (const req of [{ backend: "codex", message: "hi" }, { backend: "codex", message: "hi", session: "01a1d5ec-6b19-7d32", allowEdits: true }]) {
+    const args = codexArgs(req);
+    const disabled = args.filter((a, i) => args[i - 1] === "--disable");
+    for (const f of ["shell_tool", "unified_exec", "unified_exec_tty", "view_image", "apps", "plugins", "browser_use", "computer_use", "in_app_browser", "image_generation"]) {
+      assert.ok(disabled.includes(f), `Codex feature ${f} must be disabled`);
+    }
+    assert.deepEqual(disabled, CODEX_DISABLED_FEATURES);
+    const cfg = args.filter((a, i) => args[i - 1] === "-c");
+    assert.ok(cfg.includes('sandbox_mode="read-only"'), "read-only sandbox");
+    assert.ok(cfg.includes('approval_policy="never"'), "never asks to escalate");
+    assert.ok(cfg.includes('web_search="disabled"'), "no web search");
+    assert.ok(args.includes("--ignore-user-config"), "the player's other MCP servers and settings stay out");
+    for (const bad of ["--dangerously-bypass-approvals-and-sandbox", "--approve-for-me", "--enable", "--add-dir", "danger-full-access", "workspace-write"]) {
+      assert.ok(!args.some((a) => a.includes(bad)), `Codex args must not contain ${bad}`);
+    }
+    assert.ok(!cfg.some((c) => /^features\.|shell_environment_policy|sandbox_permissions|allow_login_shell/.test(c)), "no config that re-enables tools");
+  }
+});
+
+test("Claude Code in the chat has no built-in tools and only the pob MCP server", () => {
+  for (const req of [{ backend: "claude", message: "hi" }, { backend: "claude", message: "hi", allowEdits: true, session: "c-0000000" }]) {
+    const args = claudeArgs(req, "m.json", "r.txt");
+    assert.equal(args[args.indexOf("--tools") + 1], "", "--tools \"\" disables Bash, Read, WebFetch, ...");
+    assert.ok(args.includes("--strict-mcp-config"));
+    assert.equal(args[args.indexOf("--allowedTools") + 1], "mcp__pob");
+    assert.equal(args[args.indexOf("--permission-mode") + 1], "dontAsk");
+    assert.ok(!args.some((a) => /dangerously|bypassPermissions|--add-dir/.test(a)));
+  }
 });
 
 // Fake CLIs: print recorded-style output and echo what they were given.

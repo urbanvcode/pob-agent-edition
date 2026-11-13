@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Security
+- **AI chat with Codex is locked down to the PoB tools**, like Claude Code. In 0.8.0 the chat's Codex still had its own read-only shell, could open local image files, and could see the apps connected to your ChatGPT account (for example Gmail or GitHub). A prompt injection, such as text from a fetched web page, could in principle have led it to read files such as `AgentEdition.json` (your POESESSID and API key). Now the chat starts Codex with its shell, command runner, image viewer, connected apps, plugins, browser, computer control, web search, memories and hooks switched off, still in its read-only sandbox and outside any project folder. Checked on 2026-11-14: asked to read a dummy secret file, Codex and a helper agent it started could not; writing a file was blocked; PoB questions still work. Tests now fail if the chat's Codex or Claude Code ever gets a shell, file, web or app tool back.
+
 ## [0.8.0] - 2026-11-13
 
 One release for four pieces of work: the optimiser (Stage 4), the AI chat inside PoB (Stage 10), much smaller downloads and updates (Stage 17), and Guide tab fixes. Based on **Path of Building Community v2.67.2** (same as 0.7.0), with the 3.30 passive tree and unique previews.

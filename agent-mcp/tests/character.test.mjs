@@ -102,6 +102,7 @@ test("diff engine: items, gems, passives and stats", () => {
 test("character_sync: first sync imports into its own build and starts the history", async () => {
   const text = await ok("character_sync", { account: "Sample#0000", character: "sampledeadeye" });
   assert.match(text, /Synced SampleDeadeye \(Standard\): level 92 Ranger \(Deadeye\), main skill Lightning Arrow/);
+  assert.doesNotMatch(text, /LEVELLING:/, "no levelling line from level 90 (Stage 7)");
   assert.match(text, /Build "SampleDeadeye - synced" saved to .*SampleDeadeye - synced\.xml/);
   assert.match(text, /3 requests to pathofexile\.com/);
   assert.match(text, /Now: DPS [\d,]+, EHP [\d,]+, weakest max hit [\d,]+/);

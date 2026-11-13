@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+Stage 3: guide mode. Based on **Path of Building Community v2.67.2** (same as 0.4.0).
+
 ### Added
 - **Guide mode** (Stage 3): paste a guide's PoB link (pobb.in, poe.ninja, pastebin, maxroll) or code and ask your AI to import it. It is saved as a new "Guide - <name>" build (nothing is overwritten); the guide's loadouts (Starter, Mid game, Endgame, ...) are its stages and its notes are kept. Several stage links, one "Stage: link" per line, become one guide build.
 - "What am I missing?": `guide_compare` compares your build with a guide stage (it finds the stage you are at): passives ordered into a path to take next, masteries, gems per skill group, items and jewels per slot, config differences and the headline DPS / EHP / max hit / resists, with **what explains the gap**. Every gap is simulated in your build by PoB, and your build is put back exactly.
@@ -115,7 +119,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.1.0...v0.2.0

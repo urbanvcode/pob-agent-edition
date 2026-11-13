@@ -58,7 +58,7 @@ player who knows **Path of Exile 2** but is **new to Path of Exile 1**. It shoul
 | 12 | UI polish | ⬜ |
 | 13 | Data freshness | ⬜ |
 | 14 | PoE2 edition | 💭 |
-| 15 | Updater & update reminder | ⬜ (2nd) |
+| 15 | Install, portable version & updater | ⬜ (next after the 0.2.0 release) |
 | 16 | Own MCP server (replace pob-mcp) | ✅ built, release 0.2.0 pending |
 | X | Cross-cutting: testing, safety, docs, backups | ongoing |
 
@@ -508,47 +508,78 @@ that used the pob tools on the open build.
 Same approach on PathOfBuilding-PoE2 (installed on this PC): fork, live API, second MCP server or a game
 switch, PoE2 trade/atlas, shared profile and chat.
 
-## Stage 15 — Updater & update reminder ⬜
+## Stage 15 — Install, portable version & updater ⬜
 
 **Why:** players install from a release zip, so they need to know when a new version is out and update
-with one click, without losing builds or settings. PoB's own updater is off in Agent Edition (it runs in
-dev mode from our files) and must stay off, or it would replace our fork with official PoB.
-**Do this before the first public release.**
+with one click, without losing builds or settings. Some players don't want an installer at all: they
+want to unzip and play. PoB's own updater is off in Agent Edition (it runs in dev mode from our files) and
+must stay off, or it would replace our fork with official PoB.
+**Starts after the 0.2.0 release** (Stage 16 changes the installer and release script).
 
 ### Features
+- **Portable version** (a second download next to the normal zip, `PoB-Agent-Edition-<ver>-win64-portable.zip`):
+  - **Bundled Node.js:** the official Windows `node.exe` (LTS) in `node\`, with Node's MIT licence
+    (`node\LICENSE`, row in THIRD_PARTY_NOTICES). Nothing to install; about 30 MB extra.
+  - **`Start PoB Agent Edition.cmd`** in the top folder: one double-click runs PoB. No shortcuts, Start menu
+    entries or registry changes.
+  - **`Connect AI apps.cmd`** (optional): only adds the `pob` entry to Claude Desktop, Claude Code and Codex
+    (the same code as `install.ps1`, without shortcuts), using `node
+ode.exe`. Anyone who wants no
+    scripts at all copies the entry from `mcp-config.txt`, which the start script writes with this folder's
+    paths (MCP apps need absolute paths, so this is the one step no zip can skip). `Disconnect AI apps.cmd`
+    removes it.
+  - **Optional fully portable mode:** an empty `portable.txt` (or a choice in `Connect AI apps.cmd`) keeps
+    builds and settings (`Builds\`, `AgentEdition.json`, icon cache) inside the folder instead of
+    `Documents\Path of Building`, for USB sticks or players who want nothing outside the folder. PoB and
+    agent-mcp both read the same switch. Default stays the Documents folder, so the normal PoB sees the builds.
+  - Moving the folder just works: run `Connect AI apps.cmd` again to update the paths.
 - **Update reminder (players):** on start, at most once a day, PoB Agent Edition checks the latest
   release of `urbanvcode/pob-agent-edition` on GitHub. If it is newer, the Overview shows a banner such as
-  "v0.2.0 is available" with the changelog notes and the buttons **Update now**, **Later** and
+  "v0.3.0 is available" with the changelog notes and the buttons **Update now**, **Later** and
   **Skip this version**. Options has a switch to turn checking off. Nothing is sent except the version request.
-- **AI knows too:** `live_status` (or a small `update_check` tool) reports "update available x.y.z", and
+- **AI knows too:** `status` (or a small `update_check` tool) reports "update available x.y.z", and
   the agent guide says to mention it once per conversation, never nag.
-- **One-click updater:** `tools/update.ps1` (started from the banner or by hand) downloads the release
-  zip over HTTPS, checks its SHA256 against the release's `.sha256` file, waits for PoB to close, keeps
-  the current folder as a backup (`..\PoB Agent Edition.previous`), replaces the program files, runs
-  `install.ps1` quietly (shortcuts and MCP paths) and restarts PoB. It never touches `Documents\Path of
-  Building` (builds, AgentEdition.json). **Roll back** restores the backup.
+- **One-click updater:** `tools/update.ps1` (started from the banner or by hand) detects the install type
+  (installer zip, portable zip or git) and downloads the matching release zip over HTTPS. It checks the
+  SHA256 against the release's `.sha256` file, waits for PoB to close, and keeps the current folder as a
+  backup (`..\PoB Agent Edition.previous`). It then replaces the program files and keeps `node\` and the
+  portable data, re-runs the AI connection quietly (installer or `Connect AI apps.cmd`, only if it was used
+  before) and restarts PoB. It never touches `Documents\Path of Building` (builds, AgentEdition.json).
+  **Roll back** restores the backup.
 - **Updates straight from our GitHub repo:** zip installs update from the repo's GitHub Releases (the
   built zip, so no Node build step is needed). Git installs (`git clone --recurse-submodules`) are
   detected by the `.git` folder and update with `git pull` + `git submodule update --init` + `npm ci &&
-  npm run build` in pob-mcp, then the same install/restart. Both show the same banner and changelog.
+  npm run build` in agent-mcp, then the same connect/restart. All three show the same banner and changelog.
 - **Base freshness (developer):** the same check also reports when official PoB has a newer release
   than our base, or GGG has new atlas data (the logic of `update-pob.ps1 -Check` / `update-atlas.ps1 -Check`),
   as a reminder to make a new release.
 
 ### Steps
 1. Version source of truth: a `VERSION` file at the root, read by PoB (window title, Options) and by
-   pob-mcp; `build-release.ps1` checks it matches the CHANGELOG.
-2. Release check in PoB (Lua, async `DownloadPage` of the GitHub releases API, daily cache in
+   agent-mcp; `build-release.ps1` checks it matches the CHANGELOG.
+2. Portable build: `build-release.ps1` also makes the `-portable.zip`. It downloads the pinned Node LTS
+   Windows zip from nodejs.org, checks it against nodejs.org's published SHASUMS256, and adds `node\`,
+   the start, connect and disconnect scripts and Node's licence.
+3. Portable data mode (`portable.txt`) in PoB (`Main.lua` user path) and agent-mcp (`paths.ts`), with a
+   test that nothing is written outside the folder in that mode.
+4. Release check in PoB (Lua, async `DownloadPage` of the GitHub releases API, daily cache in
    AgentEdition.json, semver compare, skip/snooze stored there).
-3. Overview banner + Options switch + changelog popup.
-4. `tools/update.ps1`: download, SHA256 verify, backup, swap, install, restart, `-Rollback`;
-   git mode (pull, submodules, rebuild) for source installs. Manual update stays documented in the README.
-5. `live_status`/`update_check` + agent-guide line (keep AGENTS.md in sync).
-6. Test the full path: install v0.1.0 from zip, publish a v0.1.1 test pre-release, get the banner, update,
-   roll back; check builds and the POESESSID survive.
+5. Overview banner + Options switch + changelog popup.
+6. `tools/update.ps1`: install-type detection, download, SHA256 verify, backup, swap, reconnect, restart,
+   `-Rollback`; git mode (pull, submodules, rebuild). Manual update stays documented in the README.
+7. `status`/`update_check` + agent-guide line (keep AGENTS.md and `agent-mcp/src/guide.ts` in sync).
+8. README: "Download" table with both zips (installer: easiest; portable: unzip and play, no installer),
+   plus the manual steps.
+9. Test the full path on a clean Windows user account without Node installed:
+   - portable zip: unzip, start, connect, AI works, move the folder and reconnect, portable data mode,
+     disconnect, delete the folder (nothing left behind);
+   - installer zip and git install: update from a test pre-release, roll back;
+   - every time: builds and the POESESSID survive.
 
-**Done when:** a player on an old zip sees the banner, clicks Update now, and is on the new version with
-builds, settings and AI connections working; Roll back returns to the old one.
+**Done when:** a player without Node.js can unzip the portable version, play and connect their AI app
+with no installer and nothing left outside the folder (in portable data mode). A player on an old zip
+(installer or portable) sees the banner, clicks Update now, and is on the new version with builds,
+settings and AI connections working; Roll back returns to the old one.
 **Note:** the repo is public (2026-11-13), so the check needs no login. GitHub's `/releases/latest`
 skips pre-releases (all 0.x releases are pre-releases), so read `/releases` and take the newest by version.
 

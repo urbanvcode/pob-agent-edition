@@ -8,6 +8,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ### Fixed
 - **Auras you have socketed but switched off**: when you import or sync a character, the game doesn't say which auras are on, so PoB counts them all and the AI used to report "mana over-reserved" as a real problem. Now it lists which skills reserve your mana and asks you which ones you actually run before calling it a problem, and an aura you switch off in your synced build stays off at the next sync.
+- **Trinity counted properly in the optimiser**: after importing a character, PoB sets Trinity's "resonance" to 0, so Trinity seemed to do nothing and the optimiser kept telling you to swap it out. The optimiser and the support gem check now measure with a realistic resonance (and Unholy Trinity's), say so, and list it first under "you may be under-counting" so you can set it in the Configuration tab. Other skill settings left at 0 are listed too.
+- **Gem suggestions check your attributes**: a support gem that needs more strength, dexterity or intelligence than you have now says so ("needs 120 Int, you have 74") and is ranked after the gems you can use straight away, because a gem whose requirement isn't met does nothing in game.
+- **Gems PoB can't measure are no longer swapped out first**: PoB doesn't count the returning hit of Returning Projectiles, so the gem looked worthless and the optimiser kept suggesting to replace it. Gems like that are now marked "not measured", left in place, and a swap that removes a gem PoB counts as zero carries a warning and is ranked after the clean suggestions.
+- **Utility flask ideas with full flask slots**: when all five flask slots are used, the optimiser now tries utility flasks (Jade, Granite, Silver, Diamond, Sulphur and others) in place of the flask that helps your goal least, says which one it replaces, and never takes away your only life flask.
 
 ## [0.9.0] - 2026-11-14
 

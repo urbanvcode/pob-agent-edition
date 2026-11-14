@@ -143,7 +143,7 @@ export const adviceTools: Tool[] = [
       for (const c of current) L.push(`- gem ${c.gem} ${c.name} ${c.level}/${c.quality}: ${pct(-c.lossPct)}${c.lossPct < 0.5 ? "  <- does almost nothing for damage here" : ""}`);
       const list = (Array.isArray(res.candidates) ? res.candidates : []) as any[];
       const ups = (Array.isArray(res.levelUps) ? res.levelUps : []) as any[];
-      if (ups.length) L.push("Under-levelled gems (levelling them is free damage):", ...ups.map((u) => `- gem ${u.gem} ${u.name}: level ${u.from} -> ${u.to} gives DPS ${pct(u.dpsPct)}`));
+      if (ups.length) L.push("Gem levels still to come (gems level from experience; nothing to do):", ...ups.map((u) => `- gem ${u.gem} ${u.name}: level ${u.from} -> ${u.to} gives DPS ${pct(u.dpsPct)}`));
       const at = `at the highest gem level a level ${res.characterLevel} character can use, 20% quality`;
       L.push("", res.mode === "replace" ? `Best supports in place of ${res.targetName} (gem ${res.target}), ${at}:` : `Best supports as an extra link, ${at}:`);
       const line = (c: any, i: number) => `${i + 1}. ${c.name} (level ${c.level}): DPS ${pct(c.dpsPct)}${c.manaCost !== undefined ? ` | mana cost ${n(c.manaCost)}` : ""}${c.warning ? ` | Warning: ${c.warning}` : ""}`;

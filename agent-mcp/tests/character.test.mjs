@@ -26,6 +26,8 @@ const fx = (f) => JSON.parse(fs.readFileSync(path.join(here, "fixtures", "charac
 const characters = fx("characters.json");
 let items = fx("items.json");
 let passives = fx("passives.json");
+// One white socket (fits any gem, gives no matching-colour quality): the Gloves' first, holding Frostblink.
+items.items.find((i) => i.inventoryId === "Gloves").sockets[0].sColour = "W";
 
 /** A fake pathofexile.com: records the URLs asked for. */
 function fakeSite(overrides = {}) {
@@ -121,6 +123,20 @@ test("character_sync: first sync imports into its own build and starts the histo
   assert.equal(again.isError, true);
   assert.match(again.text, /synced \d+ s ago/);
   assert.equal(site.calls.length, 3);
+});
+
+test("character_sync: quality from a matching socket colour is counted once and shown apart", async () => {
+  // In the game a gem in a socket of its own colour shows e.g. "Quality: +10%" in its tooltip
+  // (3.28+ bonus) though the gem itself has 0%. PoB keeps the gem's own quality and adds the
+  // socket's 10% itself; a white socket gives nothing. The build summary shows both parts so
+  // nobody adds the 10% again by hand.
+  const { tools: all } = createTools();
+  const summary = await runTool(all, context, "build_summary", { parts: ["skills"] });
+  assert.equal(summary.isError, false, summary.text);
+  assert.match(summary.text, /Frenzy 20\/20\+10 socket/, "Frenzy (green gem, green socket): own 20% + 10% socket");
+  assert.match(summary.text, /Mirage Archer( Support)? \d+\/3\+10 socket/, "own quality kept as imported (+3%), socket bonus apart");
+  assert.match(summary.text, /Frostblink \d+\/0(?!\+)/, "white socket: no socket bonus");
+  assert.match(summary.text, /\+N socket = quality from a matching socket colour, already counted/);
 });
 
 test("character_sync: second sync lists what changed; character_history shows the timeline", async () => {

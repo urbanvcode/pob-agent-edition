@@ -10,6 +10,9 @@ import { findGlossary, wikiUrl, type GlossaryEntry } from "../knowledge/glossary
 import { n, pct } from "../format.js";
 import { getProfile } from "../profile.js";
 import { S, tool, type Context, type Tool } from "../registry.js";
+import { matchGem } from "../economy/sell.js";
+import { ninjaItemLines, type NinjaLine } from "../trade/ninja.js";
+import { resolveLeague } from "./trade.js";
 
 export const GOALS = ["bossing", "clear", "tankiness", "balanced", "weakest"] as const;
 export const LEVERS = ["passives", "respec", "gems", "auras", "flasks", "anoint", "pantheon", "config", "scaling"] as const;
@@ -82,7 +85,7 @@ export function shortCost(s: any): string {
   return s.lever === "pantheon" ? "switch" : s.lever === "bandit" ? "Act 2" : "change";
 }
 
-const TAB: Record<string,"Passives" | "Gems" | "Other"> = { passive: "Passives", mastery: "Passives", respec: "Passives", gem: "Gems", "gem level": "Gems", "gem quality": "Gems", aura: "Gems", herald: "Gems", curse: "Gems" };
+const TAB: Record<string,"Passives" | "Gems" | "Other"> = { passive: "Passives", mastery: "Passives", respec: "Passives", gem: "Gems", "gem quality": "Gems", aura: "Gems", herald: "Gems", curse: "Gems" };
 const VIEW: Record<string, string> = { Passives: "TREE", Gems: "SKILLS", Other: "CONFIG" };
 
 /** Glossary lines for the mechanics the profile's explanation mode wants explained. */
@@ -105,6 +108,46 @@ export function explanations(tags: string[], mode: string, learned: string[]): s
 function focusFor(goal: string): string {
   return goal === "tankiness" ? "defence" : goal === "bossing" || goal === "clear" ? "dps" : "balanced";
 }
+
+export type GemLevel = { name: string; from: number; to: number; dpsPct: number; quality?: number; maxLevel?: number; canUseMax?: boolean };
+export type GemPrice = { chaos: number; level: number; quality: number; league: string };
+
+/**
+ * Gem levels come with experience, so they are never a ranked action. Trade or
+ * mixed: a copy at max level/20% the character can already use is a purchase,
+ * cheapest first, priced on poe.ninja. Everything else is one "comes with
+ * levelling" line.
+ */
+export function gemLevelLines(levels: GemLevel[], playMode: string, prices: Map<string, GemPrice> = new Map()): string[] {
+  if (!levels.length) return [];
+  const L: string[] = [];
+  const buy = playMode === "ssf" ? [] : levels.filter((g) => g.canUseMax && prices.has(g.name)).sort((a, b) => prices.get(a.name)!.chaos - prices.get(b.name)!.chaos);
+  if (buy.length) {
+    const p0 = prices.get(buy[0].name)!;
+    L.push("", `${playMode === "mixed" ? "[Trade] " : ""}Optional: buy a levelled copy instead of waiting (cheapest first; poe.ninja ${p0.league}, uncorrupted; DPS is from the level alone):`);
+    for (const g of buy) { const p = prices.get(g.name)!; L.push(`- ${g.name} ${p.level}/${p.quality}: ${n(p.chaos)}c (yours ${g.from}/${g.quality ?? 0}), DPS ${pct(g.dpsPct)}`); }
+  }
+  const rest = levels.filter((g) => !buy.includes(g));
+  if (rest.length) L.push("", `Will come with levelling (gems gain levels from experience; nothing to do): ${rest.map((g) => `${g.name} ${g.from} -> ${g.to} (DPS ${pct(g.dpsPct)})`).join(", ")}`);
+  return L;
+}
+
+/** poe.ninja price of each gem at its max level and 20% quality (only levels the character can use). */
+export async function priceGemCopies(levels: GemLevel[], league: string, lines?: NinjaLine[]): Promise<Map<string, GemPrice>> {
+  const out = new Map<string, GemPrice>();
+  const want = levels.filter((g) => g.canUseMax);
+  if (!want.length) return out;
+  const all = lines ?? await ninjaItemLines(league, "SkillGem");
+  for (const g of want) {
+    const top = g.maxLevel ?? 20;
+    const hit = matchGem(all, { name: g.name, level: top, quality: 20 });
+    if (hit && (hit.gemLevel ?? 1) === top && hit.chaosValue > 0) out.set(g.name, { chaos: hit.chaosValue, level: top, quality: hit.gemQuality ?? 0, league });
+  }
+  return out;
+}
+
+/** Test hook: replaces the poe.ninja lookup (no network in tests). */
+export const gemPriceSource = { lines: undefined as undefined | ((league: string) => Promise<NinjaLine[]>) };
 
 export function formatOptimise(r: any, mode: string, learned: string[]): { text: string; tags: string[] } {
   const L: string[] = [];
@@ -179,6 +222,16 @@ export function optimiseTools(planUpgrades?: Tool): Tool[] {
         }, 300_000);
         const { text } = formatOptimise(res, profile.explanationMode, profile.learnedTopics);
         const parts = [text];
+        const levels = (Array.isArray(res.gemLevels) ? res.gemLevels : []) as GemLevel[];
+        let prices = new Map<string, GemPrice>();
+        let priceNote = "";
+        if (profile.playMode !== "ssf" && levels.some((g) => g.canUseMax)) {
+          try {
+            const { league } = await resolveLeague(ctx.trade, undefined);
+            prices = await priceGemCopies(levels, league, gemPriceSource.lines ? await gemPriceSource.lines(league) : undefined);
+          } catch (e) { priceNote = `(no gem prices: ${e instanceof Error ? e.message : String(e)})`; }
+        }
+        parts.push(...gemLevelLines(levels, profile.playMode, prices), ...(priceNote ? [priceNote] : []));
         if (res.rollbackProblem) parts.push(`WARNING: the build may not be exactly as before (${res.rollbackProblem}).`);
         if (await pushAdvisor(ctx, res).catch(() => false)) parts.push("Also in PoB Agent Edition > Overview > AI Advisor (Passives / Gems / Other tabs).");
         const focus = res.reason && /resist/.test(res.reason) ? "resists" : focusFor(String(res.goal));

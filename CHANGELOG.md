@@ -8,6 +8,8 @@ Each release also lists the official Path of Building Community version it is ba
 
 ### Fixed
 - **Auras you have socketed but switched off**: when you import or sync a character, the game doesn't say which auras are on, so PoB counts them all and the AI used to report "mana over-reserved" as a real problem. Now it lists which skills reserve your mana and asks you which ones you actually run before calling it a problem, and an aura you switch off in your synced build stays off at the next sync.
+- **Gem quality from matching sockets shown clearly**: since 3.28 a gem in a socket of its own colour gets +10% quality, and the game shows that inside the gem's quality (a 0% gem shows "10%"). PoB already counts it, but the build overview showed only the gem's own quality, so it looked missing after an import and could end up added twice by hand. The AI now sees both parts (for example "Frenzy 16/0+10 socket"). The import itself was right; if you added 10% to gems in green, red or blue sockets to "match the game", set them back to their own quality.
+- **No more "level this gem" advice**: gems level up on their own from experience, so the optimiser no longer ranks "level gem X to 20" as something to do. Those gems are listed in one short "will come with levelling" line; in trade or mixed mode, when your character can already use level 20, it offers buying a 20/20 copy instead, with the poe.ninja price, cheapest first.
 
 ## [0.9.0] - 2026-11-14
 

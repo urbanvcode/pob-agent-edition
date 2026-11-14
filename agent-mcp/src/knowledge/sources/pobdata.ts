@@ -1,6 +1,8 @@
 /**
  * Path of Building's own data files (read from disk, no network): unique items
- * with their current mods and skill gems with tags and descriptions.
+ * with their current mods, skill gems with tags and descriptions, and the
+ * notables and keystones of the newest passive tree with their stats and the
+ * oil recipe of the ones that can be anointed.
  *
  * PoB's data is exported from the game files by the PoB Community team, so it
  * ranks above poedb and the wiki, but it can lag a patch: every fact names the
@@ -32,6 +34,21 @@ export interface PobGem {
   reqDex: number;
   reqInt: number;
   maxLevel?: number;
+  file: string;
+}
+
+export interface PobPassive {
+  name: string;
+  kind: "notable" | "keystone";
+  stats: string[];
+  /** Oil names of the anoint recipe ("Amber Oil", ...); empty when it cannot be anointed. */
+  recipe: string[];
+  /** Ascendancy or bloodline the node belongs to. */
+  ascendancy?: string;
+  /** Anoint-only notable: not on the tree, only from an anointment. */
+  anointOnly: boolean;
+  /** Listed without a place on the tree (e.g. granted by jewels). */
+  offTree: boolean;
   file: string;
 }
 
@@ -67,6 +84,72 @@ export function parseUniqueBlock(block: string, file: string): PobUnique | null 
   return { name, base, mods, info, oldVariants: variants.slice(0, -1), file };
 }
 
+/** One node block of a TreeData/<version>/tree.lua (its lines) -> a notable or keystone, else null. */
+export function parsePassiveBlock(lines: string[], file: string): PobPassive | null {
+  const fields = new Map<string, string | string[] | boolean>();
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s*\["(\w+)"\]\s*=\s*(.*?),?\s*$/.exec(lines[i]);
+    if (!m) continue;
+    const [, k, v] = m;
+    if (v === "true") fields.set(k, true);
+    else if (v.startsWith('"')) fields.set(k, luaLiteral(v));
+    else if (v === "{") {
+      // A list of strings; a line break inside a Lua string is a backslash at the end of the line.
+      const items: string[] = [];
+      let text = "";
+      for (i++; i < lines.length && !/^\s*\},?\s*$/.test(lines[i]); i++) {
+        text += lines[i].trim();
+        if (text.endsWith("\\")) { text = text.slice(0, -1) + " "; continue; }
+        if (/^".*",?$/.test(text)) items.push(luaLiteral(text.replace(/,$/, "")));
+        text = "";
+      }
+      fields.set(k, items);
+    } else fields.set(k, v);
+  }
+  const keystone = fields.get("isKeystone") === true;
+  if (!keystone && fields.get("isNotable") !== true) return null;
+  if (fields.get("isMastery") === true || fields.get("isProxy") === true) return null;
+  const name = fields.get("name");
+  if (typeof name !== "string" || !name) return null;
+  const list = (k: string) => { const v = fields.get(k); return Array.isArray(v) ? v : []; };
+  const ascendancy = fields.get("ascendancyName");
+  const anointOnly = fields.get("isBlighted") === true;
+  return {
+    name,
+    kind: keystone ? "keystone" : "notable",
+    stats: list("stats"),
+    recipe: list("recipe").map((oil) => oil.replace(/(?<=[a-z])Oil$/, " Oil")),
+    ...(typeof ascendancy === "string" ? { ascendancy } : {}),
+    anointOnly,
+    offTree: !fields.has("group") && !anointOnly,
+    file,
+  };
+}
+
+function luaLiteral(text: string): string {
+  return text.replace(/^"|"$/g, "").replace(/\\"/g, '"').replace(/\\\\/g, "\\").replace(/\s+/g, " ").trim();
+}
+
+/** Every notable and keystone in a tree.lua text. */
+export function parsePassiveTree(text: string, file: string): PobPassive[] {
+  const out: PobPassive[] = [];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const start = /^(\s*)\[\d+\]\s*=\s*\{\s*$/.exec(lines[i]);
+    if (!start) continue;
+    const end = new RegExp("^" + start[1] + "\\},?\\s*$");
+    let j = i + 1;
+    while (j < lines.length && !end.test(lines[j])) j++;
+    const block = lines.slice(i + 1, j);
+    if (block.some((l) => /^\s*\["skill"\]/.test(l))) {
+      const passive = parsePassiveBlock(block, file);
+      if (passive) out.push(passive);
+    }
+    i = j;
+  }
+  return out;
+}
+
 function luaString(text: string): string {
   return text.replace(/\\n/g, " ").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
@@ -75,6 +158,7 @@ export class PobData {
   private uniqueIndex?: Map<string, PobUnique[]>;
   private gemIndex?: Map<string, PobGem>;
   private versionInfo?: PobVersion | null;
+  private passiveIndex?: Map<string, PobPassive[]>;
 
   constructor(private readonly src: string = pobSrc()) {}
 
@@ -163,6 +247,42 @@ export class PobData {
     return (this.gemIndex = index);
   }
 
+  /** Folder of the newest normal (not Ruthless, not alternate) passive tree, e.g. "3_30". */
+  private treeFolder(): string | undefined {
+    try {
+      const versions = fs.readFileSync(path.join(this.src, "GameVersions.lua"), "utf8");
+      const list = /treeVersionList\s*=\s*\{([\s\S]*?)\}/.exec(versions)?.[1] ?? "";
+      const plain = [...list.matchAll(/"(\d+)_(\d+)"/g)].map((m) => [Number(m[1]), Number(m[2])]);
+      plain.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const top = plain[plain.length - 1];
+      return top ? `${top[0]}_${top[1]}` : undefined;
+    } catch { return undefined; }
+  }
+
+  private passives(): Map<string, PobPassive[]> {
+    if (this.passiveIndex) return this.passiveIndex;
+    const index = new Map<string, PobPassive[]>();
+    const folder = this.treeFolder();
+    if (folder) {
+      const rel = `TreeData/${folder}/tree.lua`;
+      try {
+        const text = fs.readFileSync(path.join(this.src, rel), "utf8");
+        for (const passive of parsePassiveTree(text, rel)) {
+          const key = passive.name.toLowerCase();
+          index.set(key, [...(index.get(key) ?? []), passive]);
+        }
+      } catch { /* no tree data: empty index */ }
+    }
+    // The tree's own node first, ascendancy and off-tree copies after it.
+    for (const list of index.values()) list.sort((a, b) => Number(!!a.ascendancy || a.offTree) - Number(!!b.ascendancy || b.offTree));
+    return (this.passiveIndex = index);
+  }
+
+  /** Notables and keystones with exactly this name (the main tree's node first). */
+  passive(name: string): PobPassive[] {
+    return this.passives().get(name.trim().toLowerCase()) ?? [];
+  }
+
   /** Uniques with exactly this name (several when a name has more than one base). */
   unique(name: string): PobUnique[] {
     return this.uniques().get(name.trim().toLowerCase()) ?? [];
@@ -173,16 +293,19 @@ export class PobData {
     return this.gems().get(key) ?? this.gems().get(key + " support") ?? this.gems().get(key.replace(/ support$/, ""));
   }
 
-  /** Unique and gem names that appear as a whole phrase in a text (longest first). */
+  /** Unique, gem, notable and keystone names that appear as a whole phrase in a text (longest first). */
   namesIn(text: string): string[] {
     const hay = " " + text.toLowerCase().replace(/[^a-z0-9']+/g, " ") + " ";
     const hits: string[] = [];
-    for (const index of [this.uniques(), this.gems()]) {
+    for (const index of [this.uniques(), this.gems(), this.passives()]) {
       for (const key of index.keys()) {
         if (key.length < 5) continue;
         if (hay.includes(" " + key.replace(/[^a-z0-9']+/g, " ") + " ")) hits.push(key);
       }
     }
-    return [...new Set(hits)].sort((a, b) => b.length - a.length);
+    // "Reflexes" inside "Iron Reflexes" is not a second name.
+    const sorted = [...new Set(hits)].sort((a, b) => b.length - a.length);
+    const words = (n: string) => " " + n.replace(/[^a-z0-9']+/g, " ") + " ";
+    return sorted.filter((n, i) => !sorted.slice(0, i).some((longer) => words(longer).includes(words(n))));
   }
 }

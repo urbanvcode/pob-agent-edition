@@ -18,7 +18,7 @@ import fs from "fs";
 import path from "path";
 import { cacheDir } from "../paths.js";
 import { PoliteFetcher } from "./fetcher.js";
-import { findGlossary, wikiUrl, type GlossaryEntry } from "./glossary.js";
+import { findGlossary, glossaryTopic, wikiUrl, type GlossaryEntry } from "./glossary.js";
 import { GggPatchNotes, type PatchLine, type PatchNotes } from "./sources/ggg.js";
 import { PobData } from "./sources/pobdata.js";
 import { Poedb } from "./sources/poedb.js";
@@ -162,8 +162,11 @@ export class Knowledge {
       facts.push(this.glossaryFact(glossary, version, false));
       if (glossary.poe2) facts.push(this.glossaryFact(glossary, version, true));
     }
+    // A system named by one word inside a longer question ("how do I anoint my amulet"): its page is the best wiki candidate.
+    const topic = glossary || source === "pob" || source === "poedb" || source === "ggg" ? undefined : glossaryTopic(q);
+    if (topic && source !== "wiki") facts.push(this.glossaryFact(topic, version, false));
 
-    // Entities PoB knows by exact name (a unique or a gem).
+    // Entities PoB knows by exact name (a unique, a gem, a notable or a keystone).
     const names: string[] = [];
     let pobMods: string[] | undefined, pobTitle: string | undefined;
     if (source === "auto" || source === "pob") {
@@ -172,12 +175,12 @@ export class Knowledge {
       names.push(...pobFacts.names);
       pobMods = pobFacts.mods;
       pobTitle = pobFacts.names[0];
-      if (source === "pob" && !pobFacts.facts.length) notes.push(this.pob.available() ? `PoB's data has no unique or gem named "${q}" (exact names only).` : "PoB's data files were not found next to the server.");
+      if (source === "pob" && !pobFacts.facts.length) notes.push(this.pob.available() ? `PoB's data has no unique, gem, notable or keystone named "${q}" (exact names only).` : "PoB's data files were not found next to the server.");
     }
 
     if (source === "auto" || source === "wiki") {
       await attempt("poewiki", async () => {
-        const wikiFacts = await this.wikiFacts(this.wiki, q, options, glossary?.page ?? pobTitle, version, related);
+        const wikiFacts = await this.wikiFacts(this.wiki, q, options, glossary?.page ?? pobTitle, version, related, topic?.page);
         facts.push(...wikiFacts);
         const page = wikiFacts[0]?.title.split(" > ")[0];
         if (page && !names.some((n) => n.toLowerCase() === page.toLowerCase())) names.push(page);
@@ -210,7 +213,7 @@ export class Knowledge {
     if ((source === "auto" || source === "ggg") && version.current.version !== "unknown") {
       const lookFor = names.length ? names : glossary ? [glossary.term] : [q];
       await attempt("GGG patch notes", async () => {
-        const entities = this.pob.available() ? lookFor.filter((n) => this.pob.unique(n).length || this.pob.gem(n)) : [];
+        const entities = this.pob.available() ? lookFor.filter((n) => this.pob.unique(n).length || this.pob.gem(n) || this.pob.passive(n).length) : [];
         const patch = await this.patch({ version: majorOf(version.current.version), names: lookFor, max: 3, subjectOnly: lookFor.filter((n) => !entities.includes(n)) });
         if (patch.facts.length) {
           facts.push(...patch.facts);
@@ -258,8 +261,8 @@ export class Knowledge {
       flags.push(`PoB ${pobVersion.pob} data is for ${pobVersion.game}; the game is now ${version.current.version}: may lag the patch`);
     }
     const base = { source: "pob" as const, game: "poe1" as const, game_version: gameVersion, retrieved_at: this.isoNow(), ...(flags.length ? { flags } : {}) };
-    const exactUnique = this.pob.unique(query), exactGem = this.pob.gem(query);
-    const wanted = exactUnique.length || exactGem ? [query] : this.pob.namesIn(query).slice(0, 2);
+    const exactUnique = this.pob.unique(query), exactGem = this.pob.gem(query), exactPassive = this.pob.passive(query);
+    const wanted = exactUnique.length || exactGem || exactPassive.length ? [query] : this.pob.namesIn(query).slice(0, 2);
     for (const name of wanted) {
       for (const unique of this.pob.unique(name)) {
         const parts = [`${unique.name} (${unique.base})`, ...unique.info, ...unique.mods];
@@ -275,12 +278,22 @@ export class Knowledge {
         facts.push({ ...base, title: `${gem.name} (PoB ${pobVersion?.pob ?? "?"})`, text: parts.join("; "), url: this.pob.url(gem.file), kind: "gem" });
         if (!names.includes(gem.name)) names.push(gem.name);
       }
+      if (this.pob.unique(name).length || gem) continue;
+      // Passive tree nodes: the main tree's node, plus an ascendancy node of the same name if there is one.
+      for (const node of this.pob.passive(name).slice(0, 2)) {
+        const where = node.ascendancy ? `${node.ascendancy} ascendancy ${node.kind}` : node.anointOnly ? `${node.kind} that is only available as an anointment (not on the passive tree)` : node.offTree ? `${node.kind} not placed on the passive tree (PoB lists it without a tree position)` : `passive tree ${node.kind}`;
+        const parts = [`${node.name}: ${where}`, ...node.stats];
+        if (node.recipe.length) parts.push(`amulet anoint recipe: ${node.recipe.join(" + ")}`);
+        else if (node.kind === "notable" && !node.ascendancy) parts.push("PoB's data has no anoint recipe for it");
+        facts.push({ ...base, title: `${node.name} (PoB ${pobVersion?.pob ?? "?"}, tree ${gameVersion})`, text: parts.join("; "), url: this.pob.url(node.file), kind: "passive" });
+        if (!names.includes(node.name)) names.push(node.name);
+      }
     }
     return { facts, names, mods };
   }
 
   /** Pick the wiki page that fits the question best, then the passages that answer it. */
-  private async wikiFacts(wiki: Wiki, query: string, options: LookupOptions, hint: string | undefined, version: VersionInfo, related: string[]): Promise<Fact[]> {
+  private async wikiFacts(wiki: Wiki, query: string, options: LookupOptions, hint: string | undefined, version: VersionInfo, related: string[], topic?: string): Promise<Fact[]> {
     const poe2 = wiki.site.game === "poe2";
     const tag = poe2 ? undefined : version.current.version;
     let best: WikiPage | null = null;
@@ -289,8 +302,10 @@ export class Knowledge {
     if (!best) {
       const words = query.split(/\s+/).filter((w) => w.length > 3 && w.toLowerCase() !== query.toLowerCase()).slice(0, 3);
       const singular = words.map((w) => w.replace(/(?<=[a-z]{3})s$/i, "")).filter((w) => !words.includes(w));
-      const direct = await wiki.intros([query, ...words, ...singular], tag);
-      const fit = (p: WikiPage) => (p.asked?.some((a) => a.toLowerCase() === query.toLowerCase()) ? 1 : titleFit(query, p.title));
+      const direct = await wiki.intros([query, ...(topic ? [topic] : []), ...words, ...singular], tag);
+      const isTopic = (p: WikiPage) => !!topic && (p.title.toLowerCase() === topic.toLowerCase() || !!p.asked?.some((a) => a.toLowerCase() === topic.toLowerCase()));
+      // A topic page beats pages that only share one word with the question, never a page named like the question.
+      const fit = (p: WikiPage) => (p.asked?.some((a) => a.toLowerCase() === query.toLowerCase()) ? 1 : Math.max(titleFit(query, p.title), isTopic(p) ? 0.6 : 0));
       let candidates = direct.map((p) => ({ p, fit: fit(p) }));
       if (!candidates.some((c) => c.fit >= 0.99)) {
         const found = await wiki.search(query, tag);

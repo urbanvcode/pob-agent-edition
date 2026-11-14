@@ -81,6 +81,8 @@ export function diagnosisText(d: any): string {
   L.push(`Recovery: ${recParts.length ? recParts.join(" | ") : "none"}`);
   const m = d.mana ?? {};
   L.push(`Mana: ${n(m.unreserved)} unreserved, skill costs ${n(m.cost)}${m.costPerSecond ? ` (${n(m.costPerSecond, 0)}/s)` : ""}${m.lifeCost ? `, life cost ${n(m.lifeCost)}` : ""}`);
+  const resv: Array<{ name: string; group?: number; mana: number }> = m.reservations ?? [];
+  if (resv.length) L.push(`Mana reserved by: ${resv.map((r) => `${r.name} ${n(r.mana)}`).join(", ")}`);
   const a = d.attributes ?? {};
   L.push(`Attributes (have/need): ${["Str", "Dex", "Int"].map((k) => `${k} ${n(a[k]?.value)}/${n(a[k]?.required)}`).join(" | ")}`);
 

@@ -140,8 +140,17 @@ test("character_sync: second sync lists what changed; character_history shows th
   lvl.values[0][0] = String(before - 1);
   passives = { ...passives, hashes: passives.hashes.slice(0, -3) };
   characters[0] = { ...characters[0], level: 93 };
+  // The player switched Grace off in the synced build: the game does not say
+  // which auras are on, so the next sync keeps it off instead of turning it on.
+  const synced = path.join(builds, "SampleDeadeye - synced.xml");
+  const xmlBefore = fs.readFileSync(synced, "utf8");
+  const graceOff = xmlBefore.replace(/<Gem\b[^>]*nameSpec="Grace"[^>]*>/, (tag) => tag.replace(/enabled="true"/, 'enabled="false"'));
+  assert.notEqual(graceOff, xmlBefore, "the fixture build has Grace");
+  fs.writeFileSync(synced, graceOff);
 
   const text = await ok("character_sync", {}); // names remembered from the first sync
+  assert.match(text, /Kept switched off, as in this build before the sync .*: Grace\./);
+  assert.match(fs.readFileSync(synced, "utf8"), /<Gem\b[^>]*nameSpec="Grace"[^>]*enabled="false"|<Gem\b[^>]*enabled="false"[^>]*nameSpec="Grace"/);
   assert.match(text, /CHANGES since/);
   assert.match(text, /Level 92 -> 93/);
   assert.match(text, /Helmet: removed /);

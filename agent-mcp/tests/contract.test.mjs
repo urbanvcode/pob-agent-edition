@@ -99,6 +99,17 @@ test("read: build_summary, stats, diagnose, tree_search", async () => {
   assert.match(d, /weakest: Physical/);
   assert.match(d, /Config assumptions:/);
 
+  // Over-reserved mana: an import counts every aura as on, so diagnose names
+  // the reservers and asks instead of calling it a problem.
+  const added = await ok("edit", { ops: [{ op: "add_group", label: "Auras", gems: ["Anger", "Wrath", "Hatred", "Grace", "Determination", "Discipline"].map((name) => ({ name, level: 20 })) }] });
+  const over = await ok("diagnose");
+  assert.match(over, /WARNING \[reservation\] Mana is over-reserved by [\d,]+\. Reserving: .*Anger \(group \d+\) \d+.*ask the player which ones they run/);
+  assert.ok(!/PROBLEM \[reservation\]/.test(over));
+  assert.match(over, /Mana reserved by: .*Determination [\d,]+/);
+  const groupNo = Number(/group=(\d+)/.exec(added)?.[1] ?? /Anger \(group (\d+)\)/.exec(over)?.[1]);
+  assert.match(await ok("edit", { ops: [{ op: "remove_group", group: groupNo }] }), /ok remove_group/);
+  assert.ok(!/over-reserved/.test(await ok("diagnose")));
+
   const nodes = await ok("tree_search", { query: "cold damage over time", limit: 3 });
   assert.match(nodes, /^\d+ Breath of Rime \[notable; allocated\]/m);
   // The fixture uses the 3.13 tree, which has no masteries.

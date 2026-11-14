@@ -32,6 +32,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 
 ## Character sync (progress)
 - "Sync my character": `character { account: "Name#1234", character }` (both remembered after the first sync). It imports the public pathofexile.com profile with PoB's own importer into its own build "<character> - synced" (other builds untouched, config kept), saves it, and lists what changed since the last sync: items, gems, passives, with DPS/EHP/max-hit deltas from PoB.
+- The game does not say which auras are switched on, so an import counts them all: when `diagnose` warns that mana is over-reserved (it lists the reservers), ask the player which auras they run and switch the others off (`edit`, gem enabled=false). The next sync keeps gems switched off in the synced build off.
 - `character { history: true }` shows the timeline; the Overview **Progress** card draws it. History: `Documents\Path of Building\AgentCache\history\`.
 - Read-only and polite: 3 requests per sync, paced and inside the limits the site publishes, at most one sync per character per minute. A private profile: the player makes the Characters tab public; never ask for a password or POESESSID.
 

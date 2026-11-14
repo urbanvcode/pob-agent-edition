@@ -100,6 +100,7 @@ export function characterTools(client = new CharacterClient()): Tool[] {
           `Build "${name}" saved to ${file}${link.kind === "live" ? " and open in the PoB window" : ""}. ${dl.requests} requests to pathofexile.com.`,
           `Now: DPS ${fmt(dps(s))}, EHP ${fmt(s.TotalEHP ?? 0)}, weakest max hit ${fmt(maxHit(s))}, life ${fmt(s.Life ?? 0)}, ES ${fmt(s.EnergyShield ?? 0)}, res ${s.FireResist}/${s.ColdResist}/${s.LightningResist}/${s.ChaosResist}.`,
           ...(levelling ? [levelling] : []),
+          ...(imported.keptOff?.length ? [`Kept switched off, as in this build before the sync (the game does not say which auras are on): ${imported.keptOff.join(", ")}.`] : []),
           "",
           ...(diff ? [`CHANGES since ${day(before!.at)} UTC:`, ...diffText(diff)] : ["First sync: this is the baseline. The next sync lists what changed."]),
           "",

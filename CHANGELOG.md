@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Auras you have socketed but switched off**: when you import or sync a character, the game doesn't say which auras are on, so PoB counts them all and the AI used to report "mana over-reserved" as a real problem. Now it lists which skills reserve your mana and asks you which ones you actually run before calling it a problem, and an aura you switch off in your synced build stays off at the next sync.
+
 ## [0.9.0] - 2026-11-14
 
 One release for five new helpers: economy (Stage 5), crafting (Stage 6), levelling (Stage 7), farming and money (Stage 8) and build creation (Stage 11), plus a simpler tool list for the AI and a safer AI chat with Codex. Based on **Path of Building Community v2.67.2** (same as 0.8.0), with the 3.30 passive tree and unique previews. **After updating, restart your AI app** so it loads the new tools.

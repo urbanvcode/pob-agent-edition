@@ -71,25 +71,28 @@ export function slotPotential(t: SlotTarget, worthOf: (s: { worth?: number }) =>
   return top - 2 * (t.minWeight ?? 0);
 }
 
-/** Slots in the order to search: given slots as given; focus dps without slots = by PoB's damage potential. */
-export async function orderSlots(lua: PobLink, slots: string[] | undefined, focus: string, notes: string[]): Promise<{ slots: string[]; targets: Map<string, SlotTarget> }> {
+/**
+ * Slots in the order to search: given slots as given; focus dps without slots = by PoB's damage potential.
+ * `rest` = ranked slots past the 8 a question can search (16 trade requests, 2 per slot).
+ */
+export async function orderSlots(lua: PobLink, slots: string[] | undefined, focus: string, notes: string[]): Promise<{ slots: string[]; rest: string[]; targets: Map<string, SlotTarget> }> {
   const targets = new Map<string, SlotTarget>();
-  if (slots?.length || focus !== "dps") return { slots: (slots?.length ? slots : DEFAULT_SLOTS).slice(0, 8), targets };
+  if (slots?.length || focus !== "dps") { const all = slots?.length ? slots : DEFAULT_SLOTS; return { slots: all.slice(0, 8), rest: all.slice(8), targets }; }
   let list: SlotTarget[] = [];
   try {
     list = (await lua.call("economy_targets", { slots: DPS_SLOTS, focus, top: COUNT_FILTERS })).result ?? [];
   } catch {
-    return { slots: DPS_SLOTS.slice(0, 8), targets };
+    return { slots: DPS_SLOTS.slice(0, 8), rest: DPS_SLOTS.slice(8), targets };
   }
   for (const t of list) targets.set(t.slot, t);
   const ranked = list.filter((t) => t.stats?.length && t.category).map((t) => ({ t, p: slotPotential(t, (s) => s.worth ?? 0) }))
     .sort((a, b) => b.p - a.p);
   const order = ranked.map((x) => x.t.slot);
-  if (!order.length) return { slots: DPS_SLOTS.slice(0, 8), targets };
+  if (!order.length) return { slots: DPS_SLOTS.slice(0, 8), rest: DPS_SLOTS.slice(8), targets };
   notes.push(`Slots searched in order of damage potential (PoB: what the best stats for each slot are worth to this build): ${order.slice(0, 8).join(", ")}.`);
   const skipped = list.filter((t) => !order.includes(t.slot) && t.current !== undefined).map((t) => t.slot);
   if (skipped.length) notes.push(`Not searched (PoB found no damage stat that beats the current item): ${skipped.join(", ")}.`);
-  return { slots: order.slice(0, 8), targets };
+  return { slots: order.slice(0, 8), rest: order.slice(8), targets };
 }
 const RES = [["FireResist", "Fire"], ["ColdResist", "Cold"], ["LightningResist", "Lightning"]] as const;
 

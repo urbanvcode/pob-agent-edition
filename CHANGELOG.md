@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **A budget plan for more damage now looks at the damage slots first**: `plan_upgrades { budget: "30c", focus: "dps" }` used to search helmet, body armour, gloves, boots and belt first and could run out of trade searches before it reached your weapon, quiver, rings or amulet. It now searches the slots in the order PoB says they can add the most damage to your build (the same order the per-item search has used since 0.9.2), and ends with a "NOT REACHED" line that names every slot it didn't get to and why (search limit, a pause asked for by the trade site, or more slots than one question can cover), with the exact slots to ask for next.
+
 ## [0.9.4] - 2026-11-14
 
 Fixes from testing: the optimiser warns when a change leaves a skill without mana or loses an ailment immunity. Based on **Path of Building Community v2.67.2** (same as 0.9.3). **After updating, restart PoB Agent Edition and your AI app.**

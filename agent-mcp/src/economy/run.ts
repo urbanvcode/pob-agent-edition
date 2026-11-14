@@ -66,7 +66,7 @@ export async function budgetPlanText(ctx: Context, a: { league: string; leagueNo
 
   const notes: string[] = [];
   const budget = await budgetOf(a.budget, a.league, notes);
-  const plan = await planBudget(link, ctx.trade, { league: a.league, budgetChaos: budget.chaos, focus, slots, noDefenceLoss: profile.hardcore });
+  const plan = await planBudget(link, ctx.trade, { league: a.league, budgetChaos: budget.chaos, focus, slots: a.slots, noDefenceLoss: profile.hardcore });
   plan.notes.unshift(...notes);
   if (a.leagueNote) plan.notes.push(a.leagueNote);
   if (budget.source === "profile") plan.notes.push("Budget = the currency on hand in the profile; give budget to plan with a different amount.");

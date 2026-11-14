@@ -86,6 +86,10 @@ export function formatSetPlan(plan: SetPlan, budget: Budget, opts: { mode: strin
     for (const p of plan.buy) L.push(`- [${p.slot}] ${p.rarity === "UNIQUE" ? farmHook(p.name.split(",")[0]) : craftHook(p.slot)}`);
   }
   if (plan.notes.length) { L.push("", "Notes:"); for (const x of plan.notes) L.push(`- ${x}`); }
+  if (plan.unreached?.length) {
+    const why = [...new Set(plan.unreached.map((u) => u.reason))].map((r) => `${plan.unreached.filter((u) => u.reason === r).map((u) => u.slot).join(", ")} (${r})`);
+    L.push("", `NOT REACHED: ${why.join("; ")}. Ask again with slots: [${plan.unreached.map((u) => `"${u.slot}"`).join(", ")}] to plan for them.`);
+  }
   L.push("", `Searched: ${plan.searched.join(", ") || "nothing"}; ${plan.sims} combined simulation(s). Prices from instant-buyout listings; the player buys by opening each link.`);
   return L.join("\n");
 }

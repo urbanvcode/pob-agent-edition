@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Trinity counted properly in the optimiser**: after importing a character, PoB sets Trinity's "resonance" to 0, so Trinity seemed to do nothing and the optimiser kept telling you to swap it out. The optimiser and the support gem check now measure with a realistic resonance (and Unholy Trinity's), say so, and list it first under "you may be under-counting" so you can set it in the Configuration tab. Other skill settings left at 0 are listed too.
+- **Gem suggestions check your attributes**: a support gem that needs more strength, dexterity or intelligence than you have now says so ("needs 120 Int, you have 74") and is ranked after the gems you can use straight away, because a gem whose requirement isn't met does nothing in game.
+
 ## [0.9.0] - 2026-11-14
 
 One release for five new helpers: economy (Stage 5), crafting (Stage 6), levelling (Stage 7), farming and money (Stage 8) and build creation (Stage 11), plus a simpler tool list for the AI and a safer AI chat with Codex. Based on **Path of Building Community v2.67.2** (same as 0.8.0), with the 3.30 passive tree and unique previews. **After updating, restart your AI app** so it loads the new tools.

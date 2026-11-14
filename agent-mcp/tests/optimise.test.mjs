@@ -14,6 +14,13 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agent-mcp-optimise-"));
 const builds = path.join(tmp, "Builds");
 fs.mkdirSync(builds);
 fs.copyFileSync(path.join(here, "fixtures", "occ-vortex.xml"), path.join(builds, "occ-vortex.xml"));
+// The same build with Trinity in place of Hypothermia (its resonance count is 0, as after an import)
+// and Dexterity cut to just above what the gems need, so stronger Dex supports leave it short.
+const vortexXml = fs.readFileSync(path.join(here, "fixtures", "occ-vortex.xml"), "utf8");
+const hypothermia = /<Gem [^>]*nameSpec="Hypothermia"\/>/;
+assert.match(vortexXml, hypothermia);
+fs.writeFileSync(path.join(builds, "trinity-test.xml"), vortexXml.replace(hypothermia,
+  '<Gem enableGlobal2="true" level="20" gemId="Metadata/Items/Gems/SkillGemSupportTrinity" skillId="SupportTrinity" enableGlobal1="true" qualityId="Default" quality="0" enabled="true" nameSpec="Trinity"/>').replace("+11 to Dexterity", "-12 to Dexterity"));
 process.env.POB_LIVE = "off";
 process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
@@ -85,6 +92,46 @@ test("formatOptimise: ranked list, under-counting, scaling report, explanations"
   assert.match(text, /Scaling report[\s\S]*10% more Damage/);
   assert.match(text, /Mechanics \(teach mode[\s\S]*More and increased:/);
   assert.doesNotMatch(opt.formatOptimise(r, "concise", []).text, /Mechanics \(/);
+});
+
+test("formatOptimise: attribute-short changes are marked and listed after usable ones' warnings", () => {
+  const r = {
+    goal: "bossing", goalLabel: "single target / bossing", metric: "x", tempConfig: { enemyIsBoss: "Pinnacle", configResonanceCount: 50 }, assumptions: "a", base: {},
+    suggestions: [
+      { lever: "gem", text: "Swap Trinity for Some Support in Skill", gain: { ...zero, stPct: 30 }, cost: { buy: "Some Support" }, unusable: true,
+        sideEffects: ["needs 120 Int, you have 74 (46 short): get it from gear or passives first, the gain only counts once it is met"], ops: [] },
+    ],
+    undercount: [{ text: "Trinity: Lowest Resonance Count is 0 in PoB (x); this run assumed 50", key: "configResonanceCount", gain: { ...zero, stPct: 55 } }],
+    unsetCounts: [{ skill: "Some Skill", label: "# of Stages", var: "someStages" }],
+  };
+  const { text } = opt.formatOptimise(r, "concise", []);
+  assert.match(text, /configResonanceCount = 50 \(temporary, restored afterwards\)/);
+  assert.match(text, /Swap Trinity .* NOT USABLE YET \(attributes short\)/);
+  assert.match(text, /side effect: needs 120 Int, you have 74 \(46 short\)/);
+  assert.match(text, /Trinity: Lowest Resonance Count is 0 in PoB.*\[configResonanceCount\]: single-target DPS \+55/);
+  assert.match(text, /Also 0 in PoB.*Some Skill: # of Stages \[someStages\]/);
+});
+
+test("Trinity: resonance 0 in PoB is under-counted, gem swaps are measured with it set, config put back", async () => {
+  await ok("open_build", { name: "trinity-test" });
+  const before = await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life"] });
+  const gems = await ok("suggest_gems", {});
+  assert.match(gems, /Measured with Trinity: Lowest Resonance Count = 50 \(0 in PoB, Trinity gives no damage at 0 resonance/);
+  const trinity = gems.match(/- gem \d+ Trinity [\d/]+: -([\d.]+)%/);
+  assert.ok(trinity && Number(trinity[1]) > 1, `Trinity is worth something once resonance is counted:\n${gems}`);
+
+  const all = await ok("suggest_gems", { limit: 25 });
+  assert.match(all, /\d+\. .*Warning: needs \d+ Dex, you have 112 \(the gem does nothing until that is met\)/, "a support the character lacks Dexterity for says so");
+
+  const boss = await ok("optimise", { goal: "bossing", levers: ["gems", "config"] });
+  assert.match(boss, /Config for this run: [^\n]*configResonanceCount = 50/);
+  assert.match(boss, /under-counting[\s\S]*- Trinity: Lowest Resonance Count is 0 in PoB .*this run assumed 50.*\[configResonanceCount\]: single-target DPS \+/);
+  for (const m of boss.matchAll(/\[gem\] Swap Trinity for .*: single-target DPS ([+-][\d.]+)%/g)) {
+    // A swap measured with resonance 50 is not a free gain from removing a gem that did nothing.
+    assert.ok(Number(m[1]) < 40, `swap gain looks like it was measured at resonance 0: ${m[0]}`);
+  }
+  assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life"] }), before, "the build and its config are exactly as before");
+  await ok("open_build", { name: "occ-vortex" });
 });
 
 test("optimise tool: every goal simulated in PoB, build and config put back", async () => {

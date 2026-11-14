@@ -122,7 +122,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
   list.forEach((s, i) => {
     const tags = mechanicTags(s);
     allTags.push(...tags);
-    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}`);
+    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? " - NOT USABLE YET (attributes short)" : ""}`);
     const extra = [tags.length ? `mechanic: ${tags.join(", ")}` : "", Array.isArray(s.stats) && s.stats.length ? (s.stats as string[]).filter((x) => x.trim()).join("; ") : "", s.warning ? `warning: ${s.warning}` : ""].filter(Boolean);
     if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
     if (extra.length) L.push(`   ${extra.join(" | ")}`);
@@ -135,6 +135,8 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
     L.push("", "You may be under-counting (off in PoB, would raise this goal; set them only if they are true in your fights):");
     for (const u of under) L.push(`- ${u.text}${u.key ? ` [${u.key}]` : ""}: ${gainText(u.gain, goal)}${u.ops ? ` | ops: ${JSON.stringify(u.ops)}` : ""}`);
   }
+  const unset = (Array.isArray(r.unsetCounts) ? r.unsetCounts : []) as any[];
+  if (unset.length) L.push(`Also 0 in PoB (no value assumed, numbers may be low): ${unset.map((u) => `${u.skill}: ${u.label} [${u.var}]`).join("; ")}`);
   const blocked = (Array.isArray(r.blocked) ? r.blocked : []) as any[];
   if (blocked.length) L.push("", `Would help but cannot be used now: ${blocked.map((x) => `${x.name}${x.gain ? ` (${pct(x.gain.stPct)} ST DPS, ${pct(x.gain.ehpPct)} EHP)` : ""}: ${x.why}`).join("; ")}`);
   const scaling = (Array.isArray(r.scaling) ? r.scaling : []) as any[];

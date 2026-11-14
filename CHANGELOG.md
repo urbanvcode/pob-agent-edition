@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.4] - 2026-11-14
+
+Fixes from testing: the optimiser warns when a change leaves a skill without mana or loses an ailment immunity. Based on **Path of Building Community v2.67.2** (same as 0.9.3). **After updating, restart PoB Agent Edition and your AI app.**
+
 ### Fixed
 - **A new aura no longer looks like a gain when it leaves a skill without mana**: adding an aura (Summon Skitterbots, say) can leave less unreserved mana than another skill costs, so in game that skill (a mark, a guard skill, even your main skill) can no longer be cast. PoB still counts that skill in its DPS, so `what_if`, `edit` and the optimiser used to report a gain. They now say "Warning: Sniper's Mark costs 62 mana but only 30 is unreserved: it can't be used", show the real result with that skill switched off, and find the cheapest fix: which other aura to switch off so everything fits, compared with the other choices. The optimiser ranks such a change by that real result and puts the fix in its steps. `diagnose` now lists every skill that can't be used and PoB's own side-bar warnings.
 - **The optimiser no longer swaps away your freeze immunity without saying so**: for tankiness it could suggest Soul of Lunaris in place of Soul of the Brine King (+5% EHP) when Brine King was the build's only freeze immunity, and being frozen is often fatal. Any change that takes away an ailment immunity or a big part of an avoidance (freeze, stun, chill, shock, ignite, bleeding, poison, corrupted blood) now says so ("loses freeze immunity: 100% -> 10% avoidance"), is ranked after the changes that keep it for tankiness and balanced, and is never suggested in hardcore. A pantheon god that keeps your immunities is preferred over one that doesn't. Flask swaps do the same for immunity suffixes such as "of Entropy" or "of Heat": those flasks are replaced last, and when one is replaced the lost immunity is named. `what_if` and `edit` now show ailment avoidance in their before -> after numbers whenever it changes ("Freeze avoidance %: 100 -> 10 - LOSES FREEZE IMMUNITY").
@@ -282,7 +286,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.3...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.0...v0.9.1

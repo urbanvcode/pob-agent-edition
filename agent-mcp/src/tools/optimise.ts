@@ -220,7 +220,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
   list.forEach((s, i) => {
     const tags = mechanicTags(s);
     allTags.push(...tags);
-    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? (s.costWarnings ? " - A SKILL CAN'T BE USED (mana)" : " - NOT USABLE YET (attributes short)") : ""}${s.costFix ? " - NEEDS THE FIX IN THE OPS" : ""}${s.caveat ? " - LOSS NOT MEASURED (see side effect)" : ""}`);
+    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? (s.costWarnings ? " - A SKILL CAN'T BE USED (mana)" : " - NOT USABLE YET (attributes short)") : ""}${s.costFix ? " - NEEDS THE FIX IN THE OPS" : ""}${s.caveat ? " - LOSS NOT MEASURED (see side effect)" : ""}${s.avoidLoss ? " - LOWERS AILMENT AVOIDANCE (see side effect)" : ""}`);
     const extra = [tags.length ? `mechanic: ${tags.join(", ")}` : "", Array.isArray(s.stats) && s.stats.length ? (s.stats as string[]).filter((x) => x.trim()).join("; ") : "", s.warning ? `warning: ${s.warning}` : ""].filter(Boolean);
     if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
     if (extra.length) L.push(`   ${extra.join(" | ")}`);
@@ -237,7 +237,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
     ascList.forEach((s) => {
       const tags = mechanicTags(s);
       allTags.push(...tags);
-      L.push(`- [ascendancy] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}`);
+      L.push(`- [ascendancy] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.avoidLoss ? " - LOWERS AILMENT AVOIDANCE (see side effect)" : ""}`);
       const extra = [Array.isArray(s.stats) && s.stats.length ? (s.stats as string[]).filter((x) => x.trim()).join("; ") : ""].filter(Boolean);
       if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
       if (extra.length) L.push(`   ${extra.join(" | ")}`);

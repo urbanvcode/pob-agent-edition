@@ -20,6 +20,9 @@ const LABELS: Record<string, string> = {
   EffectiveSpellSuppressionChance: "Spell suppression %", BlockChance: "Block %", SpellBlockChance: "Spell block %",
   LifeRegenRecovery: "Life regen/s", LifeLeechGainRate: "Life leech/s", EffectiveMovementSpeedMod: "Movement speed x",
   MinionCombinedDPS: "Minion DPS", ReqStr: "Str required", ReqDex: "Dex required", ReqInt: "Int required",
+  StunAvoidChance: "Stun avoidance %", FreezeAvoidChance: "Freeze avoidance %", ChillAvoidChance: "Chill avoidance %",
+  ShockAvoidChance: "Shock avoidance %", IgniteAvoidChance: "Ignite avoidance %", BleedAvoidChance: "Bleed avoidance %",
+  PoisonAvoidChance: "Poison avoidance %", CorruptedBloodAvoidChance: "Corrupted Blood avoidance %",
 };
 const ORDER = [
   "FullDPS", "CombinedDPS", "TotalDPS", "TotalDotDPS", "MinionCombinedDPS", "AverageDamage", "Speed", "CritChance", "HitChance",
@@ -28,7 +31,11 @@ const ORDER = [
   "PhysicalMaximumHitTaken", "FireMaximumHitTaken", "ColdMaximumHitTaken", "LightningMaximumHitTaken", "ChaosMaximumHitTaken",
   "Armour", "Evasion", "EffectiveSpellSuppressionChance", "BlockChance", "SpellBlockChance",
   "LifeRegenRecovery", "LifeLeechGainRate", "EffectiveMovementSpeedMod", "Str", "Dex", "Int", "ReqStr", "ReqDex", "ReqInt",
+  "StunAvoidChance", "FreezeAvoidChance", "ChillAvoidChance", "ShockAvoidChance", "IgniteAvoidChance",
+  "BleedAvoidChance", "PoisonAvoidChance", "CorruptedBloodAvoidChance",
 ];
+
+const ailmentName = (a: string): string => (a === "CorruptedBlood" ? "corrupted blood" : a === "Bleed" ? "bleeding" : a.toLowerCase());
 
 export const label = (key: string): string => LABELS[key] ?? key;
 
@@ -48,7 +55,11 @@ export function deltaLines(before: Stats, after: Stats): string[] {
     if (Math.abs(a - b) <= Math.max(Math.abs(a) * 1e-4, 1e-4)) continue;
     const absolute = key.endsWith("Resist") || key.endsWith("Chance") || a === 0;
     const change = absolute ? ` (${b - a >= 0 ? "+" : ""}${n(b - a, 1)})` : ` (${pct(((b - a) / Math.abs(a)) * 100)})`;
-    lines.push(`${label(key)}: ${n(a, 1)} -> ${n(b, 1)}${change}`);
+    // 100% ailment avoidance = immune: losing it is said in words (being frozen can kill).
+    const ailment = /^(\w+?)AvoidChance$/.exec(key)?.[1];
+    const immunity = ailment && a >= 100 && b < 100 ? ` - LOSES ${ailmentName(ailment).toUpperCase()} IMMUNITY`
+      : ailment && b >= 100 && a < 100 ? ` - now immune to ${ailmentName(ailment)}` : "";
+    lines.push(`${label(key)}: ${n(a, 1)} -> ${n(b, 1)}${change}${immunity}`);
   }
   return lines;
 }

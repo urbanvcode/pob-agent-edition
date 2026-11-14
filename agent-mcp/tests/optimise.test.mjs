@@ -25,6 +25,19 @@ fs.writeFileSync(path.join(builds, "trinity-test.xml"), vortexXml.replace(hypoth
 const voidBeacon = /(<Spec [^>]*nodes="[^"]*?),27096(?=[,"])/;
 assert.match(vortexXml, voidBeacon);
 fs.writeFileSync(path.join(builds, "asc-test.xml"), vortexXml.replace(voidBeacon, "$1"));
+// A made-up build whose only freeze immunity is Soul of the Brine King: the same Occultist without
+// Frigid Wake, Brine King as major god, and the Granite flask (Flask 2) made an "of Entropy" one
+// (the "if used while Frozen" immunity lines) and switched off in PoB.
+const frigidWake = /(<Spec [^>]*nodes="[^"]*?),47630(?=[,"])/;
+assert.match(vortexXml, frigidWake);
+const heatLines = "Chemist&apos;s Granite Flask of Heat";
+assert.ok(vortexXml.includes(heatLines) && vortexXml.includes('<Slot active="true" name="Flask 2"'));
+fs.writeFileSync(path.join(builds, "brine-test.xml"), vortexXml.replace(frigidWake, "$1")
+  .replace('<Input name="enemyIsBoss"', '<Input name="pantheonMajorGod" string="TheBrineKing"/>\n<Input name="enemyIsBoss"')
+  .replaceAll('<Slot active="true" name="Flask 2"', '<Slot active="false" name="Flask 2"')
+  .replace(heatLines, "Chemist&apos;s Granite Flask of Entropy")
+  .replace(/Immunity to Freeze and Chill during Flask effect\r?\nRemoves Freeze and Chill on use/,
+    "Grants Immunity to Chill for 13 seconds if used while Chilled\nGrants Immunity to Freeze for 13 seconds if used while Frozen"));
 process.env.POB_LIVE = "off";
 process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
@@ -322,4 +335,45 @@ test("optimise passives: ascendancy nodes ranked apart, never counted against po
   assert.doesNotMatch(spRanked, /Void Beacon|ascendancy point/);
   assert.match(spAsc, /- \[ascendancy\] Void Beacon \[id 27096, notable, 1 ascendancy point\]/);
   assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] }), before, "the build is exactly as before");
+});
+
+test("ailment avoidance: before -> after says when an immunity is lost or gained", async () => {
+  const { deltaLines } = await import("../build/format.js");
+  assert.deepEqual(deltaLines({ FreezeAvoidChance: 100, StunAvoidChance: 40 }, { FreezeAvoidChance: 20, StunAvoidChance: 100 }),
+    ["Stun avoidance %: 40 -> 100 (+60) - now immune to stun", "Freeze avoidance %: 100 -> 20 (-80) - LOSES FREEZE IMMUNITY"]);
+  assert.deepEqual(deltaLines({ BleedAvoidChance: 100 }, { BleedAvoidChance: 100 }), [], "unchanged avoidance is not listed");
+});
+
+test("optimise: a change that loses freeze immunity is flagged, ranked after clean ones, dropped in hardcore", async () => {
+  await ok("profile", { playMode: "ssf", hardcore: false });
+  await ok("open_build", { name: "brine-test" });
+  const before = await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "FreezeAvoidChance"] });
+  assert.match(before, /FreezeAvoidChance: 100/, "Brine King is this build's freeze immunity");
+
+  // what_if / edit: the lost immunity is in the before -> after lines.
+  const w = await ok("what_if", { ops: [{ op: "config", values: { pantheonMajorGod: "Lunaris" } }] });
+  assert.match(w, /\nFreeze avoidance %: 100 -> \d+ \(-\d+\) - LOSES FREEZE IMMUNITY/);
+  assert.match(w, /Rolled back/);
+
+  const r = await ok("optimise", { goal: "tankiness", levers: ["pantheon", "flasks"] });
+  const lines = r.split("\n");
+  const ranked = lines.filter((l) => /^\d+\. \[/.test(l));
+  const major = ranked.findIndex((l) => /\[pantheon\] Major Pantheon: /.test(l));
+  assert.ok(major >= 0, `a major god is suggested: ${r}`);
+  assert.match(ranked[major], /LOWERS AILMENT AVOIDANCE \(see side effect\)/);
+  const majorDetail = lines[lines.indexOf(ranked[major]) + 1];
+  assert.match(majorDetail, /side effect: [^\n]*loses freeze immunity: 100% -> \d+% avoidance/);
+  // Every change that keeps all immunities comes first.
+  const firstLossy = ranked.findIndex((l) => /LOWERS AILMENT AVOIDANCE/.test(l));
+  assert.ok(ranked.slice(firstLossy).every((l) => /LOWERS AILMENT AVOIDANCE/.test(l)), `clean changes first: ${ranked.join("\n")}`);
+  // The flask swap names the immunity suffix PoB does not count (Flask 2 is off in PoB). Freeze is
+  // still covered by Brine King in that trial, so only chill is lost.
+  assert.match(r, /side effect: [^\n]*loses Chemist's Granite Flask of Entropy \(its "of Entropy" suffix\): immunity to chill when used/);
+
+  await ok("profile", { playMode: "ssf", hardcore: true });
+  const hc = await ok("optimise", { goal: "tankiness", levers: ["pantheon", "flasks"] });
+  assert.doesNotMatch(hc, /LOWERS AILMENT AVOIDANCE|loses freeze immunity|Granite Flask of Entropy \(Flask 2/, "hardcore never gives an immunity away");
+  await ok("profile", { playMode: "ssf", hardcore: false });
+  assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "FreezeAvoidChance"] }), before, "the build is exactly as before");
+  await ok("open_build", { name: "occ-vortex" });
 });

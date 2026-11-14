@@ -5,15 +5,16 @@ import { S, tool, type Tool } from "../registry.js";
 
 const ASSUME = (text: string) => `Config assumptions: ${text}`;
 
-function gemText(g: { name: string; level: number; quality: number; enabled: boolean }): string {
-  return `${g.name} ${g.level}/${g.quality}${g.enabled ? "" : " (off)"}`;
+function gemText(g: { name: string; level: number; quality: number; socketQuality?: number; enabled: boolean }): string {
+  // The game's gem tooltip shows own + socket quality as one number ("augmented").
+  return `${g.name} ${g.level}/${g.quality}${g.socketQuality ? `+${g.socketQuality} socket` : ""}${g.enabled ? "" : " (off)"}`;
 }
 
 export function summaryText(s: any, parts: Set<string>, detail: boolean): string {
   const lines: string[] = [];
   lines.push(`${s.name ?? "Build"}: level ${s.level} ${s.className}${s.ascendancy && s.ascendancy !== "None" ? ` (${s.ascendancy})` : ""}, main skill ${s.mainSkill ?? "none"}`);
   if (parts.has("skills")) {
-    lines.push("", "SKILLS (group: gems level/quality)");
+    lines.push("", "SKILLS (group: gems level/quality; +N socket = quality from a matching socket colour, already counted: the game shows the sum)");
     for (const g of s.groups ?? []) {
       const tags = [g.index === s.mainSocketGroup ? "MAIN" : "", g.enabled ? "" : "off", g.fullDps ? "in Full DPS" : "", g.slot ?? "", g.label ?? ""].filter(Boolean).join(", ");
       lines.push(`${g.index}${tags ? ` [${tags}]` : ""}: ${(g.gems ?? []).map((gem: any, i: number) => `${i + 1}.${gemText(gem)}`).join(" | ") || "(empty)"}`);

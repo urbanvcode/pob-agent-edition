@@ -184,22 +184,50 @@ test("Trinity: resonance 0 in PoB is under-counted, gem swaps are measured with 
   await ok("open_build", { name: "occ-vortex" });
 });
 
+test("gem levels are never a ranked action: a note, or (trade/mixed) a priced 20/20 copy", async () => {
+  const levels = [
+    { name: "Sample Strike", from: 17, to: 20, dpsPct: 4, quality: 0, maxLevel: 20, canUseMax: true },
+    { name: "Sample Mark", from: 16, to: 20, dpsPct: 1, quality: 0, maxLevel: 20, canUseMax: true },
+    { name: "Sample Herald", from: 11, to: 16, dpsPct: 2, quality: 0, maxLevel: 20, canUseMax: false },
+  ];
+  const lines = [
+    { name: "Sample Strike", chaosValue: 40, gemLevel: 20, gemQuality: 20, listingCount: 50 },
+    { name: "Sample Strike", chaosValue: 400, gemLevel: 21, gemQuality: 20, corrupted: true, listingCount: 50 },
+    { name: "Sample Mark", chaosValue: 3, gemLevel: 20, gemQuality: 20, listingCount: 50 },
+    { name: "Sample Herald", chaosValue: 1, gemLevel: 20, gemQuality: 20, listingCount: 50 },
+  ];
+  const prices = await opt.priceGemCopies(levels, "Test", lines);
+  assert.equal(prices.get("Sample Strike").chaos, 40, "uncorrupted 20/20 price");
+  assert.equal(prices.has("Sample Herald"), false, "not priced when the character cannot use level 20 yet");
+  const trade = opt.gemLevelLines(levels, "trade", prices).join("\n");
+  assert.match(trade, /buy a levelled copy[\s\S]*- Sample Mark 20\/20: 3c[\s\S]*- Sample Strike 20\/20: 40c/, "cheapest first");
+  assert.match(trade, /Will come with levelling \(gems gain levels from experience; nothing to do\): Sample Herald 11 -> 16/);
+  assert.doesNotMatch(trade, /Sample Strike 17 -> 20/);
+  assert.match(opt.gemLevelLines(levels, "mixed", prices).join("\n"), /\[Trade\] Optional: buy/);
+  const ssf = opt.gemLevelLines(levels, "ssf", prices).join("\n");
+  assert.doesNotMatch(ssf, /buy|\dc\b/);
+  assert.match(ssf, /Will come with levelling[^\n]*Sample Strike 17 -> 20[^\n]*Sample Mark[^\n]*Sample Herald/);
+  assert.deepEqual(opt.gemLevelLines([], "trade"), []);
+});
+
 test("optimise tool: every goal simulated in PoB, build and config put back", async () => {
+  opt.gemPriceSource.lines = async () => []; // no poe.ninja in tests
   await ok("list_builds");
   await ok("open_build", { name: "occ-vortex" });
-  await ok("profile", { explanationMode: "teach" });
+  await ok("profile", { explanationMode: "teach", league: "Standard" });
   const before = await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] });
   const config = await ok("stats", { match: "enemy" });
 
   const boss = await ok("optimise", { goal: "bossing" });
   assert.match(boss, /^Optimiser: single target \/ bossing; main skill Vortex; \d+ options simulated/);
   assert.match(boss, /Ranked by gain per cost/);
-  assert.match(boss, /\n1\. \[(passive|gem|mastery|respec|anoint|aura|curse|herald|flask|pantheon|bandit|gem level|gem quality)\] /);
+  assert.match(boss, /\n1\. \[(passive|gem|mastery|respec|anoint|aura|curse|herald|flask|pantheon|bandit|gem quality)\] /);
   assert.match(boss, /\[passive\] .* - \d+ points?: single-target DPS \+/);
   assert.match(boss, /\[gem\] Swap .* for .* in Vortex/);
   assert.match(boss, /mechanic: /);
   assert.match(boss, /what_if ops: \[/);
   assert.match(boss, /Scaling report/);
+  assert.doesNotMatch(boss, /\[gem level\]|level the gem/, "gem levels are not an action");
   assert.match(boss, /Mechanics \(teach mode/);
   assert.match(boss, /Gear: plan_upgrades \{ budget_chaos, focus: "dps" \}/);
 

@@ -58,11 +58,24 @@ export function costText(cost: any, before: Stats): string[] {
   return L;
 }
 
+/** PoB's side bar warnings ("N Warnings") the change adds or takes away. Skill-cost lines are
+ *  left out of "new" when costText explains them in detail. */
+export function warningText(w: any, costShown: boolean): string[] {
+  const added = ((Array.isArray(w?.added) ? w.added : []) as string[]).filter((l) => !(costShown && /^You do not have enough /.test(l)));
+  const removed = (Array.isArray(w?.removed) ? w.removed : []) as string[];
+  const L: string[] = [];
+  if (added.length) L.push(`New PoB warning${added.length > 1 ? "s" : ""} after this change (the side bar list):`, ...added.map((l) => `- ${l}`));
+  if (removed.length) L.push(`PoB warning${removed.length > 1 ? "s" : ""} gone after this change:`, ...removed.map((l) => `- ${l}`));
+  return L;
+}
+
 function changeReport(res: any, live: boolean, kept: boolean): string {
   const lines: string[] = (res.results as any[]).map(describe);
   const delta = deltaLines(res.before as Stats, res.after as Stats);
   lines.push("", delta.length ? "Before -> after:" : "No calculated stat changed.", ...delta);
   const cost = costText(res.cost, res.before as Stats);
+  const warn = warningText(res.warnings, cost.length > 0);
+  if (warn.length) lines.push("", ...warn);
   if (cost.length) lines.push("", ...cost);
   lines.push("", `Config assumptions: ${res.assumptions}`);
   const changed = (res.results as any[]).some((r) => r.ok);

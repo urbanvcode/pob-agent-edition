@@ -21,6 +21,10 @@ const hypothermia = /<Gem [^>]*nameSpec="Hypothermia"\/>/;
 assert.match(vortexXml, hypothermia);
 fs.writeFileSync(path.join(builds, "trinity-test.xml"), vortexXml.replace(hypothermia,
   '<Gem enableGlobal2="true" level="20" gemId="Metadata/Items/Gems/SkillGemSupportTrinity" skillId="SupportTrinity" enableGlobal1="true" qualityId="Default" quality="0" enabled="true" nameSpec="Trinity"/>').replace("+11 to Dexterity", "-12 to Dexterity"));
+// A made-up build with ascendancy points left: the same Occultist without Void Beacon (5 of 8 allocated).
+const voidBeacon = /(<Spec [^>]*nodes="[^"]*?),27096(?=[,"])/;
+assert.match(vortexXml, voidBeacon);
+fs.writeFileSync(path.join(builds, "asc-test.xml"), vortexXml.replace(voidBeacon, "$1"));
 process.env.POB_LIVE = "off";
 process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
@@ -265,4 +269,57 @@ test("optimise tool: every goal simulated in PoB, build and config put back", as
 
   assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] }), before, "the build is exactly as before");
   assert.equal(await ok("stats", { match: "enemy" }), config, "the temporary goal config is restored");
+});
+
+test("cost labels: passive and mastery costs say they include the path; ascendancy costs are Labyrinth points", () => {
+  const r = { goal: "bossing", goalLabel: "single target / bossing", metric: "m", assumptions: "a", maxPoints: 5, base: { singleTargetDps: 1000 },
+    suggestions: [
+      { lever: "mastery", text: "Critical Mastery", gain: zero, score: 1, cost: { points: 4, path: true } },
+      { lever: "passive", text: "Sample Notable", gain: zero, score: 1, cost: { points: 3, path: true, via: ["Other Notable"] } },
+      { lever: "passive", text: "Sample Small", gain: zero, score: 1, cost: { points: 1 } },
+    ],
+    ascendancy: { used: 6, left: 2, level: 77, rule: "Completing a Labyrinth variant for the first time awards two Ascendancy skill points.",
+      nextLab: { name: "Eternal", minLevel: 68, quote: "reaching character level 68" }, source: { title: "The Lord's Labyrinth", url: "https://example.invalid/lab", version: "3.30.0", outdated: true },
+      suggestions: [{ lever: "ascendancy", text: "Sample Ascendancy Notable", gain: { ...zero, stPct: 16.2 }, score: 16, cost: { ascendancy: 2, path: true }, ops: [{ op: "alloc", node: 1 }] }] },
+  };
+  const { text } = opt.formatOptimise(r, "concise", []);
+  assert.match(text, /1\. \[mastery\] Critical Mastery - 4 points incl\. path:/);
+  assert.match(text, /2\. \[passive\] Sample Notable - 3 points incl\. path \(takes Other Notable on the way, counted in the gain\):/);
+  assert.match(text, /3\. \[passive\] Sample Small - 1 point:/);
+  assert.doesNotMatch(text, /\n\d+\. \[ascendancy\]/, "ascendancy nodes are not in the passive-point ranking");
+  assert.match(text, /Ascendancy nodes \(ranked apart: they cost ascendancy points from the Labyrinth, not passive points[^\n]*6\/8 allocated, 2 left\):\n- \[ascendancy\] Sample Ascendancy Notable - 2 ascendancy points \(Labyrinth\) incl\. path: single-target DPS \+16\.2%/);
+  assert.match(text, /How they are earned: "Completing a Labyrinth variant[^\n]*may be outdated/);
+  assert.match(text, /Next 2: the Eternal Labyrinth \("reaching character level 68"\)/);
+  assert.doesNotMatch(text, /not open yet/);
+  assert.equal(opt.shortCost({ cost: { ascendancy: 2 } }), "2 asc pts");
+  // No points left (8/8): no section at all.
+  assert.doesNotMatch(opt.formatOptimise({ ...r, ascendancy: { used: 8, left: 0 } }, "concise", []).text, /Ascendancy nodes/);
+});
+
+test("optimise passives: ascendancy nodes ranked apart, never counted against points", async () => {
+  await ok("profile", { playMode: "ssf", hardcore: false });
+  await ok("open_build", { name: "asc-test" });
+  const before = await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] });
+  const r = await ok("optimise", { goal: "bossing", levers: ["passives"], points: 5 });
+  const [ranked, asc] = r.split(/\nAscendancy nodes /);
+  assert.ok(asc, `an ascendancy section: ${r}`);
+  assert.doesNotMatch(ranked, /Void Beacon|Frigid Wake|ascendancy point/, "the passive-point list has no ascendancy node");
+  for (const m of ranked.matchAll(/\n\d+\. \[(?:passive|mastery)\] .* - (\d+) points?/g)) assert.ok(Number(m[1]) <= 5, "passive costs stay within points");
+  assert.match(asc, /^\(ranked apart[^\n]*PoB shows 5\/8 allocated, 3 left\):/);
+  assert.match(asc, /\n- \[ascendancy\] Void Beacon - 1 ascendancy point \(Labyrinth\): single-target DPS \+/);
+  assert.match(asc, /what_if ops: \[\{"node":27096,"op":"alloc"\}\]/);
+  assert.match(asc, /incl\. path \(takes Void Beacon on the way, counted in the gain\)/);
+  assert.match(asc, /How they are earned: "Completing a Labyrinth variant for the first time awards two Ascendancy skill points\." \[poewiki "The Lord's Labyrinth"/);
+  assert.match(asc, /5 allocated is odd: [^\n]*1 point is already earned and unspent/);
+  assert.match(asc, /Next 2: the Eternal Labyrinth/);
+  // respec never moves passive points into the ascendancy tree
+  const re = await ok("optimise", { goal: "bossing", levers: ["respec"], points: 5 });
+  assert.doesNotMatch(re, /into (Void Beacon|Frigid Wake|Withering Presence)|Ascendancy nodes/);
+
+  const sp = await ok("suggest", { kind: "passives", points: 5 });
+  const [spRanked, spAsc] = sp.split(/\nAscendancy nodes /);
+  assert.ok(spAsc, sp);
+  assert.doesNotMatch(spRanked, /Void Beacon|ascendancy point/);
+  assert.match(spAsc, /- \[ascendancy\] Void Beacon \[id 27096, notable, 1 ascendancy point\]/);
+  assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life", "EnergyShield"] }), before, "the build is exactly as before");
 });

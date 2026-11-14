@@ -68,10 +68,17 @@ export function afterText(g: Gain, goal: string, b: any): string {
   return ` (${label} ${n(before)} -> ${n(before * (1 + p / 100))})`;
 }
 
+/** "incl. path" when the cost counts nodes on the way; names the notables the path takes (their gain is in the number). */
+export function pathText(c: { path?: boolean; via?: unknown }): string {
+  const via = Array.isArray(c.via) ? c.via.map(String).filter(Boolean) : [];
+  return c.path ? ` incl. path${via.length ? ` (takes ${via.join(", ")} on the way, counted in the gain)` : ""}` : "";
+}
+
 function costText(s: any): string {
   const c = s.cost ?? {};
   if (c.regret) return `${c.regret} Orb${c.regret === 1 ? "" : "s"} of Regret`;
-  if (c.points) return `${c.points} point${c.points === 1 ? "" : "s"}${c.free ? " (unspent points cover it)" : ""}`;
+  if (c.ascendancy) return `${c.ascendancy} ascendancy point${c.ascendancy === 1 ? "" : "s"} (Labyrinth)${pathText(c)}`;
+  if (c.points) return `${c.points} point${c.points === 1 ? "" : "s"}${pathText(c)}${c.free ? " (unspent points cover it)" : ""}`;
   if (c.buy) return `buy: ${c.count ? `${c.count}x ` : ""}${c.buy}${c.awakened ? " (awakened: expensive)" : ""}${c.note ? `; ${c.note}` : ""}`;
   return c.note ?? "one change";
 }
@@ -100,12 +107,13 @@ export function priceAnoints(r: any, prices?: Map<string, number>): void {
 export function shortCost(s: any): string {
   const c = s.cost ?? {};
   if (c.regret) return `${c.regret} regret`;
+  if (c.ascendancy) return `${c.ascendancy} asc pt${c.ascendancy === 1 ? "" : "s"}`;
   if (c.points) return `${c.points} pt${c.points === 1 ? "" : "s"}`;
   if (c.buy) return c.awakened ? "buy (awakened)" : s.lever === "anoint" ? (c.chaos > 0 ? `oils ${chaosText(c.chaos)}` : "oils") : "buy";
   return s.lever === "pantheon" ? "switch" : s.lever === "bandit" ? "Act 2" : "change";
 }
 
-const TAB: Record<string,"Passives" | "Gems" | "Other"> = { passive: "Passives", mastery: "Passives", respec: "Passives", gem: "Gems", "gem quality": "Gems", aura: "Gems", herald: "Gems", curse: "Gems" };
+const TAB: Record<string,"Passives" | "Gems" | "Other"> = { passive: "Passives", mastery: "Passives", ascendancy: "Passives", respec: "Passives", gem: "Gems", "gem quality": "Gems", aura: "Gems", herald: "Gems", curse: "Gems" };
 const VIEW: Record<string, string> = { Passives: "TREE", Gems: "SKILLS", Other: "CONFIG" };
 
 /** Glossary lines for the mechanics the profile's explanation mode wants explained. */
@@ -123,6 +131,33 @@ export function explanations(tags: string[], mode: string, learned: string[]): s
     if (out.length >= (mode === "deep" ? 5 : 3)) break;
   }
   return out;
+}
+
+export type AscendancyInfo = {
+  used?: number; left?: number; level?: number; rule?: string; unspent?: number; suggestions?: any[];
+  nextLab?: { name: string; minLevel?: number; quote?: string };
+  source?: { title: string; url: string; version?: string; retrieved?: string; outdated?: boolean };
+};
+
+/**
+ * Header and "how they are earned" lines for ascendancy suggestions. Ascendancy
+ * points come from the Labyrinth (2 per lab, first completion; PoB counts 8),
+ * never from levelling, so they are always listed apart from passive points.
+ * PoB does not know which labs were done: "next" assumes allocated = earned.
+ */
+export function ascendancyHead(a: AscendancyInfo): string {
+  return `Ascendancy nodes (ranked apart: they cost ascendancy points from the Labyrinth, not passive points, and are not counted in the points above; PoB shows ${a.used ?? "?"}/8 allocated, ${a.left ?? "?"} left):`;
+}
+export function ascendancyEarn(a: AscendancyInfo): string[] {
+  const L: string[] = [];
+  const src = a.source ? ` [poewiki "${a.source.title}"${a.source.version ? `, ${a.source.version}` : ""}: ${a.source.url}${a.source.outdated ? "; may be outdated" : ""}]` : "";
+  if (a.rule) L.push(`   How they are earned: "${a.rule}"${src}`);
+  if (a.unspent) L.push(`   ${a.used} allocated is odd: labs give 2 points each, so 1 point is already earned and unspent (spend it in PoB too if it is spent in game).`);
+  if (a.nextLab) {
+    const lvl = a.nextLab.minLevel && (a.level ?? 0) < a.nextLab.minLevel ? ` You are level ${a.level}: not open yet.` : "";
+    L.push(`   Next 2: the ${a.nextLab.name} Labyrinth${a.nextLab.quote ? ` ("${a.nextLab.quote}")` : ""}, unless it is done and the points are unspent in game.${lvl}`);
+  }
+  return L;
 }
 
 function focusFor(goal: string): string {
@@ -193,6 +228,21 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
     else if (s.lever === "anoint") L.push(`   oils: ${(s.recipe ?? []).join(", ")}${s.cost?.chaos > 0 ? ` = ${chaosText(s.cost.chaos)} in total${s.perChaos > 0 ? `; ${s.perChaos >= 0.1 ? s.perChaos.toFixed(2) : s.perChaos.toPrecision(2)} goal score per chaos (compare anoints by this)` : ""}` : ""} (edit, or suggest { kind: "anoint" })`);
   });
   if (r.more > 0) L.push(`(${r.more} more; raise limit)`);
+  const asc = (r.ascendancy ?? {}) as AscendancyInfo;
+  const ascList = (Array.isArray(asc.suggestions) ? asc.suggestions : []) as any[];
+  if (ascList.length) {
+    L.push("", ascendancyHead(asc));
+    ascList.forEach((s) => {
+      const tags = mechanicTags(s);
+      allTags.push(...tags);
+      L.push(`- [ascendancy] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}`);
+      const extra = [Array.isArray(s.stats) && s.stats.length ? (s.stats as string[]).filter((x) => x.trim()).join("; ") : ""].filter(Boolean);
+      if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
+      if (extra.length) L.push(`   ${extra.join(" | ")}`);
+      if (Array.isArray(s.ops) && s.ops.length) L.push(`   what_if ops: ${JSON.stringify(s.ops)}`);
+    });
+    L.push(...ascendancyEarn(asc));
+  }
   const under = (Array.isArray(r.undercount) ? r.undercount : []) as any[];
   if (under.length) {
     L.push("", "You may be under-counting (off in PoB, would raise this goal; set them only if they are true in your fights):");
@@ -217,7 +267,7 @@ async function pushAdvisor(ctx: Context, r: any): Promise<boolean> {
   const link = await ctx.pob.link();
   if (link.kind !== "live") return false;
   const tabs: Record<string, any[]> = { Passives: [], Gems: [], Other: [] };
-  for (const s of (r.suggestions ?? []) as any[]) {
+  for (const s of [...(r.suggestions ?? []), ...(r.ascendancy?.suggestions ?? [])] as any[]) {
     const tab = TAB[s.lever] ?? "Other";
     tabs[tab].push({ slot: s.lever, name: s.text, priceText: shortCost(s), costText: costText(s), dpsPct: r.goal === "bossing" ? s.gain.stPct : s.gain.dpsPct, ehpPct: s.gain.ehpPct,
       lifeDelta: s.gain.life, warnings: s.sideEffects ?? (s.warning ? [s.warning] : undefined), lines: [...(s.stats ?? []), ...mechanicTags(s).map((t) => `Mechanic: ${t}`)], view: VIEW[tab] });

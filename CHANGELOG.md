@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **"Where do my next passive points go" no longer suggests ascendancy nodes**: the optimiser (and the passive suggestions) mixed ascendancy notables like Focal Point into the passive-point ranking, although those come from the Labyrinth, not from levelling. They now get their own short list ("Focal Point - 2 ascendancy points (Labyrinth)"), only while you have ascendancy points left of the 8, with how they are earned (2 per Labyrinth, the first time) and which Labyrinth is next. Costs that include the path say so ("4 points incl. path"), and name any notable the path takes on the way, since its gain is part of the number.
+
 ## [0.9.2] - 2026-11-14
 
 More fixes from testing: bench crafts that fit, the damage upgrade search, and character sync (fight settings, levelling line). Based on **Path of Building Community v2.67.2** (same as 0.9.1). **After updating, restart PoB Agent Edition and your AI app.**

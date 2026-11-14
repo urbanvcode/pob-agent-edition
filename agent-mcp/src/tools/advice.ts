@@ -6,6 +6,7 @@ import { ToolError } from "../pob.js";
 import { S, tool, type Tool } from "../registry.js";
 import { chaosText, recipeCost, recipeText } from "../trade/ninja.js";
 import { oilPricesFor } from "./trade.js";
+import { ascendancyEarn, ascendancyHead, pathText } from "./optimise.js";
 import { benchFixes, craftPlan } from "../craft/plan.js";
 
 interface AtlasNode { id: string; name?: string; type?: string; stats?: string[]; allocated?: boolean; pathCost?: number | null }
@@ -67,13 +68,16 @@ export const adviceTools: Tool[] = [
     async ({ pob }, args) => {
       const res = await (await pob.link()).call("suggest_passives", { max_points: args.max_points, focus: args.focus, limit: args.limit }, 120_000);
       const list = (Array.isArray(res.suggestions) ? res.suggestions : []) as any[];
+      const asc = (Array.isArray(res.ascendancy) ? res.ascendancy : []) as any[];
       const head = `Passive suggestions (${res.focus}, within ${res.maxPoints} points; ${res.pointsFree} unspent point(s) at this level; ${res.evaluated} options simulated)`;
-      if (!list.length) return `${head}\nNothing nearby improves the build for this focus. Try a larger max_points or another focus.`;
-      const lines = list.map((s, i) => {
+      if (!list.length && !asc.length) return `${head}\nNothing nearby improves the build for this focus. Try a larger max_points or another focus.`;
+      const line = (s: any, lead: string, unit: string) => {
         const life = Math.abs(s.lifeDelta) >= 1 ? ` | Life ${s.lifeDelta > 0 ? "+" : ""}${Math.round(s.lifeDelta)}` : "";
         const how = s.effect ? `mastery effect ${s.effect}` : String(s.type).toLowerCase();
-        return `${i + 1}. ${s.name} [id ${s.id}, ${how}, ${s.points} point${s.points === 1 ? "" : "s"}]: DPS ${pct(s.dpsPct)} | EHP ${pct(s.ehpPct)}${life}\n   ${(s.stats ?? []).filter((x: string) => x.trim()).join("; ")}`;
-      });
+        return `${lead} ${s.name} [id ${s.id}, ${how}, ${s.points} ${unit}${s.points === 1 ? "" : "s"}${pathText({ path: s.points > 1, via: s.via })}]: DPS ${pct(s.dpsPct)} | EHP ${pct(s.ehpPct)}${life}\n   ${(s.stats ?? []).filter((x: string) => x.trim()).join("; ")}`;
+      };
+      const lines = list.length ? list.map((s, i) => line(s, `${i + 1}.`, "point")) : ["No passive within reach improves the build for this focus."];
+      if (asc.length) lines.push("", ascendancyHead(res.ascendancyInfo ?? {}), ...asc.map((s) => line(s, "- [ascendancy]", "ascendancy point")), ...ascendancyEarn(res.ascendancyInfo ?? {}));
       return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit (alloc, or mastery with the effect id); preview first with what_if."].join("\n");
     }),
 

@@ -8,6 +8,7 @@ Each release also lists the official Path of Building Community version it is ba
 
 ### Fixed
 - **Auras you have socketed but switched off**: when you import or sync a character, the game doesn't say which auras are on, so PoB counts them all and the AI used to report "mana over-reserved" as a real problem. Now it lists which skills reserve your mana and asks you which ones you actually run before calling it a problem, and an aura you switch off in your synced build stays off at the next sync.
+- **The AI can look up passive tree notables and keystones**: when the optimiser suggests an amulet anoint like Snowforged or Divine Judgement, the AI can now quote what that notable does and which three oils make it, straight from PoB's own passive tree data (with a link). Questions like "how do I anoint my amulet?" now find the wiki's Oil (anointing) page instead of the general Amulet page.
 
 ## [0.9.0] - 2026-11-14
 

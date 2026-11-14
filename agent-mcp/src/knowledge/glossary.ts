@@ -25,6 +25,12 @@ export interface GlossarySide {
 export interface GlossaryEntry extends GlossarySide {
   term: string;
   aliases?: string[];
+  /**
+   * A one-word system name ("anoint") that still means this page inside a longer
+   * question ("how do I anoint my amulet"). Only for words that are not also
+   * common item or skill words.
+   */
+  topic?: boolean;
   /** ISO date the quotes were confirmed against the pages. */
   checked: string;
   /** Game version that was live when the entry was checked. */
@@ -57,6 +63,21 @@ export function findGlossary(query: string, entries: GlossaryEntry[] = GLOSSARY)
       if (!exact && !(words >= 2 && words * 2 >= questionWords && q.includes(` ${n} `))) continue;
       const length = n.length + (exact ? 1000 : 0);
       if (!best || length > best.length) best = { entry, length };
+    }
+  }
+  return best?.entry;
+}
+
+/** A topic entry (see `topic`) one of whose one-word names is a word of the question. */
+export function glossaryTopic(query: string, entries: GlossaryEntry[] = GLOSSARY): GlossaryEntry | undefined {
+  const words = keyWords(query);
+  let best: { entry: GlossaryEntry; at: number } | undefined;
+  for (const entry of entries) {
+    if (!entry.topic) continue;
+    for (const name of [entry.term, ...(entry.aliases ?? [])]) {
+      const n = keyWords(name);
+      const at = n.length === 1 ? words.indexOf(n[0]) : -1;
+      if (at >= 0 && (!best || at < best.at)) best = { entry, at };
     }
   }
   return best?.entry;

@@ -23,7 +23,7 @@ const { parseAppManifest, parseLibraryFolders } = await import("../build/knowled
 const { Versions } = await import("../build/knowledge/versions.js");
 const { Knowledge, mentions } = await import("../build/knowledge/engine.js");
 const { GLOSSARY } = await import("../build/knowledge/glossary-data.js");
-const { findGlossary, wikiUrl } = await import("../build/knowledge/glossary.js");
+const { findGlossary, glossaryTopic, wikiUrl } = await import("../build/knowledge/glossary.js");
 const { citationProblems, compareVersions, majorOf, SOURCES } = await import("../build/knowledge/types.js");
 const { keyWords, passagesOf, numbersIn } = await import("../build/knowledge/text.js");
 const { knowledgeTools, formatFact, formatLookup } = await import("../build/tools/knowledge.js");
@@ -48,21 +48,25 @@ const RESISTANCE = wikiPage("Resistance",
   "2026-06-24T13:39:56Z");
 const WINTER_ORB = wikiPage("Winter Orb", "Winter Orb is a channelling spell skill.\n\n\n== Skill functions ==\nWinter Orb fires projectiles while channelling and for a duration afterwards.", "2026-11-14T08:00:00Z");
 const HYRRI = wikiPage("Hyrri's Ire", "Hyrri's Ire is a unique Zodiac Leather.", "2026-07-19T10:00:00Z");
+const OIL = wikiPage("Oil", "An oil is a currency item that can be acquired from Blight encounters.\n\n\n== Mechanics ==\nOils can be applied via Cassia to amulets to anoint a notable passive skill; three oils make one amulet anointment.\nBlighted maps can hold up to three anointments.", "2026-11-14T09:00:00Z");
+const AMULET = wikiPage("Amulet", "Amulets are jewellery items worn around the neck.\n\n\n== Item mods ==\nAmulets can roll many different modifiers.", "2026-11-14T09:00:00Z");
+const REDIRECTS = { anointing: "Oil", anoint: "Oil" };
 
 function wikiAnswer(url) {
   const u = new URL(url);
   const q = u.searchParams;
   if (q.get("action") === "cargoquery") return VERSIONS;
-  const all = [RESISTANCE, WINTER_ORB, HYRRI];
+  const all = [RESISTANCE, WINTER_ORB, HYRRI, OIL, AMULET];
   if (q.get("generator") === "search") return JSON.stringify({ query: { pages: all.filter((p) => keyWords(q.get("gsrsearch")).some((w) => keyWords(p.extract).includes(w))).map((p, i) => ({ ...p, index: i + 1 })) } });
   const titles = (q.get("titles") ?? "").split("|");
-  const normalized = [], pages = [];
+  const normalized = [], redirects = [], pages = [];
   for (const t of titles) {
-    const hit = all.find((p) => p.title.toLowerCase() === t.toLowerCase());
-    if (hit) { if (hit.title !== t) normalized.push({ from: t, to: hit.title }); if (!pages.includes(hit)) pages.push(hit); }
+    const to = REDIRECTS[t.toLowerCase()];
+    const hit = all.find((p) => p.title.toLowerCase() === (to ?? t).toLowerCase());
+    if (hit) { if (to) redirects.push({ from: t, to: hit.title }); else if (hit.title !== t) normalized.push({ from: t, to: hit.title }); if (!pages.includes(hit)) pages.push(hit); }
     else pages.push({ title: t, missing: true });
   }
-  return JSON.stringify({ query: { normalized, pages: pages.map((p) => (q.get("exintro") && p.extract ? { ...p, extract: p.extract.split("\n")[0] } : p)) } });
+  return JSON.stringify({ query: { normalized, redirects, pages: pages.map((p) => (q.get("exintro") && p.extract ? { ...p, extract: p.extract.split("\n")[0] } : p)) } });
 }
 
 /** A web made of fixtures. `log` records every request; `down` makes hosts fail. */
@@ -94,6 +98,23 @@ function fakePob() {
   fs.writeFileSync(path.join(src, "GameVersions.lua"), `treeVersionList = { "2_6", "3_29_ruthless", "3_29", "3_30_ruthless", "3_30" }\n`);
   fs.writeFileSync(path.join(src, "Data", "Uniques", "body.lua"), `return {\n[[\nHyrri's Ire\nZodiac Leather\nVariant: Pre 3.9.0\nVariant: Current\nImplicits: 0\n+30% chance to Suppress Spell Damage\n+(40-50) to Dexterity\n(140-220)% increased Evasion Rating\n{variant:1}(173-188) to (240-262) Added Cold Damage with Bow Attacks\n{variant:2}(105-145) to (160-200) Added Cold Damage with Bow Attacks\n]],[[\nKintsugi\nExquisite Leather\nLeague: Betrayal\n(100-120)% increased Evasion Rating\n]],\n}\n`);
   fs.writeFileSync(path.join(src, "Data", "Gems.lua"), `return {\n\t["Metadata/Items/Gems/SkillGemWinterOrb"] = {\n\t\tname = "Winter Orb",\n\t\tgrantedEffectId = "FrostFury",\n\t\ttags = {\n\t\t\tintelligence = true,\n\t\t},\n\t\ttagString = "Cold, Spell, Channelling",\n\t\treqStr = 0,\n\t\treqDex = 0,\n\t\treqInt = 100,\n\t\tnaturalMaxLevel = 20,\n\t},\n}\n`);
+  // The newest tree as PoB writes it: tab-indented, keys sorted; node groups and masteries are not passives.
+  fs.mkdirSync(path.join(src, "TreeData", "3_30"), { recursive: true });
+  fs.mkdirSync(path.join(src, "TreeData", "3_29"), { recursive: true });
+  fs.writeFileSync(path.join(src, "TreeData", "3_29", "tree.lua"), `return {\n\t["nodes"] = {\n\t\t[42649] = {\n\t\t\t["isNotable"] = true,\n\t\t\t["name"] = "Snowforged",\n\t\t\t["skill"] = 42649,\n\t\t\t["stats"] = {\n\t\t\t\t"an old version",\n\t\t\t},\n\t\t},\n\t},\n}\n`);
+  fs.writeFileSync(path.join(src, "TreeData", "3_30", "tree.lua"), [
+    "return {", '\t["groups"] = {', "\t\t[702] = {", '\t\t\t["x"] = 1,', "\t\t},", "\t},", '\t["nodes"] = {',
+    "\t\t[42649] = {", '\t\t\t["group"] = 702,', '\t\t\t["in"] = {', '\t\t\t\t"6785",', "\t\t\t},", '\t\t\t["isNotable"] = true,', '\t\t\t["name"] = "Snowforged",',
+    '\t\t\t["recipe"] = {', '\t\t\t\t"AmberOil",', '\t\t\t\t"TealOil",', '\t\t\t\t"GoldenOil",', "\t\t\t},", '\t\t\t["skill"] = 42649,',
+    '\t\t\t["stats"] = {', '\t\t\t\t"25% increased Fire Damage",', '\t\t\t\t"25% increased Cold Damage",', '\t\t\t\t"Enemies Ignited or Chilled by you have -5% to Elemental Resistances",', "\t\t\t},", "\t\t},",
+    "\t\t[10661] = {", '\t\t\t["group"] = 702,', '\t\t\t["isKeystone"] = true,', '\t\t\t["name"] = "Iron Reflexes",', '\t\t\t["skill"] = 10661,',
+    '\t\t\t["stats"] = {', '\t\t\t\t"Converts all Evasion Rating to Armour.\\', 'Dexterity provides no bonus to Evasion Rating",', "\t\t\t},", "\t\t},",
+    "\t\t[1365] = {", '\t\t\t["group"] = 702,', '\t\t\t["isBlighted"] = true,', '\t\t\t["isNotable"] = true,', '\t\t\t["name"] = "Knowledge Barrier",',
+    '\t\t\t["recipe"] = {', '\t\t\t\t"PrismaticOil",', '\t\t\t\t"OpalescentOil",', '\t\t\t\t"SilverOil",', "\t\t\t},", '\t\t\t["skill"] = 1365,', '\t\t\t["stats"] = {', '\t\t\t\t"6% increased Energy Shield Recharge Rate",', "\t\t\t},", "\t\t},",
+    "\t\t[5000] = {", '\t\t\t["ascendancyName"] = "Elementalist",', '\t\t\t["group"] = 702,', '\t\t\t["isNotable"] = true,', '\t\t\t["name"] = "Shaper of Flames",', '\t\t\t["skill"] = 5000,', '\t\t\t["stats"] = {', '\t\t\t\t"All Damage with Hits can Ignite",', "\t\t\t},", "\t\t},",
+    "\t\t[6000] = {", '\t\t\t["group"] = 702,', '\t\t\t["isMastery"] = true,', '\t\t\t["isNotable"] = true,', '\t\t\t["name"] = "Fire Mastery",', '\t\t\t["skill"] = 6000,', "\t\t},",
+    "\t},", "}", "",
+  ].join("\n"));
   fs.writeFileSync(path.join(src, "Data", "Skills", "act_int.lua"), `skills["FrostFury"] = {\n\tname = "Winter Orb",\n\tdescription = "Channel to conjure an orb above you.",\n\tcastTime = 0.25,\n}\n`);
   return new PobData(src);
 }
@@ -233,6 +254,60 @@ test("PoB data: current variant of a unique, gems with description, version", ()
   assert.equal(pob.gem("winter orb").description, "Channel to conjure an orb above you.");
   assert.deepEqual(pob.namesIn("is Winter Orb good with Hyrri's Ire?"), ["hyrri's ire", "winter orb"]);
   assert.match(pob.url("Data/Gems.lua"), /^https:\/\/github\.com\/PathOfBuildingCommunity\/PathOfBuilding\/blob\/v2\.67\.2\/src\/Data\/Gems\.lua$/);
+});
+
+test("PoB data: notables and keystones of the newest tree, with stats and the anoint recipe", () => {
+  const pob = fakePob();
+  const [snow] = pob.passive("snowforged");
+  assert.deepEqual(snow.stats, ["25% increased Fire Damage", "25% increased Cold Damage", "Enemies Ignited or Chilled by you have -5% to Elemental Resistances"], "read from the 3.30 tree, not the 3.29 one");
+  assert.deepEqual(snow.recipe, ["Amber Oil", "Teal Oil", "Golden Oil"]);
+  assert.equal(snow.file, "TreeData/3_30/tree.lua");
+  assert.equal(snow.offTree, false);
+  const [iron] = pob.passive("Iron Reflexes");
+  assert.equal(iron.kind, "keystone");
+  assert.deepEqual(iron.stats, ["Converts all Evasion Rating to Armour. Dexterity provides no bonus to Evasion Rating"], "a string continued on the next line is one stat");
+  assert.equal(pob.passive("Knowledge Barrier")[0].anointOnly, true);
+  assert.equal(pob.passive("Shaper of Flames")[0].ascendancy, "Elementalist");
+  assert.deepEqual(pob.passive("Fire Mastery"), [], "masteries are not notables");
+  assert.deepEqual(pob.namesIn("is Snowforged better than Iron Reflexes?"), ["iron reflexes", "snowforged"]);
+});
+
+test("lookup of a notable: PoB's stats and oil recipe, cited; unknown names say what was searched", async () => {
+  const { kb } = engine();
+  const r = await kb.lookup("Snowforged", { source: "pob" });
+  allCited(r.facts);
+  assert.equal(r.facts.length, 1);
+  const [f] = r.facts;
+  assert.equal(f.kind, "passive");
+  assert.equal(f.title, "Snowforged (PoB 2.67.2, tree 3.30)");
+  assert.match(f.text, /^Snowforged: passive tree notable; 25% increased Fire Damage; .*amulet anoint recipe: Amber Oil \+ Teal Oil \+ Golden Oil$/);
+  assert.match(f.url, /\/blob\/v2\.67\.2\/src\/TreeData\/3_30\/tree\.lua$/);
+  const anointOnly = await kb.lookup("Knowledge Barrier", { source: "pob" });
+  assert.match(anointOnly.facts[0].text, /only available as an anointment \(not on the passive tree\).*Prismatic Oil \+ Opalescent Oil \+ Silver Oil/);
+  const keystone = await kb.lookup("iron reflexes", { source: "pob" });
+  assert.match(keystone.facts[0].text, /^Iron Reflexes: passive tree keystone; Converts all Evasion Rating to Armour/);
+  assert.doesNotMatch(keystone.facts[0].text, /anoint/, "keystones are not anointed");
+  const none = await kb.lookup("Not A Real Node", { source: "pob" });
+  assert.equal(none.facts.length, 0);
+  assert.match(none.notes.join(" "), /no unique, gem, notable or keystone named "Not A Real Node"/);
+});
+
+test("wiki: a question about anointing reaches the Oil page, a plain 'amulet' question does not", async () => {
+  assert.equal(glossaryTopic("anoint amulet oils how")?.page, "Oil");
+  assert.equal(glossaryTopic("how do I anoint my amulet?")?.page, "Oil");
+  assert.equal(glossaryTopic("chaos inoculation"), undefined, "only entries marked as topics");
+  const { kb } = engine();
+  for (const q of ["anoint amulet oils how", "how do I anoint my amulet", "anointing an amulet"]) {
+    const r = await kb.lookup(q);
+    allCited(r.facts);
+    const wiki = r.facts.filter((f) => f.source === "poewiki" && f.kind === "page");
+    assert.equal(wiki[0]?.url, "https://www.poewiki.net/wiki/Oil", `${q}: ${wiki.map((f) => f.title)}`);
+    assert.ok(wiki.some((f) => /three oils make one amulet anointment/.test(f.text)), `${q}: the passage on anointing amulets`);
+    assert.ok(!wiki.some((f) => f.flags?.some((x) => /does not match/.test(x))), `${q}: not a weak hit`);
+    assert.ok(r.facts.some((f) => f.kind === "glossary" && /Anoint/.test(f.title)), `${q}: the glossary summary`);
+  }
+  const amulet = await kb.lookup("amulet", { source: "wiki" });
+  assert.equal(amulet.facts[0].url, "https://www.poewiki.net/wiki/Amulet");
 });
 
 test("installed game: Steam manifest and library list are read, nothing else", () => {
@@ -467,6 +542,11 @@ test("registered tools: kb_lookup answers from PoB's own data with no network at
     assert.match(r.text, /Hyrri's Ire \(PoB [\d.]+\) \| pob \(Path of Building data; rank 3\) \| PoE1 \d+\.\d+/);
     assert.match(r.text, /https:\/\/github\.com\/PathOfBuildingCommunity\/PathOfBuilding\/blob\/v[\d.]+\/src\/Data\/Uniques\/body\.lua/);
     assert.match(r.text, /chance to Suppress Spell Damage/);
+    // A notable the optimiser suggests as an anoint, from PoB's real tree data.
+    const notable = await runTool(tools, context, "kb_lookup", { query: "Divine Judgement", source: "pob" });
+    assert.equal(notable.isError, false, notable.text);
+    assert.match(notable.text, /Divine Judgement: passive tree notable; .*Elemental Damage; amulet anoint recipe: \w+ Oil \+ \w+ Oil \+ \w+ Oil/);
+    assert.match(notable.text, /src\/TreeData\/\d+_\d+\/tree\.lua/);
     assert.match(r.text, /No site could be reached: assuming the version PoB's data is for/);
     const bad = await runTool(tools, context, "kb_patch", { version: "soon" });
     assert.equal(bad.isError, true);

@@ -40,7 +40,7 @@ export interface Fact {
   retrieved_at: string;
   /** ISO date-time the source itself was last changed, when the source says so. */
   edited_at?: string;
-  kind?: "glossary" | "item" | "gem" | "page" | "patch" | "history" | "version";
+  kind?: "glossary" | "item" | "gem" | "passive" | "page" | "patch" | "history" | "version";
   /** Warnings: outdated, conflicts with a higher source, stale cache, ... */
   flags?: string[];
   /** Short exact quote backing a glossary summary. */

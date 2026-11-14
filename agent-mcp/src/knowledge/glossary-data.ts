@@ -282,7 +282,7 @@ const ENTRIES: Entry[] = [
     poe2: { text: "The Path of Exile 2 counterpart is the Time-Lost jewel, which changes passives in its radius.", quote: "Time-lost jewels do not inherently provide any stats, but will instead modify other passive skills in its radius.", page: "Jewel" },
   },
   {
-    term: "Anoint", aliases: ["anointment", "anointing", "anoints", "oil", "oils"],
+    term: "Anoint", aliases: ["anointment", "anointing", "anoints", "anointed", "oil", "oils"], topic: true,
     text: "Oils from Blight encounters are applied through Cassia to amulets, rings, blighted maps and Blight uniques to add an enchantment; what it does depends on the item type.",
     quote: "An oil is a currency item that can be acquired from Blight encounters.", page: "Oil",
   },

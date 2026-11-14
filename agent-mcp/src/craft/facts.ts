@@ -65,6 +65,10 @@ export const FACTS: Record<string, Fact> = {
     quote: "Crafting Recipes for all Meta-Modifiers have been moved to Nightmare Maps instead." },
   benchUnlock: { id: "benchUnlock", source: WIKI, url: "https://www.poewiki.net/wiki/Crafting", version: "3.30.0", dated: "2026-11-13", read: "2026-11-14",
     quote: "Most crafts in the crafting bench are unlocked by finding crafting recipes in the campaign or in maps." },
+  oneCraft: { id: "oneCraft", source: WIKI, url: "https://www.poewiki.net/wiki/Crafting_Bench", version: "3.30.0", dated: "2026-11-13", read: "2026-11-14",
+    quote: "Typically, only one crafted modifier may be added to an item" },
+  multiCraft: { id: "multiCraft", source: WIKI, url: "https://www.poewiki.net/wiki/Crafting_Bench", version: "3.30.0", dated: "2026-11-13", read: "2026-11-14",
+    quote: "It is possible to craft more than one mod onto an item with the of Crafting [...] meta-crafting mod" },
 };
 
 /** Things the planner needs that the sources do not give: shown as a range or "unknown". */

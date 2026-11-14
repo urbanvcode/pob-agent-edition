@@ -319,4 +319,38 @@ test("public tools: plan_upgrades { budget } in SSF and prices { own: true } (no
   assert.equal(bad.isError, true);
   assert.match(bad.text, /not known/);
 });
+
+// Problem #10: plan_upgrades { focus: "dps" } without slots spent its request cap on armour slots.
+test("plan_upgrades focus dps: slots by damage potential, every slot gets a line (cap and no upgrade)", async () => {
+  const up = await import("../build/trade/upgrades.js");
+  const t = (await link.call("economy_targets", { slots: up.DPS_SLOTS, focus: "dps", top: up.COUNT_FILTERS })).result;
+  assert.ok(t.some((s) => s.stats?.some((x) => typeof x.worth === "number" && x.worth > 0)), "economy_targets returns each stat's raw worth");
+  const notes = [];
+  const { slots } = await up.orderSlots(link, undefined, "dps", notes);
+  const pot = new Map(t.map((s) => [s.slot, up.slotPotential(s, (x) => x.worth ?? 0)]));
+  assert.ok(slots.length >= 2 && slots.length <= 8);
+  for (let i = 1; i < slots.length; i++) assert.ok(pot.get(slots[i - 1]) >= pot.get(slots[i]), `${slots[i - 1]} before ${slots[i]}`);
+  assert.match(notes.join("\n"), /order of damage potential/);
+  assert.deepEqual((await up.orderSlots(link, ["Ring 2", "Belt"], "dps", [])).slots, ["Ring 2", "Belt"], "given slots keep their order");
+  assert.deepEqual((await up.orderSlots(link, undefined, "balanced", [])).slots, up.DEFAULT_SLOTS);
+
+  // A trade site that hits the request cap on the second slot: the rest still get a line.
+  let calls = 0;
+  const capped = {
+    async searchItems() { if (++calls > 1) throw new Error("Stopped after 16 trade requests for this question to stay well inside pathofexile.com's limits."); return { id: "fake-empty", result: [], total: 0 }; },
+    async fetchItems() { return []; },
+  };
+  const three = ["Ring 1", "Ring 2", "Belt"];
+  const r = await up.planUpgrades(link, capped, { league: "Testleague", budget_chaos: 20, focus: "dps", slots: three });
+  const text = r.notes.join("\n");
+  assert.match(text, /Ring 1: nothing under 20c/);
+  assert.match(text, /Ring 2: Stopped after 16/);
+  assert.match(text, /Belt: not searched \(request cap/);
+
+  // Listings found but none an upgrade: the slot still says so.
+  const junk = { async searchItems() { return { id: "fake-junk", result: ["j1"], total: 1 }; },
+    async fetchItems() { return [listing("j1", "Test Junk", "Iron Ring", 5, { implicitMods: ["Adds 1 to 4 Physical Damage to Attacks"], explicitMods: ["+5 to maximum Life"] })]; } };
+  const r2 = await up.planUpgrades(link, junk, { league: "Testleague", budget_chaos: 20, focus: "dps", slots: ["Ring 1"] });
+  assert.match(r2.notes.join("\n"), /Ring 1: (1 listing under 20c simulated, none an upgrade|1 upgrade of 1)/);
+});
 });

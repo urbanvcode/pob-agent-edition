@@ -54,6 +54,43 @@ export interface UpgradeCandidate {
 }
 
 export const DEFAULT_SLOTS = ["Helmet", "Body Armour", "Gloves", "Boots", "Belt", "Amulet", "Ring 1"];
+/** focus "dps": slots tried for damage, before PoB ranks them by what their best stats are worth. */
+export const DPS_SLOTS = ["Weapon 1", "Weapon 2", "Ring 1", "Ring 2", "Amulet", "Gloves", "Helmet", "Boots", "Body Armour", "Belt"];
+
+export interface SlotTarget { slot: string; current?: string; stats?: Array<{ id: string; value?: number; max?: number; worth?: number }>; category?: string; minWeight?: number; error?: string }
+
+/**
+ * Damage potential of a slot from PoB's weighted query (economy_targets): the
+ * weights are the build's relative gain per point x1000, comparable across
+ * slots. Potential = top rolls of the best 4 stats minus what the current item
+ * already gives (2 x minWeight). An ordering heuristic, not a promise.
+ */
+export function slotPotential(t: SlotTarget, worthOf: (s: { worth?: number }) => number): number {
+  if (!t.stats?.length) return -Infinity;
+  const top = t.stats.slice(0, 4).reduce((a, s) => a + worthOf(s), 0);
+  return top - 2 * (t.minWeight ?? 0);
+}
+
+/** Slots in the order to search: given slots as given; focus dps without slots = by PoB's damage potential. */
+export async function orderSlots(lua: PobLink, slots: string[] | undefined, focus: string, notes: string[]): Promise<{ slots: string[]; targets: Map<string, SlotTarget> }> {
+  const targets = new Map<string, SlotTarget>();
+  if (slots?.length || focus !== "dps") return { slots: (slots?.length ? slots : DEFAULT_SLOTS).slice(0, 8), targets };
+  let list: SlotTarget[] = [];
+  try {
+    list = (await lua.call("economy_targets", { slots: DPS_SLOTS, focus, top: COUNT_FILTERS })).result ?? [];
+  } catch {
+    return { slots: DPS_SLOTS.slice(0, 8), targets };
+  }
+  for (const t of list) targets.set(t.slot, t);
+  const ranked = list.filter((t) => t.stats?.length && t.category).map((t) => ({ t, p: slotPotential(t, (s) => s.worth ?? 0) }))
+    .sort((a, b) => b.p - a.p);
+  const order = ranked.map((x) => x.t.slot);
+  if (!order.length) return { slots: DPS_SLOTS.slice(0, 8), targets };
+  notes.push(`Slots searched in order of damage potential (PoB: what the best stats for each slot are worth to this build): ${order.slice(0, 8).join(", ")}.`);
+  const skipped = list.filter((t) => !order.includes(t.slot) && t.current !== undefined).map((t) => t.slot);
+  if (skipped.length) notes.push(`Not searched (PoB found no damage stat that beats the current item): ${skipped.join(", ")}.`);
+  return { slots: order.slice(0, 8), targets };
+}
 const RES = [["FireResist", "Fire"], ["ColdResist", "Cold"], ["LightningResist", "Lightning"]] as const;
 
 export function weightsFor(focus: string) {
@@ -153,7 +190,7 @@ export const isStop = (msg: string) => /Stopped after|asks for a pause|slow down
  * Returns a note string instead when the slot gives nothing.
  */
 export async function searchSlot(lua: PobLink, trade: TradeApiClient, league: string, slot: string,
-  o: { focus: string; maxPrice: number; perSlot: number; rates: Map<string, number>; notes?: string[] }): Promise<SlotResult | string> {
+  o: { focus: string; maxPrice: number; perSlot: number; rates: Map<string, number>; notes?: string[]; target?: SlotTarget }): Promise<SlotResult | string> {
   const loggedIn = !!getPoeSessionId();
   let q: TradeQuery | undefined;
   if (loggedIn) {
@@ -175,7 +212,7 @@ export async function searchSlot(lua: PobLink, trade: TradeApiClient, league: st
     // Logged out, the trade site refuses every weighted search ("Query is too complex"), so ask for
     // listings with at least two of the stats a top roll is worth most for, cheapest first; PoB then
     // simulates each one exactly as for a weighted search.
-    const [t] = (await lua.call("economy_targets", { slots: [slot], focus: o.focus, top: COUNT_FILTERS })).result as Array<{ stats?: Array<{ id: string }>; category?: string; error?: string }>;
+    const [t] = o.target ? [o.target] : (await lua.call("economy_targets", { slots: [slot], focus: o.focus, top: COUNT_FILTERS })).result as SlotTarget[];
     if (!t?.stats?.length || !t.category) return `${slot}: ${t?.error ?? "PoB found no stat that beats the current item"}`;
     q = countQuery(t.category, t.stats.map((x) => x.id), o.maxPrice);
     search = await trade.searchItems(league, q);
@@ -229,24 +266,29 @@ export function toCandidate(league: string, r: SlotResult, e: SlotEntry): Upgrad
 export async function planUpgrades(lua: PobLink, trade: TradeApiClient, args: UpgradeArgs): Promise<{ candidates: UpgradeCandidate[]; notes: string[] }> {
   const budget = Math.max(1, args.budget_chaos ?? 50);
   const focus = args.focus ?? "balanced";
-  const slots = (args.slots && args.slots.length ? args.slots : DEFAULT_SLOTS).slice(0, 8);
   const perSlot = Math.min(Math.max(args.per_slot ?? 4, 1), 8);
   const notes: string[] = [];
   const rates = await ratesOrChaosOnly(args.league, notes);
+  const { slots, targets } = await orderSlots(lua, args.slots, focus, notes);
 
   const candidates: UpgradeCandidate[] = [];
+  let stopped = "";
   for (const slot of slots) {
+    // Every slot gets a line, also the ones the request cap or a site pause left out.
+    if (stopped) { notes.push(`${slot}: not searched (${stopped})`); continue; }
     let r: SlotResult | string;
     try {
-      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates, notes });
+      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates, notes, target: targets.get(slot) });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notes.push(`${slot}: ${msg}`);
-      if (isStop(msg)) break;
+      if (isStop(msg)) stopped = /Stopped after/i.test(msg) ? "request cap reached; ask again with slots to continue" : "pathofexile.com asked for a pause";
       continue;
     }
     if (typeof r === "string") { notes.push(r); continue; }
-    for (const e of r.entries) if (isUpgrade(e.ev, focus)) candidates.push(toCandidate(args.league, r, e));
+    const ups = r.entries.filter((e) => isUpgrade(e.ev, focus));
+    for (const e of ups) candidates.push(toCandidate(args.league, r, e));
+    notes.push(ups.length ? `${slot}: ${ups.length} upgrade${ups.length === 1 ? "" : "s"} of ${r.entries.length} listings simulated` : `${slot}: ${r.entries.length} listing${r.entries.length === 1 ? "" : "s"} under ${Math.round(budget)}c simulated, none an upgrade`);
   }
 
   candidates.sort((a, b) => b.value - a.value || b.score - a.score);

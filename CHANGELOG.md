@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Bench crafts that can't be made**: the quick-fix crafting advice used to suggest a prefix craft on an item with no room for a prefix, or suffix crafts on a quiver with no room at all. It now only offers a craft that fits: an open prefix or suffix of that kind, or the spot your current bench craft frees up when you remove it (an item normally holds one bench craft). Each suggestion says "replaces …" or "after removing …" when your current craft has to go, and items with "Can have up to 3 Crafted Modifiers" keep their crafts.
+- **Upgrade search for more damage looked in the wrong places first**: without a trade login, `plan_upgrades` with focus "dps" spent its request limit on helmet and boots and never reached your weapon, quiver or rings. It now searches the slots with the most damage potential for your build first (PoB works this out), and every slot gets a line in the answer: what was found, "nothing under 20c", "none an upgrade", or "not searched (request limit)" so you know where to ask again.
+
 ## [0.9.1] - 2026-11-14
 
 Fixes found while testing 0.9.0: character sync and auras, the optimiser, gem quality, anoint oil prices, notable look-ups and the farming advisor. Based on **Path of Building Community v2.67.2** (same as 0.9.0). **After updating, restart PoB Agent Edition and your AI app.**

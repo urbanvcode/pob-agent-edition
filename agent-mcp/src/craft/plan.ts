@@ -287,23 +287,70 @@ async function simulateTarget(ctx: Context, pool: Pool, wants: Want[], slot: str
   return { ev: best.ev, lines, current: rep.current?.name };
 }
 
-/** Bench quick fixes: every bench craft that fits an open prefix/suffix of the slot's item, simulated and ranked. */
+type AffixType = "Prefix" | "Suffix";
+export interface BenchSlotMod { type: string; source?: string; lines?: string[] }
+export interface BenchRoom {
+  /** May a new bench craft of this type go on the item (after removing the current craft where the rules need it)? */
+  fits: (type: string) => boolean;
+  /** "replaces ..." / "after removing ..." for a craft of this type, or "" when it goes in an open slot. */
+  note: (type: string) => string;
+  multimod: boolean;
+  crafted: BenchSlotMod[];
+}
+
+const craftName = (m: BenchSlotMod) => `"${(m.lines ?? []).join(" / ")}"`;
+
+/**
+ * Which bench crafts fit an item. A craft needs an open affix of its own type.
+ * One crafted mod per item (poewiki Crafting_Bench, 3.30), so with a craft on
+ * the item a new one replaces it: removing it frees one affix of ITS type only.
+ * With the "Can have up to 3 Crafted Modifiers" meta mod, crafts are added to
+ * open affixes (up to 3 crafted mods in all) and nothing is replaced.
+ */
+export function benchRoom(open: { Prefix: number; Suffix: number }, mods: BenchSlotMod[]): BenchRoom {
+  const crafted = mods.filter((m) => m.source === "bench");
+  const multimod = crafted.some((m) => (m.lines ?? []).some((l) => /can have up to 3 crafted modifiers/i.test(l)));
+  if (multimod) {
+    const room = crafted.length < 3;
+    return { multimod, crafted, fits: (t) => room && (open[t as AffixType] ?? 0) > 0, note: () => "" };
+  }
+  const old = crafted[0];
+  const free = { ...open };
+  if (old && (old.type === "Prefix" || old.type === "Suffix")) free[old.type] += 1;
+  return {
+    multimod, crafted,
+    fits: (t) => (free[t as AffixType] ?? 0) > 0,
+    note: (t) => !old ? "" : old.type === t ? `replaces ${craftName(old)}` : `after removing ${craftName(old)}; one bench craft per item`,
+  };
+}
+
+/** Bench quick fixes: every bench craft that fits an open prefix/suffix of the slot's item (or the one its current craft frees), simulated and ranked. */
 export async function benchFixes(ctx: Context, slot: string, focus: string): Promise<string> {
   const link = await ctx.pob.link();
   const it = (await link.call("classify_item", { slot })).item;
   if (!it.prefixes) return [`${slot}: ${it.name}`, ...(it.notes ?? [])].join("\n");
   const open = { Prefix: it.prefixes.limit - it.prefixes.used, Suffix: it.suffixes.limit - it.suffixes.used };
-  const crafted = (it.mods as Array<{ source: string; lines: string[] }>).filter((m) => m.source === "bench");
+  const room = benchRoom(open, (Array.isArray(it.mods) ? it.mods : []) as BenchSlotMod[]);
+  const { crafted } = room;
   const res = (await link.call("craft_fix", { slot })).result as { items: Array<{ type: string; line: string; text: string; group: string }>; base: string };
   const L = [`Bench quick fixes for ${slot} (${it.name}): open prefixes ${open.Prefix}, open suffixes ${open.Suffix}.`];
-  if (crafted.length) L.push(`It already has a bench craft (${crafted.map((m) => m.lines.join(" / ")).join("; ")}): a new one replaces it for an extra Orb of Scouring. ${cite("bench")}`);
-  const cands = res.items.filter((x) => open[x.type as "Prefix" | "Suffix"] > 0 || crafted.length > 0);
-  if (!cands.length) return [...L, "No open prefix or suffix: the bench cannot add a mod here (a new item or a craft plan: affixes { craft })."].join("\n");
+  if (room.multimod) L.push(`It has the multi-craft mod: new crafts go in open slots next to its ${crafted.length} crafted mod${crafted.length === 1 ? "" : "s"} (at most 3). ${cite("multiCraft")}`);
+  else if (crafted.length) {
+    const t = crafted[0].type;
+    L.push(`It already has a bench craft (${t} ${craftName(crafted[0])}): only one per item, so a new one replaces it (removing it costs an Orb of Scouring). Removing it frees a ${String(t).toLowerCase()}, so ${open.Prefix + (t === "Prefix" ? 1 : 0) > 0 && open.Suffix + (t === "Suffix" ? 1 : 0) > 0 ? "prefix and suffix crafts" : `only ${String(t).toLowerCase()} crafts`} fit. ${cite("oneCraft")} ${cite("bench")}`);
+  }
+  // A multimod item keeps its crafts: the Lua side strips crafted lines, so add them back.
+  const keep = room.multimod ? crafted.flatMap((m) => (m.lines ?? []).map((l) => `{crafted}${l}`)) : [];
+  const cands = res.items.filter((x) => room.fits(x.type)).map((x) => (keep.length ? { ...x, text: `${x.text}\n${keep.join("\n")}` } : x));
+  if (!cands.length) return [...L, room.multimod && crafted.length >= 3 ? "It already has 3 crafted mods: remove one at the bench first." : "No open prefix or suffix: the bench cannot add a mod here (a new item or a craft plan: affixes { craft })."].join("\n");
   const rep = (await link.call("test_items", { slot, items: cands.map((x) => x.text) })).result;
   const ranked = cands.map((x, i) => ({ x, r: rep.results[i] })).filter((y) => y.r?.ok).map((y) => ({ ...y, ev: evaluateCandidate(rep.base, y.r.stats, focus) }))
     .sort((a, b) => b.ev.score - a.ev.score).slice(0, 8);
-  if (!ranked.some((y) => y.ev.score > 0.5)) L.push(crafted.length ? "None beats the bench craft it has now: keep it." : "None of them improves the build in this slot.");
-  ranked.forEach((y, i) => L.push(`${i + 1}. ${y.x.type} "${y.x.line}": DPS ${y.ev.dpsPct >= 0 ? "+" : ""}${y.ev.dpsPct.toFixed(1)}% | EHP ${y.ev.ehpPct >= 0 ? "+" : ""}${y.ev.ehpPct.toFixed(1)}%${y.ev.resNotes.length ? ` | ${y.ev.resNotes.join(", ")}` : ""}${y.ev.warnings.length ? ` | ${y.ev.warnings.join(", ")}` : ""}`));
+  if (!ranked.some((y) => y.ev.score > 0.5)) L.push(crafted.length && !room.multimod ? "None beats the bench craft it has now: keep it." : "None of them improves the build in this slot.");
+  ranked.forEach((y, i) => {
+    const why = room.note(y.x.type);
+    L.push(`${i + 1}. ${y.x.type} "${y.x.line}"${why ? ` (${why})` : ""}: DPS ${y.ev.dpsPct >= 0 ? "+" : ""}${y.ev.dpsPct.toFixed(1)}% | EHP ${y.ev.ehpPct >= 0 ? "+" : ""}${y.ev.ehpPct.toFixed(1)}%${y.ev.resNotes.length ? ` | ${y.ev.resNotes.join(", ")}` : ""}${y.ev.warnings.length ? ` | ${y.ev.warnings.join(", ")}` : ""}`);
+  });
   L.push("Average roll of each craft's range, simulated in PoB in this slot (nothing changed). Highest bench tier shown: you need its recipe unlocked; costs are shown on the bench. Preview one: what_if with the item text.",
     `Sources: ${cite("benchUnlock")}; ${UNKNOWN.benchCost}`);
   return L.join("\n");

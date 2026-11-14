@@ -42,6 +42,25 @@ const F = await import("../build/craft/facts.js");
 const { createTools, runTool } = await import("../build/server.js");
 const { tools, context } = createTools();
 
+test("bench room: craft types that fit, one craft per item, multimod (problem #10)", async () => {
+  const { benchRoom } = await import("../build/craft/plan.js");
+  const bow = benchRoom({ Prefix: 0, Suffix: 1 }, [{ type: "Suffix", source: "bench", lines: ["10% increased Attack Speed"] }]);
+  assert.equal(bow.fits("Prefix"), false, "no open prefix; removing the crafted suffix frees a suffix only");
+  assert.equal(bow.fits("Suffix"), true);
+  assert.match(bow.note("Suffix"), /^replaces "10% increased Attack Speed"/);
+  const quiver = benchRoom({ Prefix: 0, Suffix: 0 }, [{ type: "Prefix", source: "bench", lines: ["Adds 23 to 40 Fire Damage to Attacks"] }]);
+  assert.deepEqual([quiver.fits("Prefix"), quiver.fits("Suffix")], [true, false]);
+  const swap = benchRoom({ Prefix: 0, Suffix: 1 }, [{ type: "Prefix", source: "bench", lines: ["+30 to maximum Mana"] }]);
+  assert.match(swap.note("Suffix"), /after removing "\+30 to maximum Mana"; one bench craft per item/);
+  const none = benchRoom({ Prefix: 0, Suffix: 0 }, [{ type: "Prefix", source: "explicit" }]);
+  assert.deepEqual([none.fits("Prefix"), none.fits("Suffix")], [false, false]);
+  const multi = benchRoom({ Prefix: 1, Suffix: 0 }, [{ type: "Suffix", source: "bench", lines: ["Can have up to 3 Crafted Modifiers"] }, { type: "Prefix", source: "bench", lines: ["+30 to maximum Mana"] }]);
+  assert.equal(multi.multimod, true);
+  assert.deepEqual([multi.fits("Prefix"), multi.fits("Suffix")], [true, false], "multimod: open slots only, nothing replaced");
+  assert.equal(multi.note("Prefix"), "");
+  assert.match(F.cite("oneCraft"), /only one crafted modifier/);
+});
+
 test("targets: player words to wants (counts, minimum values, tiers)", () => {
   const w = T.parseWants("a ring with life, 2 res, crit multi");
   assert.equal(w.length, 3);
@@ -211,11 +230,35 @@ describe("headless (fixture build)", () => {
     const before = (await link.call("key_stats")).stats;
     const text = await ok("affixes", { craft: "fix", slot: "Gloves" });
     assert.match(text, /Bench quick fixes for Gloves/);
-    assert.match(text, /1\. (Prefix|Suffix) ".+": DPS [+-]\d/);
+    assert.match(text, /1\. (Prefix|Suffix) ".+"( \(.+\))?: DPS [+-]\d/);
     assert.match(text, /already has a bench craft/);
     assert.deepEqual((await link.call("key_stats")).stats, before);
     const missing = await runTool(tools, context, "affixes", { craft: "fix" });
     assert.match(missing.text, /needs slot/);
+  });
+
+  // Problem #10: a craft only fits an open affix of its type, or the one the current craft frees.
+  test("bench quick fixes: only crafts whose prefix/suffix type fits (made-up items)", async () => {
+    const fixLines = (text) => text.split("\n").filter((l) => /^\d+\. (Prefix|Suffix) /.test(l));
+    const equip = async (slot, text) => assert.match(await ok("edit", { ops: [{ op: "equip", slot, text }] }), /ok equip/);
+    // Crafted prefix, 1 open prefix, suffixes full: prefix crafts only, each replacing the old craft.
+    await equip("Ring 2", "Rarity: RARE\nTest Band\nTwo-Stone Ring\nItem Level: 84\nImplicits: 1\n+15% to Fire and Cold Resistances\n+74 to maximum Life\n{crafted}+30 to maximum Mana\n+41% to Lightning Resistance\n+35% to Chaos Resistance\n+40 to Strength");
+    const ring = await ok("affixes", { craft: "fix", slot: "Ring 2" });
+    assert.match(ring, /open prefixes 1, open suffixes 0/);
+    assert.match(ring, /only prefix crafts fit/);
+    assert.ok(fixLines(ring).length > 0, ring);
+    for (const l of fixLines(ring)) assert.match(l, /^\d+\. Prefix .*\(replaces "\+30 to maximum Mana"\)/, l);
+    // Prefixes full, crafted suffix, 1 open suffix: suffix crafts only (like the bow in the report).
+    await equip("Gloves", "Rarity: RARE\nTest Mitts\nFingerless Silk Gloves\nItem Level: 84\nImplicits: 1\n16% increased Spell Damage\n+92 to maximum Life\n+30 to maximum Mana\n+40 to maximum Energy Shield\n+38% to Fire Resistance\n{crafted}+30% to Cold Resistance");
+    const gloves = await ok("affixes", { craft: "fix", slot: "Gloves" });
+    assert.match(gloves, /open prefixes 0, open suffixes 1/);
+    assert.ok(fixLines(gloves).length > 0, gloves);
+    for (const l of fixLines(gloves)) assert.match(l, /^\d+\. Suffix /, l);
+    // No craft, prefixes full: suffix crafts in the open suffixes, nothing "replaces".
+    await equip("Ring 2", "Rarity: RARE\nTest Loop\nTwo-Stone Ring\nItem Level: 84\nImplicits: 1\n+15% to Fire and Cold Resistances\n+74 to maximum Life\n+30 to maximum Mana\n+40 to maximum Energy Shield\n+41% to Lightning Resistance");
+    const plain = await ok("affixes", { craft: "fix", slot: "Ring 2" });
+    assert.match(plain, /open prefixes 0, open suffixes 2/);
+    assert.ok(fixLines(plain).length > 0 && fixLines(plain).every((l) => /^\d+\. Suffix /.test(l) && !/replaces|removing/.test(l)), plain);
   });
 
   test("read-only chat: craft plans are allowed (they change nothing)", async () => {

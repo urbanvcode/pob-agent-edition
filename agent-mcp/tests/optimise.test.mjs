@@ -245,7 +245,7 @@ test("optimise tool: every goal simulated in PoB, build and config put back", as
     assert.doesNotMatch(tank, /[a-z]Oil/, "no PoB ids like AmberOil");
     assert.match(tank, /\[anoint\] Anoint .+ - buy: \w+ Oil [\d.]+c \+ \w+ Oil [\d.]+c \+ \w+ Oil [\d.]+c = [\d.]+c/);
     assert.match(tank, /oils: \w+ Oil, \w+ Oil, \w+ Oil = [\d.]+c in total; [\d.e-]+ goal score per chaos/);
-    assert.match(tank, /Oil prices: poe\.ninja Oils, Testleague/);
+    assert.match(tank, /Oil prices: poe\.ninja Oils, Standard/); // the profile league set at the start of this test
   }
 
   // All five flask slots are full: utility flasks are tried in place of the one that does least

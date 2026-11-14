@@ -94,7 +94,7 @@ export const NINJA_ITEM_TYPES = ["UniqueWeapon", "UniqueArmour", "UniqueAccessor
 /** One poe.ninja item line, trimmed to what pricing needs. */
 export interface NinjaLine {
   name: string; baseType?: string; links?: number; variant?: string; chaosValue: number; listingCount?: number;
-  gemLevel?: number; gemQuality?: number; corrupted?: boolean;
+  gemLevel?: number; gemQuality?: number; corrupted?: boolean; change?: number;
 }
 
 const itemCache = new Map<string, { at: number; lines: NinjaLine[] }>();
@@ -111,6 +111,8 @@ export function trimLines(raw: unknown): NinjaLine[] {
     if (typeof l.gemLevel === "number") t.gemLevel = l.gemLevel;
     if (typeof l.gemQuality === "number") t.gemQuality = l.gemQuality;
     if (l.corrupted) t.corrupted = true;
+    const change = l.sparkline?.totalChange ?? l.lowConfidenceSparkline?.totalChange;
+    if (typeof change === "number" && Number.isFinite(change)) t.change = change;
     return t;
   });
 }
@@ -141,16 +143,46 @@ export async function ninjaItemLines(league: string, type: string): Promise<Ninj
 }
 
 // --- exchange categories (Fragment, Essence, Oil, ...) for the farming advisor -------------------
-export interface ExchangeInfo { prices: Map<string, number>; at: number; stale: boolean }
+/** poe.ninja's trend and trade volume for one item: change = % over `days` (its sparkline, up to 7 days), volume in chaos. */
+export interface Market { change?: number; days?: number; volume?: number }
+export interface ExchangeInfo { prices: Map<string, number>; at: number; stale: boolean; market: Map<string, Market> }
+
+/** Trend and volume per item name from an exchange overview reply (volumes converted to chaos like the prices). */
+export function parseMarket(data: unknown): Map<string, Market> {
+  const d = (data ?? {}) as { lines?: Array<Record<string, any>>; items?: Item[]; core?: { primary?: string } };
+  const out = new Map<string, Market>();
+  const lines = Array.isArray(d.lines) ? d.lines : [];
+  const items = Array.isArray(d.items) ? d.items : [];
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const chaos = items.find((i) => i.name === "Chaos Orb");
+  const chaosValue = (chaos ? lines.find((l) => l.id === chaos.id)?.primaryValue : undefined) ?? (d.core?.primary === "chaos" ? 1 : undefined);
+  for (const l of lines) {
+    const name = byId.get(l.id)?.name;
+    if (!name) continue;
+    const m: Market = {};
+    const spark = l.sparkline as { totalChange?: unknown; data?: unknown[] } | undefined;
+    if (typeof spark?.totalChange === "number" && Number.isFinite(spark.totalChange)) {
+      m.change = spark.totalChange;
+      m.days = Array.isArray(spark.data) ? Math.max(1, spark.data.filter((x) => typeof x === "number").length) : undefined;
+    }
+    if (typeof l.volumePrimaryValue === "number" && chaosValue && chaosValue > 0) m.volume = l.volumePrimaryValue / chaosValue;
+    if (m.change !== undefined || m.volume !== undefined) out.set(name, m);
+  }
+  return out;
+}
+
+type ExchangeRow = [string, number, Market?];
 
 /** poe.ninja exchange overview of one category (name -> chaos): memory/disk 2 h, an older copy when poe.ninja is down. */
+const marketCache = new Map<string, Map<string, Market>>();
 export async function exchangePrices(league: string, type: string): Promise<ExchangeInfo> {
   const key = `x|${league}|${type}`;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < ITEMS_FRESH_MS) return { prices: hit.rates, at: hit.at, stale: false };
+  if (hit && Date.now() - hit.at < ITEMS_FRESH_MS) return { prices: hit.rates, at: hit.at, stale: false, market: marketCache.get(key) ?? new Map() };
   const file = `exchange-${safe(league)}-${safe(type)}.json`;
-  const disk = readDisk<Array<[string, number]>>(file);
-  if (disk && Date.now() - disk.at < ITEMS_FRESH_MS) return { prices: new Map(disk.data), at: disk.at, stale: false };
+  const disk = readDisk<ExchangeRow[]>(file);
+  const fromDisk = (rows: ExchangeRow[]) => ({ prices: new Map(rows.map((r) => [r[0], r[1]] as [string, number])), market: new Map(rows.filter((r) => r[2]).map((r) => [r[0], r[2]!] as [string, Market])) });
+  if (disk && Date.now() - disk.at < ITEMS_FRESH_MS) return { ...fromDisk(disk.data), at: disk.at, stale: false };
   try {
     const url = `https://poe.ninja/poe1/api/economy/exchange/current/overview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}`;
     const response = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(15_000) });
@@ -158,12 +190,14 @@ export async function exchangePrices(league: string, type: string): Promise<Exch
     const body = await response.json() as { lines?: unknown[] };
     const prices = body?.lines?.length ? parseRates(body) : new Map<string, number>();
     prices.delete("Chaos Orb");
+    const market = body?.lines?.length ? parseMarket(body) : new Map<string, Market>();
     const at = Date.now();
     cache.set(key, { at, rates: prices });
-    writeDisk(file, [...prices]);
-    return { prices, at, stale: false };
+    marketCache.set(key, market);
+    writeDisk(file, [...prices].map(([name, chaos]) => (market.has(name) ? [name, chaos, market.get(name)] : [name, chaos])));
+    return { prices, at, stale: false, market };
   } catch (e) {
-    if (disk && Date.now() - disk.at < STALE_OK_MS) return { prices: new Map(disk.data), at: disk.at, stale: true };
+    if (disk && Date.now() - disk.at < STALE_OK_MS) return { ...fromDisk(disk.data), at: disk.at, stale: true };
     throw e;
   }
 }

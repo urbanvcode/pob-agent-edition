@@ -45,6 +45,7 @@ const PAGES = {
   rarity: "Rarity", breach: "Breach", legion: "Legion", expedition: "Expedition", ritual: "Ritual",
   blight: "Blight (game mechanic)", abyss: "Abyss", bestiary: "Bestiary", betrayal: "Immortal Syndicate",
   incursion: "Incursion", ultimatum: "Ultimatum", essence: "Essence",
+  harvest: "Harvest", heist: "Heist", harbinger: "Harbinger", divination: "Divination card",
 };
 const pages = {};
 for (const [key, title] of Object.entries(PAGES)) {
@@ -69,7 +70,8 @@ function q(key, text) {
 
 // --- patch notes -------------------------------------------------------------------------------
 const patch = await kb.patch({ version: league, max: 5000 });
-const thread = patch.threads.find((t) => !/[a-z]$/.test(t.version)) ?? patch.threads[0];
+// The league's main notes ("Content Update 3.30.0 — Path of Exile: <league>"), not a later hotfix thread.
+const thread = patch.threads.find((t) => /Content Update/i.test(t.title)) ?? patch.threads.find((t) => !/[a-z]$/.test(t.version) && !/hotfix/i.test(t.title)) ?? patch.threads[0];
 if (!thread) throw new Error(`No patch notes found for ${league}.`);
 const patchLines = patch.threads.flatMap((t) => t.lines.flatMap((l) => [l.text, `${l.parent ?? ""} > ${l.text}`]));
 function p(text) {
@@ -150,6 +152,7 @@ for (const n of [1, 9, 13]) if (!pages.simulacrum.text.includes(`| ${n === 13 ? 
 
 // --- strategies --------------------------------------------------------------------------------
 // keys: words that mark the mechanic's atlas notables in GGG's tree data (to skip stray nodes).
+// atlas: the atlas mastery name in PoB's atlas data (none = no atlas preset, e.g. Heist).
 // demands: what the content asks of the build (advisor rule, from the quoted description):
 //   clear = many monsters quickly (DPS vs rare life), tank = hard hits / long fights (max hit, hits to die),
 //   boss = a single strong enemy (single-target DPS). `ninja` = poe.ninja categories and name filters
@@ -180,17 +183,21 @@ const strategies = [
     mods: [q("thread", "Blight lanes are Mycotic")],
     ninja: [{ type: "Oil", match: "." }] },
   { id: "abyss", keys: "Abyss", name: "Abyss", thread: "Abyss Thread", atlas: "Abyss", demands: ["clear"],
-    what: q("abyss", "Abysses are interactable objects in instances which spawns cracks and pits that spawn monsters."), ninja: [] },
+    what: q("abyss", "Abysses are interactable objects in instances which spawns cracks and pits that spawn monsters."),
+    rewards: q("abyss", "Abyss is now the exclusive source of Abyssal Jewels and Stygian Vises"), ninja: [] },
   { id: "bestiary", keys: "Beast|Bestiary", name: "Bestiary", thread: "Bestiary Thread", atlas: "Bestiary", demands: ["tank"],
     what: q("bestiary", "The Bestiary is an interface to classify captured beasts"), ninja: [] },
   { id: "betrayal", keys: "Syndicate|Betrayal|Safehouse", name: "Betrayal (Immortal Syndicate)", thread: "Betrayal Thread", atlas: "Betrayal", demands: ["tank"],
     what: q("betrayal", "Syndicate members can drop veiled items"),
-    mods: [q("thread", "Dropped veiled items have a chance to unveil fractured veiled mods")], ninja: [] },
+    rewards: q("betrayal", "Safehouse leaders have a chance to drop Veiled Chaos Orbs (~50% at Rank 3), certain types of Allflame embers"),
+    mods: [q("thread", "Dropped veiled items have a chance to unveil fractured veiled mods")],
+    ninja: [{ type: "Currency", match: "^Veiled " }, { type: "AllflameEmber", match: "." }, { type: "Fragment", match: "^Syndicate Medallion$" }] },
   { id: "incursion", keys: "Incursion|Temple|Alva", name: "Incursion", thread: "Incursion Thread", atlas: "Incursion", demands: ["clear"],
     what: q("incursion", "A temporal incursion is a short-duration visit to the past"), ninja: [] },
   { id: "ultimatum", keys: "Ultimatum|Trial", name: "Ultimatum (Trials of Chaos)", thread: "Ultimatum Thread", atlas: "Ultimatum", demands: ["tank"],
     what: q("ultimatum", "The altar displays a reward, the objective, and three modifiers to choose from."),
-    mods: [q("thread", "Adds the option to Double Down")], ninja: [] },
+    rewards: q("ultimatum", "Rewards include corrupted (including double corrupted) rare items and maps, corrupted unique items, divination cards, currency, catalysts, and Inscribed Ultimatums."),
+    mods: [q("thread", "Adds the option to Double Down")], ninja: [{ type: "Currency", match: "Catalyst$" }] },
   { id: "essence", keys: "Essence|Imprisoned", name: "Essence", atlas: "Essence", demands: ["clear"],
     what: q("essence", "Essences are primarily obtained from \"Imprisoned Monsters\" in \"Essence Monoliths\""),
     rewards: q("essence", "The average number of Essences held by a monster scales with Atlas Drop stats."),
@@ -199,6 +206,31 @@ const strategies = [
     what: q("delirium", "All enemies in the fog are Delirious, giving them increased damage and damage reduction."),
     rewards: q("delirium", "Enemies killed in the fog in maps can drop Cluster Jewels and Simulacrum Splinters."),
     ninja: [{ type: "DeliriumOrb", match: "." }, { type: "Fragment", match: "^Simulacrum" }] },
+  { id: "harvest", keys: "Harvest|Lifeforce|Sacred|Flora", name: "Harvest", atlas: "Sacred Flora", demands: ["clear"],
+    what: q("harvest", "Harvest is a league mechanic where the player fights monsters spawned by Sacred Flora to obtain lifeforce, which is used for Harvest crafting."),
+    rewards: q("harvest", "Slaying Sacred Fauna drops Lifeforce."),
+    ninja: [{ type: "Currency", match: "Crystallised Lifeforce$" }] },
+  { id: "heist", keys: "Heist", name: "Heist (contracts)", demands: ["clear"],
+    what: q("heist", "Heists are missions that can be accessed using a Contract at The Rogue Harbour."),
+    rewards: q("heist", "Heist Contracts are an excellent means to generate Rogue's Markers."),
+    noAtlas: q("heist", "Atlas passives do not affect areas opened by contracts or blueprints."),
+    caveat: q("heist", "Rogue Markers, Contracts and Blueprints are no longer part of the core drop pool."),
+    ninja: [{ type: "Currency", match: "^Rogue's Marker$" }] },
+  { id: "divination", keys: "Divination|Stacked Deck", name: "Divination cards", atlas: "Divination Cards", demands: ["clear"],
+    what: q("divination", "A divination card is a type of item that can be collected to exchange for a reward."),
+    rewards: q("divination", "There are many different cards, each one dropping in a different part of the game and granting a different reward."),
+    caveat: q("divination", "Sources of Divination Cards drops from League content such as Legion, Blight, Delirium, Heist, Ritual, Expedition and Delve now instead drop Stacked Decks."),
+    ninja: [{ type: "DivinationCard", match: "." }, { type: "Currency", match: "^Stacked Deck$" }] },
+  // The 3.30 league mechanic: only GGG's patch notes describe it so far (the wiki page is a stub).
+  { id: "covens", keys: "Coven|Fate|Wicker|Viscera", name: "Covens of Umbra (league mechanic)", demands: ["boss", "tank"],
+    what: p("Upon disrupting the coven's magicks, you will get to select a Fate for the boss of the area you're in."),
+    rewards: p("Obtain Viscera from a defeated boss empowered by Fates to claim a scrap of their power for your own."),
+    caveat: p("A fully empowered boss can be quite a threatening fight"),
+    ninja: [{ item: "UniqueAccessory", match: "^Doedre's Tongue$", ...p("The Doedre's Tongue Unique Amulet can no longer drop outside of Covens of Umbra encounters.") }] },
+];
+// Mechanics left out on purpose, with the quote that says why.
+const excluded = [
+  { name: "Harbinger", ...q("harbinger", "Harbingers have been removed from the game in Version 3.28.0") },
 ];
 for (const s of strategies) if (s.thread) p(`> ${s.thread}`);
 
@@ -210,16 +242,20 @@ const rules = {
   hitsSafe: 4, hitsRisky: 2, hitsSafeHardcore: 6,
   rareKillComfortable: 2, rareKillSlow: 6,
   modHurtPct: 15,
+  // Market flags on poe.ninja outputs: falling at least this % over poe.ninja's last days = "sell soon";
+  // thin = under this many traded (volume / price) or this much chaos volume.
+  fallingPct: -20, thinTrades: 5, thinVolumeChaos: 20,
 };
 
 const sources = Object.fromEntries(Object.entries(pages).map(([k, v]) => [k, {
   title: v.title, url: `https://www.poewiki.net/wiki/${encodeURIComponent(v.title.replace(/ /g, "_"))}`, edited: v.edited, retrieved: v.retrieved,
   outdated: live.released && v.edited < live.released ? true : undefined,
+  needsUpdate: v.text.match(/\{\{update\|reason=([^}]*)\}\}/i)?.[1]?.trim() || undefined,
 }]));
 sources.patch = { title: thread.title, url: thread.url, edited: thread.posted_at?.slice(0, 10), retrieved: thread.retrieved_at.slice(0, 10) };
 sources.cargo = { title: "poewiki Cargo table monster_life_scaling", url: "https://www.poewiki.net/wiki/Special:CargoTables/monster_life_scaling", retrieved: lifePage.retrieved_at.slice(0, 10) };
 
-const data = { version: live.version, league: thread.title.replace(/^.*Path of Exile:\s*/, ""), released: live.released, generated: new Date().toISOString().slice(0, 10), sources, facts, strategies, rules };
+const data = { version: live.version, league: thread.title.replace(/^.*Path of Exile:\s*/, ""), released: live.released, generated: new Date().toISOString().slice(0, 10), sources, facts, strategies, excluded, rules };
 const header = `// Generated by scripts/farming-data.mjs on ${data.generated} from poewiki.net (CC BY-NC-SA 3.0, short quotes with links)\n// and GGG's ${league} patch notes. Do not edit by hand: re-run the script after each league (ROADMAP Stage 13 checklist).\n/* eslint-disable */\n`;
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, `${header}export const FARMING_DATA = ${JSON.stringify(data, null, 1)} as const;\n`);

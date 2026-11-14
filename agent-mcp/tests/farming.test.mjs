@@ -29,7 +29,10 @@ const EXCHANGE = {
   Currency: [["Divine Orb", 200], ["Test Unrelated Orb", 9000]],
   Fragment: [["Breach Thread", 4], ["Legion Thread", 2], ["Timeless Test Emblem", 50], ["Timeless Test Splinter", 0.5], ["Simulacrum", 80]],
   Artifact: [["Test Artifact", 3]], Omen: [["Omen of Testing", 25]], Oil: [["Test Oil", 1]], Essence: [["Test Essence", 2]], DeliriumOrb: [["Test Delirium Orb", 6]],
+  DivinationCard: [["The Test Card", 40]], AllflameEmber: [["Allflame Ember of Testing", 7]],
 };
+// poe.ninja's trend (sparkline, % over its last days) and trade volume (in the primary currency).
+const MARKET = { "Timeless Test Emblem": { change: -45, days: 3, volume: 5000 }, "Timeless Test Splinter": { change: 4, days: 3, volume: 900 }, "The Test Card": { change: 2, days: 7, volume: 60 } };
 const requests = [];
 globalThis.fetch = async (url) => {
   const u = String(url);
@@ -38,7 +41,10 @@ globalThis.fetch = async (url) => {
   const type = new URL(u).searchParams.get("type");
   if (u.includes("/exchange/")) {
     const rows = EXCHANGE[type] ?? [];
-    return Response.json({ core: { primary: "chaos", items: [] }, items: rows.map(([name], i) => ({ id: `i${i}`, name })), lines: rows.map(([, v], i) => ({ id: `i${i}`, primaryValue: v })) });
+    return Response.json({ core: { primary: "chaos", items: [] }, items: rows.map(([name], i) => ({ id: `i${i}`, name })), lines: rows.map(([name, v], i) => {
+      const m = MARKET[name];
+      return { id: `i${i}`, primaryValue: v, ...(m ? { volumePrimaryValue: m.volume, sparkline: { totalChange: m.change, data: [...Array(7 - m.days).fill(null), ...Array(m.days).fill(m.change)] } } : {}) };
+    }) });
   }
   return Response.json({ lines: [] });
 };
@@ -71,6 +77,10 @@ describe("data file (cited, current)", () => {
     assert.deepEqual([tiers[0].level, tiers[15].level], [68, 83]);
     assert.equal(D.strategies.filter((s) => s.thread).length, 10);
     assert.ok(D.strategies.some((s) => s.id === "essence") && D.strategies.some((s) => s.id === "delirium"));
+    for (const id of ["harvest", "heist", "divination", "covens"]) assert.ok(D.strategies.some((s) => s.id === id), id);
+    assert.ok(D.strategies.filter((s) => s.ninja.length).length >= 12, "most strategies have poe.ninja-priced outputs");
+    assert.ok(D.excluded.some((x) => x.name === "Harbinger" && /removed/.test(x.quote)), "Harbinger is left out with the quote that says why");
+    assert.ok(D.rules.fallingPct < 0 && D.rules.thinTrades > 0);
     assert.equal(D.facts.voidstones.length, 4);
   });
 });
@@ -95,6 +105,20 @@ describe("capability rules", () => {
   });
 });
 
+describe("market flags", () => {
+  test("falling fast = sell soon; thin = few trades; no market data = no flag", async () => {
+    const { marketFlags } = await import("../build/farming/plan.js");
+    const f = marketFlags({ name: "A", chaos: 2, market: { change: -44, days: 1, volume: 300 } });
+    assert.ok(f.falling && !f.thin);
+    assert.match(f.text, /-44% over 1 day, traded 300c \(~150\), FALLING FAST: sell soon/);
+    const t = marketFlags({ name: "B", chaos: 100, market: { change: 5, days: 7, volume: 200 } });
+    assert.ok(t.thin && !t.falling);
+    assert.match(t.text, /THIN/);
+    assert.equal(marketFlags({ name: "C", chaos: 5 }).text, "");
+    assert.ok(marketFlags({ name: "D", chaos: 50, listed: 2 }).thin);
+  });
+});
+
 describe("PoB side (headless fixture build)", () => {
   test("farming_check simulates tiers, bosses and map mods and leaves the build as it was", async () => {
     await call("open_build", { name: "occ-vortex" });
@@ -103,6 +127,11 @@ describe("PoB side (headless fixture build)", () => {
     const r = await link.call("farming_check", { levels: [68, 83], mods: true });
     assert.equal(r.tiers.length, 2);
     assert.ok(r.tiers[0].monsterLife < r.tiers[1].monsterLife);
+    // The enemy level must reach PoB (it used to be reset to the character level, so every tier was the same).
+    assert.ok(r.tiers[0].hits > r.tiers[1].hits * 1.5, `T1 boss hits ${r.tiers[0].hits} vs T16 ${r.tiers[1].hits}`);
+    assert.ok(r.tiers[0].bossHit.total < r.tiers[1].bossHit.total);
+    for (const t of ["Physical", "Fire", "Cold", "Lightning", "Chaos"]) assert.ok(r.tiers[1].bossHit[t] > 0, `map boss hit has ${t}`);
+    assert.match(r.assumptions, /enemy: pinnacle boss/, "assumptions are the player's own config, read before the checks");
     assert.ok(r.tiers.every((t) => t.hits > 0 && t.clearDps > 0));
     assert.ok(r.mods.length > 20, "PoB's map mods are simulated");
     assert.ok(r.mods.some((m) => (m.recoveryPct ?? 0) < -50), "a no-regen / less-recovery mod shows up");
@@ -134,17 +163,38 @@ describe("atlas { farm }", () => {
     assert.doesNotMatch(t, /\d+c\/h/);
     assert.match(t, /poewiki\.net\/wiki\/Voidstone/);
     assert.match(t, /Config assumptions:/);
+    assert.match(t, /Map boss model: PoB's "Standard Boss".*split \d+% physical, \d+% fire, \d+% cold, \d+% lightning, \d+% chaos/);
+    assert.match(t, /Weakest single-type max hit: [\d,]+ \w+ \(.*not what the verdict above uses\)/);
+    assert.match(t, /Other strategies \(lower fit/);
+    assert.equal((t.match(/^## /gm) ?? []).length, 3, "3 strategies in full by default");
+    for (const id of ["harvest", "heist", "divination", "covens"]) assert.ok(t.includes(`[${id}]`) || t.includes(`## ${D.strategies.find((s) => s.id === id).name}`), id);
+    assert.match(t, /Not offered: Harbinger: "Harbingers have been removed/);
     assert.ok(requests.every((u) => u.startsWith("https://poe.ninja/")));
   });
 
   test("one strategy: Thread investment and outputs from its own poe.ninja category only", async () => {
     const t = await call("atlas", { farm: "legion" });
     assert.match(t, /Legion Thread 2(\.0)?c each/);
-    assert.match(t, /Timeless Test Emblem 50c/);
+    assert.match(t, /Timeless Test Emblem 50c \(-45% over 3 days, traded 5,000c \(~100\), FALLING FAST: sell soon\)/);
+    assert.match(t, /Timeless Test Splinter 0\.5c \(\+4% over 3 days/);
+    assert.match(t, /Sell soon \(price falling at least 20% on poe\.ninja.*Timeless Test Emblem -45%/);
+    assert.doesNotMatch(t, /Other strategies/);
     assert.doesNotMatch(t, /Test Unrelated Orb/);
     const e = await call("atlas", { farm: "expedition" });
     assert.match(e, /Test Artifact 3(\.0)?c/);
     assert.doesNotMatch(e, /Test Unrelated Orb/);
+  });
+
+  test("limit shows more strategies in full; no-atlas strategies say why; new ones are priced", async () => {
+    const t = await call("atlas", { farm: "true", limit: 16 });
+    assert.equal((t.match(/^## /gm) ?? []).length, D.strategies.length);
+    assert.doesNotMatch(t, /Other strategies/);
+    assert.match(t, /## Heist \(contracts\)[\s\S]*?Atlas preset: none \("Atlas passives do not affect areas opened by contracts or blueprints\."/);
+    assert.match(t, /The Test Card 40c \(\+2% over 7 days, traded 60c \(~2\), THIN: may not sell/);
+    assert.match(t, /Thin markets .*The Test Card/);
+    assert.match(t, /## Covens of Umbra[\s\S]*?GGG patch notes/);
+    assert.match(t, /Allflame Ember of Testing 7(\.0)?c/);
+    assert.doesNotMatch(t, /\d+c\/h/);
   });
 
   test("log a session, then measured profit and the money plan in hours", async () => {

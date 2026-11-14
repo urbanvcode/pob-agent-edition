@@ -26,6 +26,15 @@ process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
 process.env.POB_AGENT_CACHE = path.join(tmp, "cache");
 process.env.POB_AGENT_UPDATE_CHECK = "off";
+// The profile names the league (no trade request) and poe.ninja is faked: oil prices for anoints.
+fs.writeFileSync(process.env.POB_AGENT_SETTINGS, JSON.stringify({ profile: { playMode: "trade", league: "Testleague" } }));
+const OILS = [["Clear Oil", 0.07], ["Sepia Oil", 0.11], ["Amber Oil", 0.16], ["Verdant Oil", 0.22], ["Teal Oil", 0.46], ["Azure Oil", 0.45], ["Indigo Oil", 0.51],
+  ["Violet Oil", 0.99], ["Crimson Oil", 2.1], ["Black Oil", 3.1], ["Opalescent Oil", 3.5], ["Silver Oil", 10], ["Golden Oil", 27]];
+globalThis.fetch = async (url) => {
+  const u = String(url);
+  if (!u.startsWith("https://poe.ninja/") || !u.includes("type=Oil")) throw new Error(`test made an unexpected request: ${u}`);
+  return Response.json({ core: { primary: "chaos", items: [] }, items: OILS.map(([name], i) => ({ id: `o${i}`, name })), lines: OILS.map(([, v], i) => ({ id: `o${i}`, primaryValue: v })) });
+};
 
 const opt = await import("../build/tools/optimise.js");
 const { createTools, runTool } = await import("../build/server.js");
@@ -46,6 +55,33 @@ test("mechanic tags: the lever first, then what the stat text names, 'more and i
   assert.deepEqual(opt.mechanicTags({ lever: "anoint", mechanic: "Anoint", text: "Anoint X", stats: ["Damage Penetrates 10% Cold Resistance", "+20% to Critical Strike Multiplier"] }),
     ["Anoint", "Critical strike", "Penetration"]);
   assert.equal(opt.mechanicTags({ lever: "gem", mechanic: "Support gem", text: "Swap A for B" })[0], "Support gem");
+});
+
+test("anoint suggestions: game oil names, total in chaos, gain per chaos", () => {
+  const prices = new Map([["Amber Oil", 0.16], ["Teal Oil", 0.46], ["Golden Oil", 27]]);
+  const r = { suggestions: [
+    { lever: "anoint", text: "Anoint Test Notable on the amulet", score: 5.4, recipe: ["AmberOil", "TealOil", "GoldenOil"], cost: { buy: "AmberOil, TealOil, GoldenOil", note: "replaces the current anoint" } },
+    { lever: "anoint", text: "Anoint Other Notable on the amulet", score: 2, recipe: ["AmberOil", "TestOil"], cost: {} },
+    { lever: "passive", text: "Take X", score: 1, cost: { points: 1 } },
+  ] };
+  opt.priceAnoints(r, prices);
+  const [a, b, c] = r.suggestions;
+  assert.deepEqual(a.recipe, ["Amber Oil", "Teal Oil", "Golden Oil"]);
+  assert.equal(a.cost.buy, "Amber Oil 0.16c + Teal Oil 0.46c + Golden Oil 27c = 28c");
+  assert.equal(a.cost.note, "replaces the current anoint");
+  assert.ok(Math.abs(a.cost.chaos - 27.62) < 1e-9);
+  assert.ok(Math.abs(a.perChaos - 5.4 / 27.62) < 1e-9);
+  assert.equal(opt.shortCost(a), "oils 28c");
+  // An oil poe.ninja has no price for: names kept, no total, no ranking value.
+  assert.equal(b.cost.buy, "Amber Oil 0.16c + Test Oil (no price)");
+  assert.equal(b.cost.chaos, undefined);
+  assert.equal(b.perChaos, undefined);
+  assert.deepEqual(c.cost, { points: 1 });
+  // Without prices (SSF, poe.ninja down): just the names.
+  const ssf = { suggestions: [{ lever: "anoint", text: "Anoint T", recipe: ["SilverOil", "BlackOil"] }] };
+  opt.priceAnoints(ssf, undefined);
+  assert.equal(ssf.suggestions[0].cost.buy, "Silver Oil, Black Oil");
+  assert.equal(opt.shortCost(ssf.suggestions[0]), "oils");
 });
 
 test("explanations follow the profile's explanation mode", () => {
@@ -176,6 +212,13 @@ test("optimise tool: every goal simulated in PoB, build and config put back", as
   assert.match(tank, /Metric: 0\.5 x EHP/);
   assert.match(tank, /\(EHP [\d,]+ -> [\d,]+\)/);
   assert.match(tank, /Gear: plan_upgrades \{ budget_chaos, focus: "defence" \}/);
+  if (/\[anoint\]/.test(tank)) {
+    // Oils as the game writes them, with poe.ninja's total in chaos and the gain per chaos.
+    assert.doesNotMatch(tank, /[a-z]Oil/, "no PoB ids like AmberOil");
+    assert.match(tank, /\[anoint\] Anoint .+ - buy: \w+ Oil [\d.]+c \+ \w+ Oil [\d.]+c \+ \w+ Oil [\d.]+c = [\d.]+c/);
+    assert.match(tank, /oils: \w+ Oil, \w+ Oil, \w+ Oil = [\d.]+c in total; [\d.e-]+ goal score per chaos/);
+    assert.match(tank, /Oil prices: poe\.ninja Oils, Testleague/);
+  }
 
   // All five flask slots are full: utility flasks are tried in place of the one that does least
   // for the goal, never the only life flask.

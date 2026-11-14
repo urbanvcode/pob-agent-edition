@@ -10,6 +10,8 @@ import { findGlossary, wikiUrl, type GlossaryEntry } from "../knowledge/glossary
 import { n, pct } from "../format.js";
 import { getProfile } from "../profile.js";
 import { S, tool, type Context, type Tool } from "../registry.js";
+import { chaosText, oilName, recipeCost, recipeText } from "../trade/ninja.js";
+import { oilPricesFor } from "./trade.js";
 
 export const GOALS = ["bossing", "clear", "tankiness", "balanced", "weakest"] as const;
 export const LEVERS = ["passives", "respec", "gems", "auras", "flasks", "anoint", "pantheon", "config", "scaling"] as const;
@@ -73,12 +75,32 @@ function costText(s: any): string {
   return c.note ?? "one change";
 }
 
+/**
+ * Anoint suggestions get the game's oil names and, with poe.ninja prices, the oils' total in chaos
+ * and the gain per chaos (PoB's goal score / total), so anoints can be compared by value.
+ */
+export function priceAnoints(r: any, prices?: Map<string, number>): void {
+  for (const s of (Array.isArray(r?.suggestions) ? r.suggestions : []) as any[]) {
+    if (s.lever !== "anoint") continue;
+    const recipe = (Array.isArray(s.recipe) ? s.recipe : []).map((o: unknown) => oilName(String(o)));
+    s.recipe = recipe;
+    s.cost = { ...(s.cost ?? {}), buy: recipe.join(", ") };
+    if (!prices || !recipe.length) continue;
+    const c = recipeCost(recipe, prices);
+    s.cost.buy = recipeText(c);
+    if (c.total !== undefined && c.total > 0) {
+      s.cost.chaos = c.total;
+      if (s.score > 0) s.perChaos = s.score / c.total;
+    }
+  }
+}
+
 /** Cost label short enough for the Advisor card. */
 export function shortCost(s: any): string {
   const c = s.cost ?? {};
   if (c.regret) return `${c.regret} regret`;
   if (c.points) return `${c.points} pt${c.points === 1 ? "" : "s"}`;
-  if (c.buy) return c.awakened ? "buy (awakened)" : s.lever === "anoint" ? "oils" : "buy";
+  if (c.buy) return c.awakened ? "buy (awakened)" : s.lever === "anoint" ? (c.chaos > 0 ? `oils ${chaosText(c.chaos)}` : "oils") : "buy";
   return s.lever === "pantheon" ? "switch" : s.lever === "bandit" ? "Act 2" : "change";
 }
 
@@ -127,7 +149,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
     if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
     if (extra.length) L.push(`   ${extra.join(" | ")}`);
     if (Array.isArray(s.ops) && s.ops.length) L.push(`   what_if ops: ${JSON.stringify(s.ops)}`);
-    else if (s.lever === "anoint") L.push(`   oils: ${(s.recipe ?? []).join(", ")} (edit, or suggest { kind: "anoint" })`);
+    else if (s.lever === "anoint") L.push(`   oils: ${(s.recipe ?? []).join(", ")}${s.cost?.chaos > 0 ? ` = ${chaosText(s.cost.chaos)} in total${s.perChaos > 0 ? `; ${s.perChaos >= 0.1 ? s.perChaos.toFixed(2) : s.perChaos.toPrecision(2)} goal score per chaos (compare anoints by this)` : ""}` : ""} (edit, or suggest { kind: "anoint" })`);
   });
   if (r.more > 0) L.push(`(${r.more} more; raise limit)`);
   const under = (Array.isArray(r.undercount) ? r.undercount : []) as any[];
@@ -179,8 +201,12 @@ export function optimiseTools(planUpgrades?: Tool): Tool[] {
           levers: Array.isArray(args.levers) ? args.levers.filter((l: string) => (LEVERS as readonly string[]).includes(l)) : undefined,
           hardcore: profile.hardcore,
         }, 300_000);
+        const anoints = (res.suggestions ?? []).some((s: any) => s?.lever === "anoint");
+        const oils = anoints ? await oilPricesFor(ctx.trade) : {};
+        priceAnoints(res, oils.prices);
         const { text } = formatOptimise(res, profile.explanationMode, profile.learnedTopics);
         const parts = [text];
+        if (oils.note) parts.push(oils.note);
         if (res.rollbackProblem) parts.push(`WARNING: the build may not be exactly as before (${res.rollbackProblem}).`);
         if (await pushAdvisor(ctx, res).catch(() => false)) parts.push("Also in PoB Agent Edition > Overview > AI Advisor (Passives / Gems / Other tabs).");
         const focus = res.reason && /resist/.test(res.reason) ? "resists" : focusFor(String(res.goal));

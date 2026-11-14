@@ -18,6 +18,18 @@ process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
 process.env.POB_AGENT_CACHE = path.join(tmp, "cache");
 process.env.POB_AGENT_UPDATE_CHECK = "off";
+// Anoint oil prices: the trade league list and poe.ninja's Oils are faked, so no real request is made.
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, opts) => {
+  const u = String(url);
+  if (u.includes("/api/trade/data/leagues")) return Response.json({ result: [{ id: "Testleague", realm: "pc" }, { id: "Standard", realm: "pc" }] });
+  if (u.startsWith("https://poe.ninja/") && u.includes("type=Oil")) {
+    const rows = ["Clear", "Sepia", "Amber", "Verdant", "Teal", "Azure", "Indigo", "Violet", "Crimson", "Black", "Opalescent", "Silver", "Golden"].map((c, i) => [`${c} Oil`, 0.1 * (i + 1) ** 2]);
+    return Response.json({ core: { primary: "chaos", items: [] }, items: rows.map(([name], i) => ({ id: `o${i}`, name })), lines: rows.map(([, v], i) => ({ id: `o${i}`, primaryValue: v })) });
+  }
+  if (u.startsWith("https://poe.ninja/")) throw new Error(`test made an unexpected poe.ninja request: ${u}`);
+  return realFetch(url, opts);
+};
 
 const { createTools, runTool } = await import("../build/server.js");
 const { tools, context } = createTools();
@@ -189,7 +201,9 @@ test("advice: suggest_passives, anoint, affixes", async () => {
   assert.match(s, /1\. .* \[id \d+, .*\]: DPS [+-][\d.]+% \| EHP \+[\d.]+%/);
   const a = await ok("suggest", { kind: "anoint", limit: 3 });
   assert.match(a, /Anoint options for Amulet/);
-  assert.match(a, /1\. .*: DPS [+-][\d.]+% \| EHP [+-][\d.]+% \| oils: \w+, \w+, \w+/);
+  assert.match(a, /1\. .*: DPS [+-][\d.]+% \| EHP [+-][\d.]+% \| oils: \w+ Oil [\d.]+c \+ \w+ Oil [\d.]+c \+ \w+ Oil [\d.]+c = [\d.]+c\n/);
+  assert.match(a, /Best value \(gain per chaos\):\n1\..+: [\d.]+c \| DPS [+-][\d.]+% \/ EHP [+-][\d.]+% per 10c/);
+  assert.match(a, /Oil prices: poe\.ninja Oils, Testleague/);
   const tiers = await ok("affixes", { query: "to maximum life", item: "ring", type: "Prefix", limit: 3 });
   assert.match(tiers, /Prefix ".*" \(ilvl \d+, IncreasedLife\): \+\(\d+-\d+\) to maximum Life/);
   assert.match(await ok("affixes", { query: "to maximum life", bench: true, item: "Ring", limit: 2 }), /crafting bench[\s\S]*Prefix "Upgraded"/);

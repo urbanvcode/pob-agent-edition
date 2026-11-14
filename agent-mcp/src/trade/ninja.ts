@@ -167,3 +167,36 @@ export async function exchangePrices(league: string, type: string): Promise<Exch
     throw e;
   }
 }
+
+// --- oils (poe.ninja keeps them in their own "Oils" category, not under Currency) ---------------
+/** "AmberOil" (PoB's recipe ids) -> "Amber Oil" (the game's name). */
+export function oilName(s: string): string {
+  return String(s).replace(/([a-z])Oil$/, "$1 Oil");
+}
+
+/** Oil prices in chaos (poe.ninja exchange, type Oil), cached like the other categories. */
+export function oilPrices(league: string): Promise<ExchangeInfo> {
+  return exchangePrices(league, "Oil");
+}
+
+export interface RecipeCost { total?: number; parts: Array<{ name: string; chaos?: number }>; missing: string[] }
+
+/** What an anoint recipe costs: each oil's price and the total in chaos (no total when an oil has no price). */
+export function recipeCost(recipe: readonly string[], prices: Map<string, number>): RecipeCost {
+  const lower = new Map([...prices].map(([k, v]) => [k.toLowerCase(), v]));
+  const parts = recipe.map((o) => { const name = oilName(o); return { name, chaos: lower.get(name.toLowerCase()) }; });
+  const missing = parts.filter((p) => p.chaos === undefined).map((p) => p.name);
+  const total = missing.length ? undefined : parts.reduce((s, p) => s + (p.chaos ?? 0), 0);
+  return { total, parts, missing };
+}
+
+/** "Amber Oil 0.16c + Teal Oil 0.46c + Golden Oil 27c = 27c". */
+export function recipeText(c: RecipeCost): string {
+  const parts = c.parts.map((p) => `${p.name}${p.chaos !== undefined ? ` ${chaosText(p.chaos)}` : " (no price)"}`).join(" + ");
+  return c.total !== undefined ? `${parts} = ${chaosText(c.total)}` : parts;
+}
+
+/** 27c, 3.1c, 0.16c. */
+export function chaosText(v: number): string {
+  return v >= 10 ? `${Math.round(v)}c` : v >= 1 ? `${v.toFixed(1)}c` : `${v.toFixed(2)}c`;
+}

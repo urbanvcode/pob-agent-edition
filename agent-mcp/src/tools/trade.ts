@@ -15,7 +15,7 @@ import { S, tool, type Tool } from "../registry.js";
 import type { TradeApiClient } from "../trade/client.js";
 import { priceInChaos, tradeItemToPoBText } from "../trade/itemText.js";
 import type { ItemListing, StatFilter, TradeQuery, TradeStatsData } from "../trade/types.js";
-import { currencyRates } from "../trade/ninja.js";
+import { currencyRates, oilName, oilPrices } from "../trade/ninja.js";
 import { budgetPlanText, sellText } from "../economy/run.js";
 import { evaluateCandidate, formatPlan, INSTANT_BUYOUT, planResistFix, planUpgrades, ratesOrChaosOnly, tradeUrl, type TestStats } from "../trade/upgrades.js";
 
@@ -254,11 +254,21 @@ export function tradeTools(): Tool[] {
         }
         const main = ["Divine Orb", "Exalted Orb", "Mirror of Kalandra", "Orb of Annulment", "Vaal Orb", "Orb of Alchemy", "Orb of Fusing", "Chromatic Orb", "Jeweller's Orb", "Orb of Regret", "Orb of Scouring", "Regal Orb", "Gemcutter's Prism", "Orb of Alteration"];
         const search = typeof args.search === "string" ? args.search.toLowerCase() : "";
+        const extra: string[] = [];
+        if (search) {
+          // Oils are their own poe.ninja category ("Oils"), not Currency.
+          try {
+            const oils = await oilPrices(league);
+            if (oils.stale) extra.push(`poe.ninja is not answering; oil prices are from ${new Date(oils.at).toISOString().slice(0, 10)}.`);
+            rates = new Map([...rates, ...[...oils.prices].filter(([k]) => !rates.has(k))]);
+          } catch { if (/oil/.test(search)) extra.push("poe.ninja oil prices could not be loaded."); }
+        }
         const names = search ? [...rates.keys()].filter((k) => k.toLowerCase().includes(search)).sort((a, b) => (rates.get(b) ?? 0) - (rates.get(a) ?? 0)).slice(0, 25) : main.filter((k) => rates.has(k));
-        if (!names.length) return `No currency matching "${args.search}" in ${league}.`;
+        if (!names.length) return [`No currency or oil matching "${args.search}" in ${league}.`, ...extra].join("\n");
         const value = (c: number) => (c >= 10 ? n(c) : c >= 1 ? n(c, 1) : `1/${n(1 / c, 1)}`);
         const lines = [`Currency rates in ${league} (poe.ninja, 1 unit in chaos; 1/x means x for one chaos)`, ...names.map((k) => `- ${k}: ${value(rates.get(k)!)}c`)];
         if (note) lines.push(note);
+        lines.push(...extra);
         const p = getProfile().profile;
         const divine = rates.get("Divine Orb");
         if (p.currency.chaos || p.currency.divine) {
@@ -278,6 +288,17 @@ export function tradeTools(): Tool[] {
       { name: S.str(), type: S.str("Base type, to narrow"), league: S.str() }, ["name"],
       async ({ trade }, args) => {
         const { league, note } = await resolveLeague(trade, args.league);
+        if (/oil$/i.test(String(args.name).trim())) {
+          // Oils trade in bulk (currency exchange), so poe.ninja's Oils category is the price.
+          const wanted = oilName(String(args.name).trim()).toLowerCase();
+          const oils = await oilPrices(league).catch(() => undefined);
+          const hit = oils && [...oils.prices].find(([k]) => k.toLowerCase() === wanted);
+          if (oils && hit) {
+            const v = hit[1];
+            return [`${hit[0]} in ${league}: ${v >= 10 ? n(v) : v >= 1 ? n(v, 1) : n(v, 2)}c each (poe.ninja Oils, ${new Date(oils.at).toISOString().slice(0, 16).replace("T", " ")} UTC${oils.stale ? "; poe.ninja is not answering, older copy" : ""}).`,
+              ...(note ? [note] : []), `Oils are bought in bulk (currency exchange); all oils: prices { search: "oil" }.`].join("\n");
+          }
+        }
         const build = (useName: boolean): TradeQuery => ({
           query: {
             status: { option: INSTANT_BUYOUT }, ...(useName ? { name: String(args.name) } : { term: String(args.name) }),
@@ -311,4 +332,17 @@ export function tradeTools(): Tool[] {
         return lines.join("\n");
       }, { trade: true }),
   ];
+}
+
+/** Oil prices for anoint costs: profile league, poe.ninja. SSF: none (oils are farmed). A failure is a note, never an error. */
+export async function oilPricesFor(trade: TradeApiClient): Promise<{ prices?: Map<string, number>; note?: string }> {
+  if (getProfile().profile.playMode === "ssf") return { note: "SSF: oils come from Blight encounters (no prices)." };
+  try {
+    const { league } = await resolveLeague(trade, undefined);
+    const x = await oilPrices(league);
+    if (!x.prices.size) return { note: `poe.ninja has no oil prices for ${league}.` };
+    return { prices: x.prices, note: `Oil prices: poe.ninja Oils, ${league}, ${new Date(x.at).toISOString().slice(0, 16).replace("T", " ")} UTC${x.stale ? " (poe.ninja not answering, older copy)" : ""}.` };
+  } catch (e) {
+    return { note: `Oil prices could not be loaded (${e instanceof Error ? e.message : String(e)}).` };
+  }
 }

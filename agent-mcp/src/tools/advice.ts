@@ -4,6 +4,8 @@
 import { n, pct } from "../format.js";
 import { ToolError } from "../pob.js";
 import { S, tool, type Tool } from "../registry.js";
+import { chaosText, recipeCost, recipeText } from "../trade/ninja.js";
+import { oilPricesFor } from "./trade.js";
 import { benchFixes, craftPlan } from "../craft/plan.js";
 
 interface AtlasNode { id: string; name?: string; type?: string; stats?: string[]; allocated?: boolean; pathCost?: number | null }
@@ -77,18 +79,30 @@ export const adviceTools: Tool[] = [
 
   tool("anoint", "Best amulet anointments: simulates every anointable notable in PoB and lists the top ones with their oil recipes.",
     { focus: FOCUS, limit: S.num(), slot: S.str("Default Amulet") }, [],
-    async ({ pob }, args) => {
+    async ({ pob, trade }, args) => {
       const res = await (await pob.link()).call("anoint", { focus: args.focus, limit: args.limit, slot: args.slot }, 180_000);
       const list = (Array.isArray(res.candidates) ? res.candidates : []) as any[];
       const baseDps = res.base?.CombinedDPS ?? 0, baseEhp = res.base?.TotalEHP ?? 0;
       const head = `Anoint options for ${res.slot} (${res.baseType}); ${res.evaluated} notables simulated; changes are measured against the amulet without an anoint`;
       if (!list.length) return `${head}\nNo anoint candidates.`;
+      const oils = await oilPricesFor(trade);
+      const dPct = (c: any) => (baseDps > 0 ? (c.dpsDelta / baseDps) * 100 : 0), ePct = (c: any) => (baseEhp > 0 ? (c.ehpDelta / baseEhp) * 100 : 0);
+      const costs = list.map((c) => recipeCost((c.recipe ?? []) as string[], oils.prices ?? new Map()));
       const lines = list.map((c, i) => {
-        const d = baseDps > 0 ? pct((c.dpsDelta / baseDps) * 100) : n(c.dpsDelta);
-        const e = baseEhp > 0 ? pct((c.ehpDelta / baseEhp) * 100) : n(c.ehpDelta);
-        return `${i + 1}. ${c.name}: DPS ${d} | EHP ${e} | oils: ${(c.recipe ?? []).map((o: string) => o.replace(/Oil$/, "")).join(", ")}`;
+        const d = baseDps > 0 ? pct(dPct(c)) : n(c.dpsDelta);
+        const e = baseEhp > 0 ? pct(ePct(c)) : n(c.ehpDelta);
+        return `${i + 1}. ${c.name}: DPS ${d} | EHP ${e} | oils: ${oils.prices ? recipeText(costs[i]) : costs[i].parts.map((p) => p.name).join(", ")}`;
       });
-      return [head, ...lines, `Config assumptions: ${res.assumptions}`].join("\n");
+      const out = [head, ...lines];
+      // Gain per chaos: PoB's score for the focus divided by the oils' total.
+      const priced = list.map((c, i) => ({ c, chaos: costs[i].total })).filter((x) => x.chaos !== undefined && x.chaos > 0 && (x.c.score ?? 0) > 0) as Array<{ c: any; chaos: number }>;
+      if (priced.length > 1) {
+        const per10 = (v: number, chaos: number) => pct((v / chaos) * 10);
+        priced.sort((a, b) => b.c.score / b.chaos - a.c.score / a.chaos);
+        out.push("Best value (gain per chaos):", ...priced.slice(0, 5).map((x, i) => `${i + 1}. ${x.c.name}: ${chaosText(x.chaos)} | DPS ${per10(dPct(x.c), x.chaos)} / EHP ${per10(ePct(x.c), x.chaos)} per 10c`));
+      }
+      if (oils.note) out.push(oils.note);
+      return [...out, `Config assumptions: ${res.assumptions}`].join("\n");
     }),
 
   tool("affixes", `PoB mod tables. query: tiers of a prefix/suffix (ranges, ilvl, item types); bench: true for bench crafts. slot or item_text: classify an item's mods (tier, bench, open prefixes/suffixes). craft: plan to craft wanted stats ("life, 2 res, crit multi") on slot's base or base: methods by expected cost with odds, steps, stop points, buy vs craft, gain simulated; "item" = item_text is the target (guide item); "fix" = bench crafts for slot, simulated.`,

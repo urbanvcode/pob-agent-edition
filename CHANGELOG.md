@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-14
+
+Fixes found while testing 0.9.0: character sync and auras, the optimiser, gem quality, anoint oil prices, notable look-ups and the farming advisor. Based on **Path of Building Community v2.67.2** (same as 0.9.0). **After updating, restart PoB Agent Edition and your AI app.**
+
 ### Fixed
 - **Farming advisor: map survival was judged far too harshly**: every map tier, even T1, was checked against the same boss hit (PoB quietly kept the enemy at your character level), so white maps looked as dangerous as T16. Each tier now uses its own area level, your own boss settings (a boss skill you picked in Configuration) no longer turn every map boss into that skill, and the advisor says what it assumes: PoB's average map-boss hit, split about 23% each physical, fire, cold and lightning plus 9% chaos. Your weakest single damage type is now shown on its own line instead of looking like the reason for the verdict.
 - **Farming advisor: more to farm, and when to sell**: it used to offer only Breach, Legion and Blight. It now knows 16 strategies (new: Harvest, Heist, divination cards and the Covens of Umbra league mechanic; Betrayal and Ultimatum now show what their rewards sell for), each with a quote and link, shows the top 3 in full and the rest in a short list (`limit` shows more in full), and says why Harbinger is missing (removed from the game in 3.28). Every priced reward now shows poe.ninja's price trend and trade volume, with "falling fast: sell soon" and "thin market: may not sell" warnings. It still never guesses profit per hour; only your own logged sessions count.
@@ -256,7 +260,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.6.1...v0.7.0

@@ -1380,3 +1380,4 @@ The player always runs two sessions:
 | 0.7.0 (2026-11-13) | 13 Data freshness (3.30 uniques preview); roadmap: Stage 11 interview, theorycraft, prices, item targets |
 | 0.8.0 (2026-11-13) | 4 Optimiser, 10 AI chat inside PoB, 17 Lighter, Guide tab fixes (one combined release, by the player's choice) |
 | 0.9.0 (2026-11-14) | 5 Economy, 6 Crafting, 7 Levelling, 8 Farming & money, 11 Create a build; tool cleanup (27 tools); Codex chat locked to the PoB tools (one combined release, built while the player was away) |
+| 0.9.1 (2026-11-14) | Patch: fixes from the player's testing (auras after sync, optimiser Trinity/attributes/flasks, matching-socket gem quality, anoint oil prices, notable look-ups, farming map survival and strategies) |

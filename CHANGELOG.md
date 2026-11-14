@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Weapon trade searches find weapons again**: searching bows (or any weapon) for a stat such as "increased Attack Speed" or "Adds # to # Lightning Damage" found 0 listings, because on a weapon those rolls are the weapon's own ("Local") stats and the search asked for the global ones. `trade_search` now uses the weapon's own stat whenever the type is a weapon category ("bow"), a weapon base ("Imperial Bow") or the slot is Weapon 1/2: the same bow search under 30c now finds thousands of listings. "bows" works like "bow", and the result reminds you that "Adds # to #" filters compare the average of the two numbers (Adds 60 to 140 = 100).
+
 ## [0.9.4] - 2026-11-14
 
 Fixes from testing: the optimiser warns when a change leaves a skill without mana or loses an ailment immunity. Based on **Path of Building Community v2.67.2** (same as 0.9.3). **After updating, restart PoB Agent Edition and your AI app.**

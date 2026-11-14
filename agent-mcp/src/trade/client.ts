@@ -174,6 +174,20 @@ export class TradeApiClient {
     return result;
   }
 
+  /**
+   * Base types by group (pathofexile.com/api/trade/data/items), to tell a
+   * weapon base from an armour base. Static data: cached for a day.
+   */
+  async getItems(): Promise<{ result: Array<{ id: string; entries: Array<{ type: string; name?: string }> }> }> {
+    const cacheKey = 'items:all';
+    const cached = this.getFromCache<{ result: Array<{ id: string; entries: Array<{ type: string; name?: string }> }> }>(cacheKey, 86_400_000);
+    if (cached) return cached;
+    const url = `${this.baseUrl}/data/items`;
+    const result = await this.limiter.schedule(() => this.makeRequest<{ result: Array<{ id: string; entries: Array<{ type: string; name?: string }> }> }>('GET', url));
+    this.putInCache(cacheKey, result, 86_400_000);
+    return result;
+  }
+
   // ========================================
   // Private Methods
   // ========================================

@@ -73,13 +73,25 @@ function ssfNote(): string {
 const norm = (s: string) => s.toLowerCase().replace(/[+-]?\d+(\.\d+)?/g, "#").replace(/[^a-z#% ]+/g, " ").replace(/\s+/g, " ").trim();
 const TYPE_RANK = ["pseudo", "explicit", "implicit", "fractured", "crafted", "enchant", "scourge"];
 
-export function findStat(data: TradeStatsData, text: string): { id: string; text: string } | { suggestions: string[] } {
+/**
+ * Trade stat for a text. weapon: the search is for weapons, so a stat that has a
+ * weapon-local version ("#% increased Attack Speed (Local)", "Adds # to # Lightning
+ * Damage (Local)") uses it: on a weapon those rolls are local, and the global stat
+ * or its pseudo total would find nothing.
+ */
+export function findStat(data: TradeStatsData, text: string, opts: { weapon?: boolean } = {}): { id: string; text: string; local?: boolean } | { suggestions: string[] } {
   const raw = text.trim();
   if (/^[a-z]+\.[\w.|]+$/i.test(raw)) return { id: raw, text: raw };
   const typed = /^(pseudo|explicit|implicit|fractured|crafted|enchant|scourge)\s*:\s*(.+)$/i.exec(raw);
   const wantType = typed?.[1].toLowerCase();
   const want = norm(typed ? typed[2] : raw).replace(/#/g, "").replace(/\s+/g, " ").trim();
   const all = data.result.flatMap((g) => g.entries);
+  if (opts.weapon && wantType !== "pseudo" && !/ local$/.test(want)) {
+    const localType = wantType ?? "explicit";
+    const hit = all.find((e) => e.type === localType && /\(local\)\s*$/i.test(e.text)
+      && norm(e.text).replace(/#/g, "").replace(/\s+/g, " ").trim() === `${want} local`);
+    if (hit) return { id: hit.id, text: `${hit.type}: ${hit.text}`, local: true };
+  }
   const scored = all
     .filter((e) => !wantType || e.type === wantType)
     .map((e) => ({ e, t: norm(e.text).replace(/#/g, "").replace(/\s+/g, " ").trim() }))
@@ -102,6 +114,48 @@ function listingLine(i: number, l: ItemListing, chaos: number | undefined): stri
 }
 
 const modText = (s: unknown) => (typeof s === "string" ? s : s && typeof s === "object" && typeof (s as { description?: unknown }).description === "string" ? (s as { description: string }).description : String(s ?? ""));
+/** Weapon search? A weapon category, a Weapon slot, or a weapon base type (trade item data); undefined = unknown. */
+export async function isWeaponSearch(trade: Pick<TradeApiClient, "getItems">, args: { type?: unknown; slot?: unknown }, category?: string): Promise<boolean | undefined> {
+  if (category) return category.startsWith("weapon");
+  if (typeof args.slot === "string" && /^weapon [12]$/i.test(args.slot.trim())) return true;
+  if (typeof args.type !== "string" || !args.type.trim()) return undefined;
+  const want = args.type.trim().toLowerCase();
+  try {
+    const groups = (await trade.getItems()).result ?? [];
+    const group = groups.find((g) => g.entries.some((e) => !e.name && e.type.toLowerCase() === want));
+    return group ? group.id === "weapon" : undefined;
+  } catch {
+    return / (bow|claw|dagger|wand|sword|axe|mace|sceptre|staff|quarterstaff|rapier|foil)$/i.test(` ${want}`) || undefined;
+  }
+}
+
+/** The trade category for a type ("bow", "bows", "Body Armour"), if it is one. */
+export function categoryFor(type: string): string | undefined {
+  const t = type.trim().toLowerCase();
+  return CATEGORY[t] ?? CATEGORY[t.replace(/e?s$/, "")] ?? CATEGORY[t.replace(/s$/, "")];
+}
+
+/** The trade_search query (no network): stats already matched to trade ids. */
+export function buildSearchQuery(args: Record<string, any>, statFilters: StatFilter[]): TradeQuery {
+  const query: TradeQuery = { query: { status: { option: INSTANT_BUYOUT }, filters: {} }, sort: { price: "asc" } };
+  const filters = query.query.filters!;
+  const typeFilters: Record<string, unknown> = {};
+  if (args.name) query.query.name = String(args.name);
+  if (args.type) {
+    const category = categoryFor(String(args.type));
+    if (category) typeFilters.category = { option: category };
+    else query.query.type = String(args.type);
+  }
+  if (args.rarity) typeFilters.rarity = { option: args.rarity };
+  if (Object.keys(typeFilters).length) filters.type_filters = { filters: typeFilters };
+  if (args.min_links) filters.socket_filters = { filters: { links: { min: Number(args.min_links) } } };
+  const price: Record<string, unknown> = { option: typeof args.currency === "string" && args.currency ? args.currency : "chaos" };
+  if (typeof args.max_price === "number") price.max = args.max_price;
+  filters.trade_filters = { filters: { price } };
+  if (statFilters.length) query.query.stats = [{ type: "and", filters: statFilters }];
+  return query;
+}
+
 const clean = (s: unknown) => modText(s).replace(/\[([^\]|]+)\|([^\]]+)\]/g, "$2").replace(/\[([^\]]+)\]/g, "$1");
 
 export function tradeTools(): Tool[] {
@@ -125,27 +179,14 @@ export function tradeTools(): Tool[] {
       async ({ trade, pob }, args) => {
         if (!args.name && !args.type && !(Array.isArray(args.stats) && args.stats.length)) throw new ToolError("Give at least one of name, type or stats.");
         const { league, note } = await resolveLeague(trade, args.league);
-        const query: TradeQuery = { query: { status: { option: INSTANT_BUYOUT }, filters: {} }, sort: { price: "asc" } };
-        const filters = query.query.filters!;
-        const typeFilters: Record<string, unknown> = {};
-        if (args.name) query.query.name = String(args.name);
-        if (args.type) {
-          const category = CATEGORY[String(args.type).toLowerCase()];
-          if (category) typeFilters.category = { option: category };
-          else query.query.type = String(args.type);
-        }
-        if (args.rarity) typeFilters.rarity = { option: args.rarity };
-        if (Object.keys(typeFilters).length) filters.type_filters = { filters: typeFilters };
-        if (args.min_links) filters.socket_filters = { filters: { links: { min: Number(args.min_links) } } };
-        const price: Record<string, unknown> = { option: typeof args.currency === "string" && args.currency ? args.currency : "chaos" };
-        if (typeof args.max_price === "number") price.max = args.max_price;
-        filters.trade_filters = { filters: { price } };
         const used: string[] = [];
+        const statFilters: StatFilter[] = [];
+        let averaged = false, local = false;
         if (Array.isArray(args.stats) && args.stats.length) {
           const data = await trade.getStats();
-          const statFilters: StatFilter[] = [];
+          const weapon = await isWeaponSearch(trade, args, args.type ? categoryFor(String(args.type)) : undefined);
           for (const s of args.stats as Array<{ text: string; min?: number; max?: number }>) {
-            const found = findStat(data, String(s.text));
+            const found = findStat(data, String(s.text), { weapon: weapon === true });
             if ("suggestions" in found) {
               throw new ToolError(`No trade stat matches "${s.text}".${found.suggestions.length ? ` Closest: ${found.suggestions.join(" | ")}` : ""} Use the wording from the item (numbers as #).`);
             }
@@ -153,14 +194,18 @@ export function tradeTools(): Tool[] {
             if (typeof s.min === "number") value.min = s.min;
             if (typeof s.max === "number") value.max = s.max;
             statFilters.push({ id: found.id, ...(Object.keys(value).length ? { value } : {}) });
+            if (found.local) local = true;
+            if (/adds # to #/i.test(found.text) && Object.keys(value).length) averaged = true;
             used.push(`${found.text}${value.min !== undefined ? ` >= ${value.min}` : ""}${value.max !== undefined ? ` <= ${value.max}` : ""}`);
           }
-          query.query.stats = [{ type: "and", filters: statFilters }];
         }
+        const query = buildSearchQuery(args, statFilters);
         const search = await trade.searchItems(league, query);
         const head = [`${ssfNote()}Trade search in ${league} (instant buyout only): ${search.total} listing(s)`];
         if (note) head.push(note);
         if (used.length) head.push(`Stat filters: ${used.join("; ")}`);
+        if (local) head.push("Weapon search: weapon stats are matched as the weapon's own (Local) rolls.");
+        if (averaged) head.push('"Adds # to #" filters compare the average of the two numbers (Adds 60 to 140 = 100).');
         if (!search.result?.length) return [...head, "Nothing found. Loosen the filters or raise max_price."].join("\n");
         const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
         const listings = await trade.fetchItems(search.result.slice(0, limit), search.id);

@@ -6,6 +6,11 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **First character sync no longer seems to halve your damage**: a first sync makes a fresh build with PoB's default fight settings (charges, Trinity resonance, which auras are on), so a character you had already set up in another build could show half its real DPS. The sync now looks for another build of the same character (an import of it, or a build with its name), lists which fight settings differ and what PoB's DPS would be with them, and offers to copy them. It never copies them by itself.
+- **Each sync says when fight settings, not gear, changed your DPS**: if you changed the Configuration between two syncs, the summary splits the DPS change into "from gear, gems and passives" and "from fight settings", and flags it when the settings explain most of it.
+- **Clearer levelling line in the sync**: the next Labyrinth no longer reads "ready once the 0 trials (Acts 0-0) are done". The Eternal Labyrinth now says you can run it with an Offering to the Goddess, the other labs name their trials, and missing resistances read "Cold resistance 5% under the cap" instead of "Uncapped now: Cold +5".
+
 ## [0.9.1] - 2026-11-14
 
 Fixes found while testing 0.9.0: character sync and auras, the optimiser, gem quality, anoint oil prices, notable look-ups and the farming advisor. Based on **Path of Building Community v2.67.2** (same as 0.9.0). **After updating, restart PoB Agent Edition and your AI app.**

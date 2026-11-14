@@ -2,8 +2,8 @@
 import fs from "fs";
 import path from "path";
 import {
-  CharacterClient, REALMS, characterHash, diffStates, diffSummary, diffText, dps, historyFile, lastSynced, listHistories,
-  maxHit, readHistory, saveSnapshot, updateIndex, writeHistory, type History, type HistoryEntry,
+  CharacterClient, REALMS, asObject, characterHash, configEffectText, diffStates, diffSummary, diffText, dps, findSameCharacterBuilds, historyFile,
+  lastSynced, listHistories, maxHit, readHistory, saveSnapshot, updateIndex, writeHistory, type ConfigEffect, type History, type HistoryEntry,
 } from "../character.js";
 import { levellingSyncLine } from "../levelling.js";
 import { ToolError, type Pob } from "../pob.js";
@@ -21,6 +21,56 @@ async function liveState(pob: Pob): Promise<{ mode: string; file?: string; unsav
   const link = await pob.link(false);
   if (link.kind !== "live") return null;
   return (await link.call("get_live_state")).state;
+}
+
+const signed = (v: number) => `${v >= 0 ? "+" : ""}${fmt(v)}`;
+const pctOf = (from: number, to: number) => (from > 0 ? ` (${to >= from ? "+" : ""}${(((to - from) / from) * 100).toFixed(0)}%)` : "");
+
+/**
+ * First sync: the new build starts with PoB's default Configuration. If another
+ * build in the Builds folder is clearly the same character, say which of its
+ * fight settings differ and what they do to DPS (simulated, rolled back), with
+ * the edit ops that copy them. Returns the lines and a short summary note.
+ */
+async function freshConfigLines(pob: Pob, link: any, dir: string, file: string, name: string, entry: HistoryEntry, character: string): Promise<{ lines: string[]; note?: string }> {
+  const cands = findSameCharacterBuilds(dir, character, entry.className, entry.ascendancy, [file]).slice(0, 3);
+  for (const c of cands) {
+    try {
+      const side = await pob.sideLink();
+      await side.call("load_build_xml", { xml: fs.readFileSync(c.file, "utf8"), name: c.name });
+      const prof = await side.call("config_profile");
+      if (!prof?.ok) continue;
+      if (prof.mainSkill && entry.mainSkill && prof.mainSkill !== entry.mainSkill) continue;
+      const eff: ConfigEffect & { ok: boolean } = await link.call("config_effect", { config: asObject(prof.config), gems: asObject<boolean>(prof.gems) });
+      if (!eff?.ok) break;
+      const who = `"${c.name}" (the same character${c.byImport ? ", an import of it" : ", by its name"})`;
+      if (!eff.ops?.length) return { lines: [`FIGHT SETTINGS: same as ${who}.`] };
+      const d0 = dps(eff.before ?? {}), d1 = dps(eff.after ?? {});
+      return {
+        lines: [
+          `FIGHT SETTINGS: this new build starts with PoB's default Configuration, and ${who} has different ones: ${configEffectText(eff)}.`,
+          `With those settings PoB's DPS for the synced build is ${fmt(d1)} instead of ${fmt(d0)}${pctOf(d0, d1)} (simulated, nothing changed). Ask the player which settings match their fights; to copy them: edit { ops: ${JSON.stringify(eff.ops)} } (what_if previews it), then save_build.`,
+        ],
+        note: `fresh config; "${c.name}" has other fight settings (DPS ${fmt(d1)} with them)`,
+      };
+    } catch { /* try the next one */ }
+  }
+  return { lines: [`FIGHT SETTINGS: new build with PoB's default Configuration (no other build of this character found). Set the charges, buffs and enemy the player really fights with (set_config), or the DPS can be far off.`], note: "fresh config" };
+}
+
+/** Later syncs: how much of the DPS change comes from fight settings changed since the last sync, and how much from gear. */
+async function configChangeLines(link: any, before: HistoryEntry, entry: HistoryEntry): Promise<{ lines: string[]; mostly: boolean }> {
+  if (!before.fight || !entry.fight) return { lines: [], mostly: false };
+  let eff: ConfigEffect & { ok: boolean };
+  try { eff = await link.call("config_effect", { config: before.fight.config, gems: before.fight.gems }); } catch { return { lines: [], mostly: false }; }
+  if (!eff?.ok || !eff.ops?.length) return { lines: [], mostly: false };
+  const prev = dps(before.stats), now = dps(entry.stats), oldCfg = dps(eff.after ?? {});
+  const fromConfig = now - oldCfg, fromGear = oldCfg - prev;
+  const mostly = Math.abs(fromConfig) > Math.abs(fromGear) && Math.abs(fromConfig) > Math.max(prev, 1) * 0.01;
+  return {
+    lines: [`${mostly ? "DPS CHANGED MOSTLY BY CONFIG: " : ""}DPS ${fmt(prev)} -> ${fmt(now)}: ${signed(fromGear)} from gear, gems and passives, ${signed(fromConfig)} from fight settings changed since the last sync (${configEffectText(eff, true)}).`],
+    mostly,
+  };
 }
 
 const samePath = (a?: string, b?: string) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
@@ -58,7 +108,8 @@ export function characterTools(client = new CharacterClient()): Tool[] {
         const name = `${dl.character.name} - synced`;
         const file = buildFile(dir, name);
         const link = await pob.link(false);
-        if (fs.existsSync(file)) {
+        const fresh = !fs.existsSync(file);
+        if (!fresh) {
           if (link.kind === "live") await link.call("open_build_file", { path: file, name });
           else await link.call("load_build_xml", { xml: fs.readFileSync(file, "utf8"), name });
         } else {
@@ -88,6 +139,21 @@ export function characterTools(client = new CharacterClient()): Tool[] {
         const before = history.entries.at(-1);
         const diff = before ? diffStates(before, entry) : null;
         entry.summary = diff ? diffSummary(diff) : "first sync";
+        // Fight settings (Configuration and which skills are on): kept with the entry, so the next sync can tell config from gear.
+        try {
+          const prof = await link.call("config_profile");
+          if (prof?.ok) entry.fight = { config: asObject(prof.config), gems: asObject<boolean>(prof.gems) };
+        } catch { /* optional */ }
+        let fightLines: string[] = [];
+        if (fresh && !before) {
+          const r = await freshConfigLines(pob, link, dir, file, name, entry, dl.character.name);
+          fightLines = r.lines;
+          if (r.note) entry.summary += `; ${r.note}`;
+        } else if (before) {
+          const r = await configChangeLines(link, before, entry);
+          fightLines = r.lines;
+          if (r.mostly) entry.summary += ", DPS change mostly from config";
+        }
         history.entries.push(entry);
         writeHistory(hFile, history);
         updateIndex(history);
@@ -102,9 +168,10 @@ export function characterTools(client = new CharacterClient()): Tool[] {
           ...(levelling ? [levelling] : []),
           ...(imported.keptOff?.length ? [`Kept switched off, as in this build before the sync (the game does not say which auras are on): ${imported.keptOff.join(", ")}.`] : []),
           "",
+          ...fightLines,
           ...(diff ? [`CHANGES since ${day(before!.at)} UTC:`, ...diffText(diff)] : ["First sync: this is the baseline. The next sync lists what changed."]),
           "",
-          `PoB recalculated everything from the imported character; config kept (bandit, pantheon and resistance penalty set by PoB's importer). Config assumptions: ${entry.assumptions ?? "?"}`,
+          `PoB recalculated everything from the imported character; ${fresh ? "new build, PoB's default config" : "config kept"} (bandit, pantheon and resistance penalty set by PoB's importer). Config assumptions: ${entry.assumptions ?? "?"}`,
           `History: ${history.entries.length} sync(s); character { history: true } shows the timeline, the Overview "Progress" card draws it.`,
         ];
         return lines.join("\n");

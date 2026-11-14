@@ -138,6 +138,29 @@ test("levelling_plan: next steps for level 34, build unchanged afterwards", asyn
   assert.deepEqual(afterStats, before, "the plan never changes the build");
 });
 
+test("levelling next steps: labs name their trials, the Eternal Labyrinth has none; resists read in words", async () => {
+  // Level 34, no ascendancy points: the Normal Labyrinth is next and names its six trials.
+  const early = await link.call("levelling_next", {});
+  const lab = early.next.find((s) => s.kind === "lab");
+  if (lab) assert.match(lab.text, /Normal Labyrinth .*6 trials \(Acts 1-3: The Lower Prison, /);
+  for (const s of early.next) assert.doesNotMatch(s.text, /\b0 trials|Acts 0-0|Uncapped now/);
+  // Three labs done (6 ascendancy points), level 77 in maps: the Eternal Labyrinth, no trial count.
+  const asc = own.stages[0].ascIds.slice(0, 6);
+  await link.call("edit", { ops: [{ op: "alloc", nodes: asc }] });
+  try {
+    const late = await link.call("levelling_next", { level: 77, act: 11 });
+    assert.equal(late.me.ascPoints, 6);
+    const eternal = late.next.find((s) => s.kind === "lab");
+    assert.ok(eternal, "the Eternal Labyrinth is the next lab");
+    assert.match(eternal.text, /^Eternal Labyrinth \(monster level 75\): you can run it now with an Offering to the Goddess/);
+    for (const s of late.next) assert.doesNotMatch(s.text, /\b0 trials|Acts 0-0|Uncapped now/);
+    const res = late.next.find((s) => s.kind === "resists" && /not capped now/.test(s.text));
+    if (res) assert.match(res.text, /^Resistances not capped now: (Fire|Cold|Lightning) resistance \d+% under the cap/);
+  } finally {
+    await link.call("edit", { ops: [{ op: "dealloc", nodes: asc.slice().reverse() }] });
+  }
+});
+
 test("levelling_plan: a guide's levelling stages give swaps, links and lab nodes", async () => {
   const guide = {
     name: "Guide - test", config: { bandit: "Alira", pantheonMajorGod: "Solaris" },

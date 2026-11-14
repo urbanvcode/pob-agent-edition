@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **A character sync after gear changes no longer turns your main skill into an aura**: the game sometimes lists your socket groups in a different order (gloves first, say), and the sync used to keep the group's number instead of the skill, so the synced build could come back with Haste as the main skill and the report said "DPS: 97,539 -> 0 (-100%)". The sync now finds your main skill again by its gem and supports; if that skill is gone it picks your damage skill with the highest DPS (never an aura, herald or other utility skill) and says so. When the main skill did change, the report says "Main skill changed: X -> Y" and no longer shows a DPS change measured on an aura. A newly socketed aura (Anger, say) is now named on its own line: the game doesn't say whether it is switched on, so the AI asks you, and the line shows your unreserved mana both with it on and with it off.
+- **The sync is honest about bandit and pantheon**: pathofexile.com's public profile doesn't include them, so a sync can only keep what the synced build already has. The report used to say they were "set by PoB's importer". It now says which ones it kept. If the synced build has none but another build of the same character does (Soul of Lunaris + Shakari in your AI build, say), it names that build and gives the one-step change to copy them, so the AI asks you what you picked in game. Later syncs keep them.
+
 ## [0.9.4] - 2026-11-14
 
 Fixes from testing: the optimiser warns when a change leaves a skill without mana or loses an ailment immunity. Based on **Path of Building Community v2.67.2** (same as 0.9.3). **After updating, restart PoB Agent Edition and your AI app.**

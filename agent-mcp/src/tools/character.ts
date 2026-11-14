@@ -64,6 +64,10 @@ async function configChangeLines(link: any, before: HistoryEntry, entry: History
   let eff: ConfigEffect & { ok: boolean };
   try { eff = await link.call("config_effect", { config: before.fight.config, gems: before.fight.gems }); } catch { return { lines: [], mostly: false }; }
   if (!eff?.ok || !eff.ops?.length) return { lines: [], mostly: false };
+  // A DPS split means nothing when the main skill changed or is an aura.
+  if (before.mainSkill !== entry.mainSkill || before.mainSkillDamage === false || entry.mainSkillDamage === false) {
+    return { lines: [`FIGHT SETTINGS changed since the last sync: ${configEffectText(eff, true)}.`], mostly: false };
+  }
   const prev = dps(before.stats), now = dps(entry.stats), oldCfg = dps(eff.after ?? {});
   const fromConfig = now - oldCfg, fromGear = oldCfg - prev;
   const mostly = Math.abs(fromConfig) > Math.abs(fromGear) && Math.abs(fromConfig) > Math.max(prev, 1) * 0.01;
@@ -71,6 +75,35 @@ async function configChangeLines(link: any, before: HistoryEntry, entry: History
     lines: [`${mostly ? "DPS CHANGED MOSTLY BY CONFIG: " : ""}DPS ${fmt(prev)} -> ${fmt(now)}: ${signed(fromGear)} from gear, gems and passives, ${signed(fromConfig)} from fight settings changed since the last sync (${configEffectText(eff, true)}).`],
     mostly,
   };
+}
+
+type Importer = { bandit?: string; pantheonMajorGod?: string; pantheonMinorGod?: string };
+const unset = (v?: string) => !v || v === "None";
+const godText = (i: Importer) => `bandit ${unset(i.bandit) ? "none (kill all)" : i.bandit}, major god ${unset(i.pantheonMajorGod) ? "none" : i.pantheonMajorGod}, minor god ${unset(i.pantheonMinorGod) ? "none" : i.pantheonMinorGod}`;
+
+/**
+ * Bandit and pantheon are not in the public character profile, so a sync keeps
+ * what the synced build has. When it has none, look for another build of the
+ * same character that has them and offer the edit op (the player confirms: the
+ * game may differ from that build).
+ */
+async function godLines(pob: Pob, dir: string, file: string, entry: HistoryEntry, character: string, mine?: Importer): Promise<string[]> {
+  if (!mine) return [];
+  if (!unset(mine.pantheonMajorGod) || !unset(mine.pantheonMinorGod) || !unset(mine.bandit)) {
+    return [`BANDIT AND PANTHEON: not in the public profile, kept from this build: ${godText(mine)}.`];
+  }
+  for (const c of findSameCharacterBuilds(dir, character, entry.className, entry.ascendancy, [file]).slice(0, 3)) {
+    try {
+      const side = await pob.sideLink();
+      await side.call("load_build_xml", { xml: fs.readFileSync(c.file, "utf8"), name: c.name });
+      const other: Importer | undefined = (await side.call("config_profile"))?.importer;
+      if (!other || (unset(other.pantheonMajorGod) && unset(other.pantheonMinorGod) && unset(other.bandit))) continue;
+      const values: Record<string, string> = {};
+      for (const k of ["bandit", "pantheonMajorGod", "pantheonMinorGod"] as const) if (!unset(other[k])) values[k] = other[k]!;
+      return [`BANDIT AND PANTHEON: not in the public profile, and this build has none set. "${c.name}" (same character) has ${godText(other)}. Ask the player what they picked in game; to copy: edit { ops: [${JSON.stringify({ op: "config", values })}] }, then save_build (later syncs keep it).`];
+    } catch { /* next */ }
+  }
+  return ["BANDIT AND PANTHEON: not in the public profile and not set in this build (PoB counts no bandit reward and no pantheon). Ask the player which they picked and set them (set_config bandit / pantheonMajorGod / pantheonMinorGod); later syncs keep them."];
 }
 
 const samePath = (a?: string, b?: string) => !!a && !!b && path.resolve(a).toLowerCase() === path.resolve(b).toLowerCase();
@@ -139,10 +172,11 @@ export function characterTools(client = new CharacterClient()): Tool[] {
         const before = history.entries.at(-1);
         const diff = before ? diffStates(before, entry) : null;
         entry.summary = diff ? diffSummary(diff) : "first sync";
+        let importer: Importer | undefined;
         // Fight settings (Configuration and which skills are on): kept with the entry, so the next sync can tell config from gear.
         try {
           const prof = await link.call("config_profile");
-          if (prof?.ok) entry.fight = { config: asObject(prof.config), gems: asObject<boolean>(prof.gems) };
+          if (prof?.ok) { entry.fight = { config: asObject(prof.config), gems: asObject<boolean>(prof.gems) }; importer = prof.importer; }
         } catch { /* optional */ }
         let fightLines: string[] = [];
         if (fresh && !before) {
@@ -154,24 +188,44 @@ export function characterTools(client = new CharacterClient()): Tool[] {
           fightLines = r.lines;
           if (r.mostly) entry.summary += ", DPS change mostly from config";
         }
+        const gods = await godLines(pob, dir, file, entry, dl.character.name, importer).catch(() => [] as string[]);
         history.entries.push(entry);
         writeHistory(hFile, history);
         updateIndex(history);
 
         const s = entry.stats;
+        // Main skill: kept by gem name across syncs (the game reorders socket groups), or picked by DPS.
+        const mainLines: string[] = [];
+        if (imported.mainSkillPick === "highest_dps" && entry.mainSkill) {
+          mainLines.push(imported.mainSkillBefore
+            ? `MAIN SKILL: ${imported.mainSkillBefore} is no longer in the build; picked ${entry.mainSkill} (highest DPS of the damage skills). Ask the player if that is the skill they use.`
+            : `MAIN SKILL: picked ${entry.mainSkill} (highest DPS of the damage skills). Ask the player if that is the skill they use.`);
+        } else if (entry.mainSkillDamage === false) {
+          mainLines.push(`MAIN SKILL: ${entry.mainSkill ?? "none"} is not a damage skill, so the DPS is not meaningful. Ask the player which skill they use and set it (edit main_skill).`);
+        }
+        // New auras and other reservations: the game does not say if they are on, the import counts them on.
+        const nm = (v?: number) => (typeof v === "number" ? fmt(v) : "?");
+        for (const r of (imported.newReservers ?? []) as Array<{ name: string; group: number; gem: number; manaOn?: number; manaOff?: number; lifeOn?: number; lifeOff?: number }>) {
+          const life = typeof r.lifeOn === "number" && typeof r.lifeOff === "number" && Math.round(r.lifeOn) !== Math.round(r.lifeOff) ? `; unreserved life ${nm(r.lifeOn)} on / ${nm(r.lifeOff)} off` : "";
+          mainLines.push(`NEW AURA: ${r.name}; the game doesn't say if it's on: ask the player. Unreserved mana with it on: ${nm(r.manaOn)}, with it off: ${nm(r.manaOff)}${life} (PoB, counted on for now). If it is off: edit { ops: [{"op":"gem","group":${r.group},"gem":${r.gem},"enabled":false}] }, then save_build (the next sync keeps it off).`);
+        }
+        const dpsNow = entry.mainSkillDamage === false ? `DPS n/a (${entry.mainSkill} is not a damage skill)` : `DPS ${fmt(dps(s))}`;
         // Live levelling tracking (Stage 7): where the synced character stands and what is next.
         const levelling = (entry.level ?? 100) < 90 ? await levellingSyncLine(pob) : undefined;
         const lines = [
           `Synced ${dl.character.name} (${dl.character.league}): level ${entry.level} ${entry.className}${entry.ascendancy && entry.ascendancy !== "None" ? ` (${entry.ascendancy})` : ""}, main skill ${entry.mainSkill ?? "none"}.`,
           `Build "${name}" saved to ${file}${link.kind === "live" ? " and open in the PoB window" : ""}. ${dl.requests} requests to pathofexile.com.`,
-          `Now: DPS ${fmt(dps(s))}, EHP ${fmt(s.TotalEHP ?? 0)}, weakest max hit ${fmt(maxHit(s))}, life ${fmt(s.Life ?? 0)}, ES ${fmt(s.EnergyShield ?? 0)}, res ${s.FireResist}/${s.ColdResist}/${s.LightningResist}/${s.ChaosResist}.`,
+          `Now: ${dpsNow}, EHP ${fmt(s.TotalEHP ?? 0)}, weakest max hit ${fmt(maxHit(s))}, life ${fmt(s.Life ?? 0)}, ES ${fmt(s.EnergyShield ?? 0)}, res ${s.FireResist}/${s.ColdResist}/${s.LightningResist}/${s.ChaosResist}.`,
           ...(levelling ? [levelling] : []),
           ...(imported.keptOff?.length ? [`Kept switched off, as in this build before the sync (the game does not say which auras are on): ${imported.keptOff.join(", ")}.`] : []),
+          ...mainLines,
           "",
           ...fightLines,
+          ...gods,
+          ...(gods.length ? [""] : []),
           ...(diff ? [`CHANGES since ${day(before!.at)} UTC:`, ...diffText(diff)] : ["First sync: this is the baseline. The next sync lists what changed."]),
           "",
-          `PoB recalculated everything from the imported character; ${fresh ? "new build, PoB's default config" : "config kept"} (bandit, pantheon and resistance penalty set by PoB's importer). Config assumptions: ${entry.assumptions ?? "?"}`,
+          `PoB recalculated everything from the imported character; ${fresh ? "new build, PoB's default config" : "config kept"} (PoB's importer sets the resistance penalty from the character's progress). Config assumptions: ${entry.assumptions ?? "?"}`,
           `History: ${history.entries.length} sync(s); character { history: true } shows the timeline, the Overview "Progress" card draws it.`,
         ];
         return lines.join("\n");

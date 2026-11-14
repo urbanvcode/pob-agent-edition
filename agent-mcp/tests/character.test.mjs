@@ -19,7 +19,7 @@ process.env.POB_AGENT_CACHE = path.join(tmp, "cache");
 
 const { createTools, runTool } = await import("../build/server.js");
 const { characterTools } = await import("../build/tools/character.js");
-const { CharacterClient, normaliseAccount, diffStates, diffSummary, readIndex } = await import("../build/character.js");
+const { CharacterClient, normaliseAccount, diffStates, diffSummary, diffText, readIndex } = await import("../build/character.js");
 const { RateGovernor } = await import("../build/trade/rateGovernor.js");
 
 const fx = (f) => JSON.parse(fs.readFileSync(path.join(here, "fixtures", "character", f), "utf8"));
@@ -220,6 +220,98 @@ test("character_sync: a later sync says when DPS changed mostly because of fight
   assert.match(text, /DPS CHANGED MOSTLY BY CONFIG: DPS [\d,]+ -> [\d,]+: \+0 from gear, gems and passives, \+[\d,]+ from fight settings changed since the last sync \(.*Frenzy Charges.*off -> on\)/);
   const hist = await ok("character_history", { character: "SampleTwin" });
   assert.match(hist, /DPS change mostly from config/);
+});
+
+test("diff engine: a main skill that changed to an aura gives no DPS delta", () => {
+  const base = { level: 83, mainSkill: "Elemental Hit", mainSkillDamage: true, stats: { CombinedDPS: 97539, TotalEHP: 5000 }, items: [], gems: [], nodes: [], named: {} };
+  const aura = { ...base, mainSkill: "Haste", mainSkillDamage: false, stats: { CombinedDPS: 0, TotalEHP: 5000 } };
+  const d = diffStates(base, aura);
+  const text = diffText(d).join("\n");
+  assert.match(text, /Main skill changed: Elemental Hit -> Haste \(DPS not compared: one of them is not a damage skill\)/);
+  assert.doesNotMatch(text, /DPS: 97,539 -> 0/);
+  assert.match(diffSummary(d), /main skill Elemental Hit -> Haste/);
+  assert.doesNotMatch(diffSummary(d), /DPS -100/);
+  // Older history entries have no mainSkillDamage: a damage skill on both sides still compares DPS.
+  const old = { ...base, mainSkillDamage: undefined };
+  assert.match(diffText(diffStates(old, { ...base, stats: { CombinedDPS: 120000, TotalEHP: 5000 } })).join("\n"), /DPS: 97,539 -> 120,000/);
+});
+
+test("character_sync: the game reorders socket groups and adds an aura; the main skill is kept by name, the aura is asked about", async () => {
+  // A made-up character ("SampleShuffle") built from the fixture: first sync without Anger in the helmet.
+  const name = "SampleShuffle";
+  // Its own fake site and client: the shared one has used up this minute's request budget.
+  const own = characterTools(new CharacterClient(fakeSite().fetcher, 0));
+  const ok = async (tool, args) => { const r = await runTool(own, context, tool, args); assert.equal(r.isError, false, r.text); return r.text; };
+  characters.push({ ...characters[0], name, level: 83 });
+  const fresh = () => JSON.parse(JSON.stringify(fx("items.json")));
+  const first = fresh();
+  first.items.find((i) => i.inventoryId === "Helm").socketedItems = first.items.find((i) => i.inventoryId === "Helm").socketedItems.filter((g) => g.typeLine !== "Anger");
+  items = first;
+  passives = fx("passives.json");
+  let text = await ok("character_sync", { account: "Sample#0000", character: name });
+  assert.match(text, /main skill Lightning Arrow/);
+  // The player's main skill is Tornado (body armour, group 6 of 7; group 7 is the amulet's Precision).
+  const file = path.join(builds, `${name} - synced.xml`);
+  const xml = fs.readFileSync(file, "utf8");
+  const main = xml.replace(/mainSocketGroup="\d+"/, 'mainSocketGroup="6"');
+  assert.notEqual(main, xml);
+  fs.writeFileSync(file, main);
+  // Bandit and pantheon are not in the public profile: the player set them only in another build of this character.
+  const setGods = (x) => x.replace(/<Input name="pantheonM(aj|in)orGod"[^>]*\/>\s*/g, "")
+    .replace(/(<ConfigSet\b[^>]*>)/, '$1\n<Input name="pantheonMajorGod" string="Lunaris"/>\n<Input name="pantheonMinorGod" string="Shakari"/>');
+  const godsXml = setGods(main);
+  assert.match(godsXml, /<Input name="pantheonMajorGod" string="Lunaris"\/>/);
+  fs.writeFileSync(path.join(builds, `${name} - AI tank.xml`), godsXml);
+  const histDir = path.join(tmp, "cache", "history");
+  const age = () => {
+    const hFile = fs.readdirSync(histDir).find((f) => f.endsWith(".json") && f.includes(name));
+    const h = JSON.parse(fs.readFileSync(path.join(histDir, hFile), "utf8"));
+    h.entries.at(-1).at = new Date(Date.now() - 3600_000).toISOString();
+    h.entries.at(-1).mainSkill = "Tornado"; // as if the player had set it before this sync
+    h.entries.at(-1).mainSkillDamage = true;
+    fs.writeFileSync(path.join(histDir, hFile), JSON.stringify(h));
+  };
+  age();
+
+  // Second sync: the game lists the gloves first and the weapon second-to-last, Frostblink is gone
+  // (one group fewer before the body armour, so group 6 is now the amulet's aura) and Anger is new.
+  const second = fresh();
+  const gloves = second.items.find((i) => i.inventoryId === "Gloves");
+  gloves.socketedItems = gloves.socketedItems.filter((g) => g.typeLine !== "Frostblink");
+  const weapon = second.items.find((i) => i.inventoryId === "Weapon");
+  const rest = second.items.filter((i) => i !== gloves && i !== weapon);
+  second.items = [gloves, ...rest.slice(0, -1), weapon, rest.at(-1)];
+  items = second;
+  text = await ok("character_sync", { account: "Sample#0000", character: name });
+  assert.match(text, /main skill Tornado./, "kept by gem name, not by group number");
+  assert.doesNotMatch(text, /-> 0 \(-100/);
+  assert.doesNotMatch(text, /Main skill changed/);
+  const m = text.match(/NEW AURA: Anger; the game doesn't say if it's on: ask the player\. Unreserved mana with it on: (-?[\d,]+), with it off: (-?[\d,]+)/);
+  assert.ok(m, text);
+  const [on, off] = [m[1], m[2]].map((x) => Number(x.replace(/,/g, "")));
+  assert.ok(off > on, "Anger reserves mana");
+  assert.match(text, /edit \{ ops: \[\{"op":"gem","group":\d+,"gem":\d+,"enabled":false\}\] \}/);
+  assert.doesNotMatch(text, /NEW AURA: (Haste|Grace|Purity|Precision)/, "only auras that were not in the build before");
+  assert.match(fs.readFileSync(file, "utf8"), /mainSocketGroup="\d+"/);
+  assert.match(text, /BANDIT AND PANTHEON: not in the public profile, and this build has none set\. "SampleShuffle - AI tank" \(same character\) has .*major god Lunaris, minor god Shakari\. Ask the player.*edit \{ ops: \[\{"op":"config","values":\{"pantheonMajorGod":"Lunaris","pantheonMinorGod":"Shakari"\}\}\] \}/);
+  assert.doesNotMatch(text, /pantheon and resistance penalty set by PoB's importer/);
+  const hist = await ok("character_history", { character: name });
+  assert.doesNotMatch(hist, /DPS -100/);
+  // The player copied them into the synced build: the next sync keeps them.
+  fs.writeFileSync(file, setGods(fs.readFileSync(file, "utf8")));
+
+  // Third sync: the body armour is gone, so is Tornado: the damage skill with the highest DPS is picked, never an aura.
+  age();
+  const third = fresh();
+  third.items = third.items.filter((i) => i.inventoryId !== "BodyArmour");
+  items = third;
+  text = await ok("character_sync", { account: "Sample#0000", character: name });
+  const pick = text.match(/MAIN SKILL: Tornado is no longer in the build; picked ([^(]+) \(highest DPS of the damage skills\)/);
+  assert.ok(pick, text);
+  assert.doesNotMatch(pick[1], /Haste|Grace|Purity|Precision|Anger|Frostblink|Steelskin/);
+  assert.match(text, /Main skill changed: Tornado -> /);
+  assert.match(text, /BANDIT AND PANTHEON: not in the public profile, kept from this build: .*major god Lunaris, minor god Shakari\./);
+  assert.match(fs.readFileSync(file, "utf8"), /<Build\b[^>]*pantheonMajorGod="Lunaris"/, "the synced build keeps the pantheon");
 });
 
 test("character tools are in the server's tool list", () => {

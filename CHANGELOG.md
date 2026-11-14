@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.3] - 2026-11-14
+
+Fix from testing: the optimiser no longer treats ascendancy nodes as passive points. Based on **Path of Building Community v2.67.2** (same as 0.9.2). **After updating, restart PoB Agent Edition and your AI app.**
+
 ### Fixed
 - **"Where do my next passive points go" no longer suggests ascendancy nodes**: the optimiser (and the passive suggestions) mixed ascendancy notables like Focal Point into the passive-point ranking, although those come from the Labyrinth, not from levelling. They now get their own short list ("Focal Point - 2 ascendancy points (Labyrinth)"), only while you have ascendancy points left of the 8, with how they are earned (2 per Labyrinth, the first time) and which Labyrinth is next. Costs that include the path say so ("4 points incl. path"), and name any notable the path takes on the way, since its gain is part of the number.
 
@@ -274,7 +278,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.2...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.3...HEAD
+[0.9.3]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.8.0...v0.9.0

@@ -1381,3 +1381,4 @@ The player always runs two sessions:
 | 0.8.0 (2026-11-13) | 4 Optimiser, 10 AI chat inside PoB, 17 Lighter, Guide tab fixes (one combined release, by the player's choice) |
 | 0.9.0 (2026-11-14) | 5 Economy, 6 Crafting, 7 Levelling, 8 Farming & money, 11 Create a build; tool cleanup (27 tools); Codex chat locked to the PoB tools (one combined release, built while the player was away) |
 | 0.9.1 (2026-11-14) | Patch: fixes from the player's testing (auras after sync, optimiser Trinity/attributes/flasks, matching-socket gem quality, anoint oil prices, notable look-ups, farming map survival and strategies) |
+| 0.9.2 (2026-11-14) | Patch: bench crafts that fit, damage upgrade search order, character sync fight settings and levelling line |

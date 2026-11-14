@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.2] - 2026-11-14
+
+More fixes from testing: bench crafts that fit, the damage upgrade search, and character sync (fight settings, levelling line). Based on **Path of Building Community v2.67.2** (same as 0.9.1). **After updating, restart PoB Agent Edition and your AI app.**
+
 ### Fixed
 - **Bench crafts that can't be made**: the quick-fix crafting advice used to suggest a prefix craft on an item with no room for a prefix, or suffix crafts on a quiver with no room at all. It now only offers a craft that fits: an open prefix or suffix of that kind, or the spot your current bench craft frees up when you remove it (an item normally holds one bench craft). Each suggestion says "replaces …" or "after removing …" when your current craft has to go, and items with "Can have up to 3 Crafted Modifiers" keep their crafts.
 - **Upgrade search for more damage looked in the wrong places first**: without a trade login, `plan_upgrades` with focus "dps" spent its request limit on helmet and boots and never reached your weapon, quiver or rings. It now searches the slots with the most damage potential for your build first (PoB works this out), and every slot gets a line in the answer: what was found, "nothing under 20c", "none an upgrade", or "not searched (request limit)" so you know where to ask again.
@@ -267,7 +271,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.2...HEAD
+[0.9.2]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.7.0...v0.8.0

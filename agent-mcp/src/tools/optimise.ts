@@ -122,7 +122,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
   list.forEach((s, i) => {
     const tags = mechanicTags(s);
     allTags.push(...tags);
-    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? " - NOT USABLE YET (attributes short)" : ""}`);
+    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? " - NOT USABLE YET (attributes short)" : ""}${s.caveat ? " - LOSS NOT MEASURED (see side effect)" : ""}`);
     const extra = [tags.length ? `mechanic: ${tags.join(", ")}` : "", Array.isArray(s.stats) && s.stats.length ? (s.stats as string[]).filter((x) => x.trim()).join("; ") : "", s.warning ? `warning: ${s.warning}` : ""].filter(Boolean);
     if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
     if (extra.length) L.push(`   ${extra.join(" | ")}`);

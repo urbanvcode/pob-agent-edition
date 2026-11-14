@@ -104,7 +104,9 @@ test("formatOptimise: attribute-short changes are marked and listed after usable
     undercount: [{ text: "Trinity: Lowest Resonance Count is 0 in PoB (x); this run assumed 50", key: "configResonanceCount", gain: { ...zero, stPct: 55 } }],
     unsetCounts: [{ skill: "Some Skill", label: "# of Stages", var: "someStages" }],
   };
+  r.suggestions.push({ lever: "gem", text: "Swap Zero Gem for Other in Skill", gain: { ...zero, stPct: 20 }, cost: { buy: "Other" }, caveat: true, sideEffects: ["PoB counts Zero Gem as 0"], ops: [] });
   const { text } = opt.formatOptimise(r, "concise", []);
+  assert.match(text, /Swap Zero Gem .* LOSS NOT MEASURED \(see side effect\)/);
   assert.match(text, /configResonanceCount = 50 \(temporary, restored afterwards\)/);
   assert.match(text, /Swap Trinity .* NOT USABLE YET \(attributes short\)/);
   assert.match(text, /side effect: needs 120 Int, you have 74 \(46 short\)/);
@@ -131,6 +133,18 @@ test("Trinity: resonance 0 in PoB is under-counted, gem swaps are measured with 
     assert.ok(Number(m[1]) < 40, `swap gain looks like it was measured at resonance 0: ${m[0]}`);
   }
   assert.equal(await ok("stats", { fields: ["CombinedDPS", "TotalEHP", "Life"] }), before, "the build and its config are exactly as before");
+
+  // Returning Projectiles: PoB counts it as 0 (the returning hit is not in the DPS), so it is
+  // never the default gem to swap out, and swapping it on purpose carries a caution.
+  const added = await ok("edit", { ops: [{ op: "add_group", label: "Test projectiles", gems: [{ name: "Ice Spear", level: 20 }, { name: "Returning Projectiles", level: 20 }, { name: "Controlled Destruction", level: 20 }, { name: "Faster Casting", level: 20 }] }] });
+  const group = Number(added.match(/group=(\d+)/)?.[1]);
+  assert.ok(group > 0, added);
+  const rp = await ok("suggest_gems", { group });
+  assert.match(rp, /Returning Projectiles [\d/]+: .*not measured: PoB does not count the returning hit/);
+  assert.match(rp, /in place of Faster Casting/, "the weakest support PoB can measure is the one replaced");
+  assert.doesNotMatch(rp, /Caution:/);
+  const forced = await ok("suggest_gems", { group, replace: 2 });
+  assert.match(forced, /in place of Returning Projectiles[\s\S]*Caution: PoB counts Returning Projectiles as 0: .*the real loss from removing it is not in these numbers/);
   await ok("open_build", { name: "occ-vortex" });
 });
 
@@ -162,6 +176,12 @@ test("optimise tool: every goal simulated in PoB, build and config put back", as
   assert.match(tank, /Metric: 0\.5 x EHP/);
   assert.match(tank, /\(EHP [\d,]+ -> [\d,]+\)/);
   assert.match(tank, /Gear: plan_upgrades \{ budget_chaos, focus: "defence" \}/);
+
+  // All five flask slots are full: utility flasks are tried in place of the one that does least
+  // for the goal, never the only life flask.
+  const flasks = await ok("optimise", { goal: "tankiness", levers: ["flasks"] });
+  assert.match(flasks, /\[flask\] \w+ Flask in place of .+ \(Flask \d, plain base, no mods\)/);
+  assert.doesNotMatch(flasks, /in place of [^\n]*Life Flask/, "the only life flask is kept");
 
   const weak = await ok("optimise", { levers: ["passives"] });
   assert.match(weak, /^Optimiser: (tankiness|balanced|single target \/ bossing) \(fix weakest: /);

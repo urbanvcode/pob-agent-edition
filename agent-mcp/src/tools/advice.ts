@@ -143,12 +143,13 @@ export const adviceTools: Tool[] = [
       if (unset.length) L.push(`Not set in PoB (0), numbers may be low: ${unset.map((u) => `${u.skill}: ${u.label}`).join("; ")}`);
       const current = (Array.isArray(res.current) ? res.current : []) as any[];
       L.push(current.length ? "Current supports, weakest first (DPS lost if removed):" : "No active support gems in this group.");
-      for (const c of current) L.push(`- gem ${c.gem} ${c.name} ${c.level}/${c.quality}: ${pct(-c.lossPct)}${c.lossPct < 0.5 ? "  <- does almost nothing for damage here" : ""}`);
+      for (const c of current) L.push(`- gem ${c.gem} ${c.name} ${c.level}/${c.quality}: ${pct(-c.lossPct)}${c.unmeasured ? `  <- not measured: ${c.unmeasured}` : c.lossPct < 0.5 ? "  <- does almost nothing for damage here (or PoB does not model its effect)" : ""}`);
       const list = (Array.isArray(res.candidates) ? res.candidates : []) as any[];
       const ups = (Array.isArray(res.levelUps) ? res.levelUps : []) as any[];
       if (ups.length) L.push("Under-levelled gems (levelling them is free damage):", ...ups.map((u) => `- gem ${u.gem} ${u.name}: level ${u.from} -> ${u.to} gives DPS ${pct(u.dpsPct)}`));
       const at = `at the highest gem level a level ${res.characterLevel} character can use, 20% quality`;
       L.push("", res.mode === "replace" ? `Best supports in place of ${res.targetName} (gem ${res.target}), ${at}:` : `Best supports as an extra link, ${at}:`);
+      if (res.targetCaveat) L.push(`Caution: ${res.targetCaveat}.`);
       const line = (c: any, i: number) => `${i + 1}. ${c.name} (level ${c.level}): DPS ${pct(c.dpsPct)}${c.manaCost !== undefined ? ` | mana cost ${n(c.manaCost)}` : ""}${c.warning ? ` | Warning: ${c.warning}` : ""}`;
       if (!list.length) L.push("None.");
       list.forEach((c, i) => L.push(line(c, i)));

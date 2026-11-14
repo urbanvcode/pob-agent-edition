@@ -109,7 +109,7 @@ export interface CharacterState {
   stats: Record<string, number | undefined>; assumptions?: string; characterHash?: string;
   items: ItemState[]; gems: GemState[]; nodes: number[]; named: Record<string, string>; pointsUsed?: number;
 }
-export interface HistoryEntry extends CharacterState { at: string; league?: string; snapshot?: string; summary?: string }
+export interface HistoryEntry extends CharacterState { at: string; league?: string; snapshot?: string; summary?: string; fight?: FightSettings }
 export interface History {
   version: 1; account: string; realm: string; character: string; characterHash: string; league?: string;
   build?: string; entries: HistoryEntry[];
@@ -307,3 +307,71 @@ export function diffSummary(d: Diff): string {
   if (d.counts.items || d.gems.length || d.counts.passives) parts.push(`${d.counts.items} items, ${d.gems.length} gems, ${d.counts.passives} passives changed`);
   return parts.join(", ") || "no changes";
 }
+
+// ---------------------------------------------------------------------------
+// Same character in another build (fight settings on a first sync)
+
+export interface SameCharacterBuild { file: string; name: string; byImport: boolean; mtime: number }
+
+/**
+ * Builds in the Builds folder that are clearly the same character: same class and
+ * ascendancy, and either an import of it (PoB stores a hash of the character name)
+ * or the character's name in the build name. The synced build itself and guides
+ * are left out. Best first: imports, then the newest.
+ */
+export function findSameCharacterBuilds(dir: string, character: string, className: string | undefined, ascendancy: string | undefined, exclude: string[] = [], maxFiles = 400): SameCharacterBuild[] {
+  const hash = characterHash(character);
+  const want = character.toLowerCase();
+  const skip = new Set(exclude.map((f) => path.resolve(f).toLowerCase()));
+  const files: string[] = [];
+  const walk = (d: string, depth: number) => {
+    let list: fs.Dirent[] = [];
+    try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of list) {
+      if (files.length >= maxFiles) return;
+      const f = path.join(d, e.name);
+      if (e.isDirectory() && depth < 2) walk(f, depth + 1);
+      else if (e.isFile() && e.name.toLowerCase().endsWith(".xml")) files.push(f);
+    }
+  };
+  walk(dir, 0);
+  const out: SameCharacterBuild[] = [];
+  for (const file of files) {
+    if (skip.has(path.resolve(file).toLowerCase())) continue;
+    const name = path.basename(file, path.extname(file));
+    if (/^Guide - /i.test(name)) continue;
+    let xml: string;
+    try { xml = fs.readFileSync(file, "utf8"); } catch { continue; }
+    const tag = xml.match(/<Build\b[^>]*>/)?.[0] ?? "";
+    const attr = (t: string, k: string) => t.match(new RegExp(`\\b${k}="([^"]*)"`))?.[1];
+    if (className && attr(tag, "className") !== className) continue;
+    if (ascendancy && ascendancy !== "None" && attr(tag, "ascendClassName") !== ascendancy) continue;
+    const imp = xml.match(/<Import\b[^>]*>/)?.[0] ?? "";
+    const byImport = attr(imp, "lastCharacterHash") === hash;
+    if (!byImport && !(want.length >= 3 && name.toLowerCase().includes(want))) continue;
+    let mtime = 0;
+    try { mtime = fs.statSync(file).mtimeMs; } catch { /* ignore */ }
+    out.push({ file, name, byImport, mtime });
+  }
+  return out.sort((a, b) => Number(b.byImport) - Number(a.byImport) || b.mtime - a.mtime);
+}
+
+export interface FightSettings { config: Record<string, unknown>; gems: Record<string, boolean> }
+export interface ConfigEffect {
+  diffs: { key: string; label: string; now: string; other: string }[];
+  gems: { name: string; now: boolean; other: boolean }[];
+  ops: unknown[];
+  before?: Record<string, number>; after?: Record<string, number>;
+}
+
+/** "Trinity: lowest Resonance count 0 -> 50, Anger off" for a config_effect result, from "now" to "other". */
+export function configEffectText(e: ConfigEffect, reverse = false): string {
+  const parts = [
+    ...e.diffs.map((d) => `${d.label} ${reverse ? d.other : d.now} -> ${reverse ? d.now : d.other}`),
+    ...e.gems.map((g) => `${g.name} switched ${(reverse ? g.now : g.other) ? "on" : "off"}`),
+  ];
+  return parts.join(", ");
+}
+
+/** Plain JSON object (Lua sends an empty table as []). */
+export const asObject = <T>(v: unknown): Record<string, T> => (v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, T> : {});

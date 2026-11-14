@@ -183,6 +183,45 @@ test("character_sync: second sync lists what changed; character_history shows th
   assert.equal(snaps.length, 2);
 });
 
+test("character_sync: a first sync finds another build of the same character and shows its fight settings", async () => {
+  // The player already has an older import of "SampleTwin" (made-up name) with fight settings set by hand.
+  characters.push({ ...characters[0], name: "SampleTwin" });
+  const synced = fs.readFileSync(path.join(builds, "SampleDeadeye - synced.xml"), "utf8");
+  const tuned = synced
+    .replace(/(<ConfigSet\b[^>]*>)/, '$1\n<Input name="useFrenzyCharges" boolean="true"/>')
+    .replace(/<Gem\b[^>]*nameSpec="Grace"[^>]*>/, (tag) => tag.replace(/enabled="(true|false)"/, 'enabled="false"'));
+  assert.match(tuned, /useFrenzyCharges/);
+  fs.writeFileSync(path.join(builds, "SampleTwin mapping.xml"), tuned);
+  const text = await ok("character_sync", { account: "Sample#0000", character: "SampleTwin" });
+  assert.match(text, /FIGHT SETTINGS: this new build starts with PoB's default Configuration, and "SampleTwin mapping" \(the same character, by its name\) has different ones: .*Frenzy Charges.* -> on/);
+  assert.match(text, /Grace switched off/);
+  const m = text.match(/With those settings PoB's DPS for the synced build is ([\d,]+) instead of ([\d,]+)/);
+  assert.ok(m, text);
+  const [withSettings, fresh] = [m[1], m[2]].map((x) => Number(x.replace(/,/g, "")));
+  assert.ok(withSettings > fresh, "frenzy charges raise PoB's DPS");
+  assert.match(text, /edit \{ ops: \[\{"op":"config","values":\{"useFrenzyCharges":true\}\}/);
+  assert.match(text, /new build, PoB's default config/);
+  // Nothing is copied by itself: the synced build keeps PoB's defaults, the other build is untouched.
+  assert.doesNotMatch(fs.readFileSync(path.join(builds, "SampleTwin - synced.xml"), "utf8"), /useFrenzyCharges/);
+  assert.equal(fs.readFileSync(path.join(builds, "SampleTwin mapping.xml"), "utf8"), tuned);
+});
+
+test("character_sync: a later sync says when DPS changed mostly because of fight settings", async () => {
+  const histDir = path.join(tmp, "cache", "history");
+  const hFile = fs.readdirSync(histDir).find((f) => f.endsWith(".json") && f.includes("SampleTwin"));
+  const h = JSON.parse(fs.readFileSync(path.join(histDir, hFile), "utf8"));
+  assert.ok(h.entries[0].fight, "fight settings are kept with each sync");
+  h.entries[0].at = new Date(Date.now() - 3600_000).toISOString();
+  fs.writeFileSync(path.join(histDir, hFile), JSON.stringify(h));
+  // Same gear; the player switched frenzy charges on in the synced build.
+  const file = path.join(builds, "SampleTwin - synced.xml");
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(/(<ConfigSet\b[^>]*>)/, '$1\n<Input name="useFrenzyCharges" boolean="true"/>'));
+  const text = await ok("character_sync", { account: "Sample#0000", character: "SampleTwin" });
+  assert.match(text, /DPS CHANGED MOSTLY BY CONFIG: DPS [\d,]+ -> [\d,]+: \+0 from gear, gems and passives, \+[\d,]+ from fight settings changed since the last sync \(.*Frenzy Charges.*off -> on\)/);
+  const hist = await ok("character_history", { character: "SampleTwin" });
+  assert.match(hist, /DPS change mostly from config/);
+});
+
 test("character tools are in the server's tool list", () => {
   const names = createTools().tools.map((t) => t.name);
   assert.ok(names.includes("character"));

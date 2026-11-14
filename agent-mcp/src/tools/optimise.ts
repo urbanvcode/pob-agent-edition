@@ -220,10 +220,12 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
   list.forEach((s, i) => {
     const tags = mechanicTags(s);
     allTags.push(...tags);
-    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? " - NOT USABLE YET (attributes short)" : ""}${s.caveat ? " - LOSS NOT MEASURED (see side effect)" : ""}`);
+    L.push(`${i + 1}. [${s.lever}] ${s.text} - ${costText(s)}: ${gainText(s.gain, goal)}${afterText(s.gain, goal, b)}${s.unusable ? (s.costWarnings ? " - A SKILL CAN'T BE USED (mana)" : " - NOT USABLE YET (attributes short)") : ""}${s.costFix ? " - NEEDS THE FIX IN THE OPS" : ""}${s.caveat ? " - LOSS NOT MEASURED (see side effect)" : ""}`);
     const extra = [tags.length ? `mechanic: ${tags.join(", ")}` : "", Array.isArray(s.stats) && s.stats.length ? (s.stats as string[]).filter((x) => x.trim()).join("; ") : "", s.warning ? `warning: ${s.warning}` : ""].filter(Boolean);
     if (Array.isArray(s.sideEffects)) extra.push(`side effect: ${s.sideEffects.join("; ")}`);
     if (extra.length) L.push(`   ${extra.join(" | ")}`);
+    if (Array.isArray(s.costOptions) && s.costOptions.length)
+      L.push(`   mana options (goal score vs the paper gain): ${(s.costOptions as any[]).slice(0, 4).map((o) => `${o.skill} off ${pct(-o.lossPct)}${o.freed ? ` frees ${o.freed}` : ""}${o.fits ? "" : " (still short)"}${o.isNew ? " (= not adding it)" : ""}`).join("; ")}`);
     if (Array.isArray(s.ops) && s.ops.length) L.push(`   what_if ops: ${JSON.stringify(s.ops)}`);
     else if (s.lever === "anoint") L.push(`   oils: ${(s.recipe ?? []).join(", ")}${s.cost?.chaos > 0 ? ` = ${chaosText(s.cost.chaos)} in total${s.perChaos > 0 ? `; ${s.perChaos >= 0.1 ? s.perChaos.toFixed(2) : s.perChaos.toPrecision(2)} goal score per chaos (compare anoints by this)` : ""}` : ""} (edit, or suggest { kind: "anoint" })`);
   });

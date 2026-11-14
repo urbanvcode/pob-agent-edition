@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **A new aura no longer looks like a gain when it leaves a skill without mana**: adding an aura (Summon Skitterbots, say) can leave less unreserved mana than another skill costs, so in game that skill (a mark, a guard skill, even your main skill) can no longer be cast. PoB still counts that skill in its DPS, so `what_if`, `edit` and the optimiser used to report a gain. They now say "Warning: Sniper's Mark costs 62 mana but only 30 is unreserved: it can't be used", show the real result with that skill switched off, and find the cheapest fix: which other aura to switch off so everything fits, compared with the other choices. The optimiser ranks such a change by that real result and puts the fix in its steps. `diagnose` now lists every skill that can't be used and PoB's own side-bar warnings.
+
 ## [0.9.3] - 2026-11-14
 
 Fix from testing: the optimiser no longer treats ascendancy nodes as passive points. Based on **Path of Building Community v2.67.2** (same as 0.9.2). **After updating, restart PoB Agent Edition and your AI app.**

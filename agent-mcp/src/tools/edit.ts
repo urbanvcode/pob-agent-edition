@@ -32,10 +32,38 @@ function describe(result: any): string {
   return `ok ${result.op}${bits.length ? `: ${bits.join("; ")}` : ""}`;
 }
 
+const dpsOf = (s: any) => (s?.FullDPS > 0 ? s.FullDPS : s?.CombinedDPS ?? s?.TotalDPS ?? 0) as number;
+const pctOf = (a: number, b: number) => (b > 0 ? `${a >= b ? "+" : ""}${(((a - b) / b) * 100).toFixed(1)}%` : "?");
+
+/** A change that leaves a skill without enough mana/life/ES to use (PoB's own warning). PoB still
+ *  counts that skill in DPS, so the plain before/after is a paper gain: show the real result and
+ *  the cheapest reserving skill to switch off instead. */
+export function costText(cost: any, before: Stats): string[] {
+  const warnings = (Array.isArray(cost?.warnings) ? cost.warnings : []) as any[];
+  if (!warnings.length) return [];
+  const base = dpsOf(before);
+  const vs = (s: any) => `DPS ${pctOf(dpsOf(s), base)}, EHP ${pctOf(s?.TotalEHP ?? 0, before.TotalEHP ?? 0)} vs before`;
+  const L = cost.overReserved
+    ? [`Warning: mana is over-reserved after this change (${n(cost.manaUnreserved)} unreserved), so these skills can't be used: ${warnings.map((w) => `${w.skill} (${Math.ceil(w.cost)})`).join(", ")}.`]
+    : warnings.map((w) => `Warning: ${w.text}.`);
+  L.push("PoB still counts them in the numbers above, so those are not what happens in game.");
+  if (cost.blockedOff) L.push(`Real result (${warnings.map((w) => w.skill).join(", ")} switched off): ${vs(cost.blockedOff.stats)} | ops: ${JSON.stringify(cost.blockedOff.ops)}`);
+  const opts = ((Array.isArray(cost.options) ? cost.options : []) as any[]).slice()
+    .sort((a, b) => dpsOf(b.stats) - dpsOf(a.stats) || (b.stats?.TotalEHP ?? 0) - (a.stats?.TotalEHP ?? 0));
+  const fit = opts.find((o) => o.fits);
+  if (fit) L.push(`Cheapest fix: switch off ${fit.skill}${fit.freed ? ` (frees ${fit.freed} mana)` : ""} and everything fits: ${vs(fit.stats)} | ops: ${JSON.stringify(fit.ops)}`);
+  else if (opts.length) L.push("No single reserving skill switched off makes everything fit.");
+  const rest = opts.filter((o) => o !== fit).slice(0, 4).map((o) => `${o.skill} off: ${vs(o.stats)}${o.fits ? "" : " (still short)"}`);
+  if (rest.length) L.push(`Other options: ${rest.join("; ")}`);
+  return L;
+}
+
 function changeReport(res: any, live: boolean, kept: boolean): string {
   const lines: string[] = (res.results as any[]).map(describe);
   const delta = deltaLines(res.before as Stats, res.after as Stats);
   lines.push("", delta.length ? "Before -> after:" : "No calculated stat changed.", ...delta);
+  const cost = costText(res.cost, res.before as Stats);
+  if (cost.length) lines.push("", ...cost);
   lines.push("", `Config assumptions: ${res.assumptions}`);
   const changed = (res.results as any[]).some((r) => r.ok);
   if (kept && !changed) lines.push("Nothing was changed.");

@@ -58,6 +58,8 @@ export function diagnosisText(d: any): string {
   issues.sort((a, b) => rank[a.severity] - rank[b.severity]);
   L.push("", issues.length ? `FINDINGS (${issues.length})` : "FINDINGS: none, the basics are covered");
   for (const i of issues) L.push(`- ${ICON[i.severity] ?? i.severity} [${i.category}] ${i.message}`);
+  const pobWarn = (Array.isArray(d.pobWarnings) ? d.pobWarnings : []) as string[];
+  if (pobWarn.length) L.push("", `PoB WARNINGS (${pobWarn.length}, the side bar list):`, ...pobWarn.map((w) => `- ${w}`));
 
   const r = d.resist ?? {};
   L.push("", "1. RESISTANCES (value / cap, over cap)");

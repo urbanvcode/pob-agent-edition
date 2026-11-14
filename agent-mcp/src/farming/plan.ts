@@ -12,22 +12,32 @@ import { n } from "../format.js";
 import { ToolError } from "../pob.js";
 import { getProfile } from "../profile.js";
 import type { Context } from "../registry.js";
-import { exchangePrices, ninjaItemLines } from "../trade/ninja.js";
+import { exchangePrices, ninjaItemLines, type Market } from "../trade/ninja.js";
 import { budgetOf } from "../economy/run.js";
 import { capabilityText, survival, type CheckResult, type TierVerdict, tierLevels } from "./capability.js";
 import { FARMING_DATA as D } from "./data.js";
 import { addLog, measuredRate } from "./log.js";
 
 type Strategy = (typeof D.strategies)[number];
-const SRC = D.sources as Record<string, { title: string; url: string; edited?: string; outdated?: boolean }>;
+const SRC = D.sources as Record<string, { title: string; url: string; edited?: string; outdated?: boolean; needsUpdate?: string }>;
 const day = (t: number) => new Date(t).toISOString().slice(0, 10);
 const oneLine = (stats?: readonly string[]) => (stats ?? []).join(" / ").split("\n").join(" / ");
 
-export interface FarmArgs { farm?: unknown; goal?: unknown; log?: unknown; league: string; leagueNote?: string; points?: number }
+export interface FarmArgs { farm?: unknown; goal?: unknown; log?: unknown; league: string; leagueNote?: string; points?: number; limit?: number }
+
+type NinjaRule = { type?: string; item?: string; match: string };
+type Quote = { src: string; quote: string };
+const rulesOf = (s: Strategy) => s.ninja as ReadonlyArray<NinjaRule>;
+const quoteOf = (s: Strategy, k: "rewards" | "caveat" | "noAtlas"): Quote | undefined => (s as unknown as Record<string, Quote | undefined>)[k];
+const modsOf = (s: Strategy): readonly Quote[] => (s as unknown as { mods?: Quote[] }).mods ?? [];
+const atlasOf = (s: Strategy): string | undefined => (s as { atlas?: string }).atlas;
+const threadOf = (s: Strategy): string | undefined => (s as { thread?: string }).thread;
+const cite = (q: Quote) => `"${q.quote}" (${q.src === "patch" ? "GGG patch notes" : `wiki, ${SRC[q.src]?.title ?? q.src}`})`;
+const EXCLUDED = (D as unknown as { excluded?: Array<Quote & { name: string }> }).excluded ?? [];
 
 const strategyById = (id: string): Strategy | undefined => {
   const k = id.toLowerCase().trim();
-  return D.strategies.find((s) => s.id === k || s.name.toLowerCase().startsWith(k) || ("thread" in s && s.thread?.toLowerCase() === k));
+  return D.strategies.find((s) => s.id === k || s.name.toLowerCase().startsWith(k) || threadOf(s)?.toLowerCase() === k);
 };
 
 // --- fit ------------------------------------------------------------------------------------------
@@ -43,29 +53,64 @@ function fit(s: Strategy, top: TierVerdict, r: CheckResult, hardcore: boolean): 
 }
 
 // --- prices -----------------------------------------------------------------------------------------
-interface Priced { name: string; chaos: number }
-async function categoryPrices(league: string, types: string[], notes: Set<string>): Promise<{ prices: Map<string, Map<string, number>>; at?: number }> {
-  const all = new Map<string, Map<string, number>>();
-  let at: number | undefined;
-  for (const type of [...new Set(types)]) {
+export interface Priced { name: string; chaos: number; market?: Market; listed?: number }
+interface PriceBook { prices: Map<string, Map<string, number>>; market: Map<string, Map<string, Market>>; items: Map<string, Priced[]>; at?: number }
+async function categoryPrices(league: string, strategies: readonly Strategy[], notes: Set<string>): Promise<PriceBook> {
+  const book: PriceBook = { prices: new Map(), market: new Map(), items: new Map() };
+  const rules = strategies.flatMap((s) => [...rulesOf(s)]);
+  for (const type of [...new Set(["Fragment", "Currency", ...rules.flatMap((r) => (r.type ? [r.type] : []))])]) {
     try {
       const x = await exchangePrices(league, type);
-      all.set(type, x.prices);
-      at = at ? Math.min(at, x.at) : x.at;
+      book.prices.set(type, x.prices);
+      book.market.set(type, x.market);
+      book.at = book.at ? Math.min(book.at, x.at) : x.at;
       if (x.stale) notes.add(`poe.ninja is not answering; ${type} prices are from ${day(x.at)}.`);
     } catch { notes.add(`poe.ninja ${type} prices could not be loaded.`); }
   }
-  return { prices: all, at };
+  for (const type of [...new Set(rules.flatMap((r) => (r.item ? [r.item] : [])))]) {
+    try {
+      const lines = (await ninjaItemLines(league, type)).filter((l) => !l.links);
+      book.items.set(type, lines.map((l) => ({ name: l.name, chaos: l.chaosValue, listed: l.listingCount, market: l.change !== undefined ? { change: l.change, days: 7 } : undefined })));
+    } catch { notes.add(`poe.ninja ${type} prices could not be loaded.`); }
+  }
+  return book;
 }
 
-function outputs(s: Strategy, prices: Map<string, Map<string, number>>): Priced[] {
+function outputs(s: Strategy, book: PriceBook): Priced[] {
   const out: Priced[] = [];
-  for (const rule of s.ninja as ReadonlyArray<{ type: string; match: string }>) {
+  for (const rule of rulesOf(s)) {
     const re = new RegExp(rule.match, "i");
-    for (const [name, chaos] of prices.get(rule.type) ?? []) if (re.test(name) && !/Thread$/.test(name)) out.push({ name, chaos });
+    if (rule.type) for (const [name, chaos] of book.prices.get(rule.type) ?? []) if (re.test(name) && !/Thread$/.test(name)) out.push({ name, chaos, market: book.market.get(rule.type)?.get(name) });
+    if (rule.item) {
+      const cheapest = new Map<string, Priced>();
+      for (const l of book.items.get(rule.item) ?? []) if (re.test(l.name) && (!cheapest.has(l.name) || l.chaos < cheapest.get(l.name)!.chaos)) cheapest.set(l.name, l);
+      out.push(...cheapest.values());
+    }
   }
   return [...new Map(out.map((o) => [o.name, o])).values()].sort((a, b) => b.chaos - a.chaos);
 }
+
+/** Market flags (advisor rules in D.rules): falling fast = sell soon; thin = few trades, the price may not be reachable. */
+export function marketFlags(o: Priced): { falling: boolean; thin: boolean; text: string } {
+  const R = D.rules;
+  const m = o.market;
+  const parts: string[] = [];
+  const falling = m?.change !== undefined && m.change <= R.fallingPct;
+  if (m?.change !== undefined) { const d = m.days ?? 7, c = Math.round(m.change); parts.push(`${c > 0 ? "+" : ""}${c}% over ${d} day${d === 1 ? "" : "s"}`); }
+  let thin = false;
+  if (m?.volume !== undefined) {
+    const trades = o.chaos > 0 ? m.volume / o.chaos : 0;
+    thin = trades < R.thinTrades || m.volume < R.thinVolumeChaos;
+    parts.push(`traded ${n(Math.round(m.volume))}c (~${n(Math.round(trades))})`);
+  } else if (o.listed !== undefined) {
+    thin = o.listed < R.thinTrades;
+    parts.push(`${n(o.listed)} listed`);
+  }
+  if (falling) parts.push("FALLING FAST: sell soon");
+  if (thin) parts.push("THIN: may not sell at this price");
+  return { falling, thin, text: parts.length ? ` (${parts.join(", ")})` : "" };
+}
+const priceText = (o: Priced) => `${o.name} ${n(o.chaos, o.chaos < 0.1 ? 4 : o.chaos < 10 ? 1 : 0)}c${marketFlags(o).text}`;
 
 // --- atlas presets -----------------------------------------------------------------------------------
 interface Preset { mechanic: string; allocated: number; picks: Array<{ id: string; name: string; stats?: string[]; cost: number }>; ids: string[]; points: number; notPicked: string[]; keystones?: Array<{ id: string; name: string; stats?: string[]; allocated?: boolean }> }
@@ -157,12 +202,18 @@ export async function farmingText(ctx: Context, a: FarmArgs): Promise<string> {
   const uberOk = survival(check.uber.hits, profile.hardcore) === "safe";
 
   const ranked = D.strategies.map((s) => ({ s, ...fit(s, top, check, profile.hardcore) })).sort((x, y) => y.score - x.score);
-  const chosen = asked ? ranked.filter((x) => x.s.id === asked.id) : ranked.slice(0, 3);
+  const detail = Math.max(1, Math.min(D.strategies.length, Math.floor(Number(a.limit)) || 3));
+  const chosen = asked ? ranked.filter((x) => x.s.id === asked.id) : ranked.slice(0, detail);
+  const others = asked ? [] : ranked.slice(detail);
 
   const notes = new Set<string>();
-  const types = ["Fragment", "Currency", ...chosen.flatMap((c) => (c.s.ninja as ReadonlyArray<{ type: string }>).map((x) => x.type))];
-  const { prices, at } = await categoryPrices(a.league, types, notes);
-  const { presets: pre, used, total, error } = await presets(ctx, chosen.map((c) => ({ name: c.s.atlas, keys: c.s.keys })), a.points ?? 30);
+  const book = await categoryPrices(a.league, [...chosen, ...others].map((c) => c.s), notes);
+  const { prices, at } = book;
+  const withAtlas = chosen.filter((c) => atlasOf(c.s));
+  const { presets: pre, used, total, error } = withAtlas.length
+    ? await presets(ctx, withAtlas.map((c) => ({ name: atlasOf(c.s)!, keys: c.s.keys })), a.points ?? 30)
+    : { presets: [] as Preset[], used: undefined, total: undefined, error: undefined };
+  const falling: string[] = [], thin: string[] = [];
 
   const lines: string[] = [
     `Farming advisor (${D.league}, PoE ${D.version}; content facts from the wiki and GGG's patch notes, cited at the end). Profile: ${profile.playMode}${profile.hardcore ? ", hardcore" : ""}; league ${a.league}.`,
@@ -175,30 +226,52 @@ export async function farmingText(ctx: Context, a: FarmArgs): Promise<string> {
   for (const c of chosen) {
     const s = c.s;
     lines.push("", `## ${s.name}  (fit: ${c.why.join(", ")})`);
-    lines.push(`- What it is: "${s.what.quote}" (wiki, ${SRC[s.what.src].title})`);
-    if ("rewards" in s && s.rewards) lines.push(`- Rewards: "${s.rewards.quote}"`);
-    if ("mods" in s && s.mods?.length) lines.push(`- Thread effects include: ${s.mods.map((m) => `"${m.quote}"`).join("; ")}`);
-    const p = pre.find((x) => x.mechanic.toLowerCase() === s.atlas.toLowerCase());
-    if (p) {
+    lines.push(`- What it is: ${cite(s.what)}`);
+    const rewards = quoteOf(s, "rewards"), caveat = quoteOf(s, "caveat"), noAtlas = quoteOf(s, "noAtlas");
+    if (rewards) lines.push(`- Rewards: ${cite(rewards)}`);
+    if (caveat) lines.push(`- Note: ${cite(caveat)}`);
+    if (modsOf(s).length) lines.push(`- Thread effects include: ${modsOf(s).map((m) => `"${m.quote}"`).join("; ")}`);
+    const atlas = atlasOf(s);
+    const p = atlas ? pre.find((x) => x.mechanic.toLowerCase() === atlas.toLowerCase()) : undefined;
+    if (!atlas) lines.push(`- Atlas preset: none (${noAtlas ? cite(noAtlas) : "no atlas passives of its own in PoB's atlas data"}).`);
+    else if (p) {
       lines.push(`- Atlas preset (${p.points} points, ${p.allocated} already in ${p.mechanic}): ${p.picks.map((k) => `${k.name} (${oneLine(k.stats)})`).join("; ") || "nothing reachable"}.`);
       if (p.ids.length) lines.push(`  Apply: atlas { add: ${JSON.stringify(p.ids)} } (PoB's Atlas tab shows it; save_build keeps it).`);
       if (p.keystones?.length) lines.push(`  Keystones (trade-offs, pick by hand): ${p.keystones.map((k) => `${k.name} [${k.id}]: ${oneLine(k.stats)}`).join("; ")}.`);
     } else if (error) lines.push(`- Atlas preset not available: ${error}`);
-    if ("thread" in s && s.thread) {
-      const tp = [...prices.values()].map((m) => m.get(s.thread!)).find((v) => v !== undefined);
+    const thread = threadOf(s);
+    if (thread) {
+      const tp = [...prices.values()].map((m) => m.get(thread)).find((v) => v !== undefined);
       lines.push(tp !== undefined
-        ? `- Investment: ${s.thread} ${n(tp, 1)}c each (poe.ninja ${at ? day(at) : ""}): 1 Thread ${n(tp, 1)}c, 4 = ${n(tp * 4)}c, 8 = ${n(tp * 8)}c per map, plus the map.`
-        : `- Investment: ${s.thread} is not priced on poe.ninja yet (new item in ${D.version}); maps in a ${s.name} Shaped Region get free ones.`);
-    }
-    const outs = outputs(s, prices).slice(0, 4);
+        ? `- Investment: ${thread} ${n(tp, 1)}c each (poe.ninja ${at ? day(at) : ""}): 1 Thread ${n(tp, 1)}c, 4 = ${n(tp * 4)}c, 8 = ${n(tp * 8)}c per map, plus the map.`
+        : `- Investment: ${thread} is not priced on poe.ninja yet (new item in ${D.version}); maps in a ${s.name} Shaped Region get free ones.`);
+    } else lines.push(`- Investment: no Thread for it in the ${D.version} patch notes.`);
+    const all = outputs(s, book);
+    const outs = all.slice(0, 4);
     lines.push(outs.length
-      ? `- What it yields is worth now (poe.ninja ${at ? day(at) : ""}, estimates): ${outs.map((o) => `${o.name} ${n(o.chaos, o.chaos < 10 ? 1 : 0)}c`).join(", ")}.`
+      ? `- What it yields is worth now (poe.ninja ${at ? day(at) : ""}, estimates; % = poe.ninja's price change, traded = its trade volume): ${outs.map(priceText).join(", ")}.`
       : `- Its outputs are not priced on poe.ninja (yet), so no value estimate.`);
+    if (s.id === "divination" && outs.length) lines.push(`- The priciest cards are usually the rarest, and each drops only in certain areas: kb_lookup a card's name for where. Drop rates are not published.`);
+    for (const o of all) {
+      const f = marketFlags(o);
+      if (f.falling) falling.push(`${o.name} ${Math.round(o.market!.change!)}%`);
+      if (f.thin && o.chaos >= 5) thin.push(o.name);
+    }
     const m = measuredRate(s.id, a.league);
     lines.push(m
       ? `- Profit per hour (measured by you): ${n(m.perHour)}c/h net over ${m.sessions} session(s), ${n(m.minutes)} min (last ${m.last}).`
       : `- Profit per hour: not measured yet. Drop rates are not published, so the advisor does not invent one: after a session, atlas { log: { strategy: "${s.id}", maps, minutes, chaos, spent } }.`);
   }
+  if (others.length) {
+    lines.push("", `Other strategies (lower fit at T${top.tier}; atlas { farm: "<id>" } gives the full plan of one, limit = how many in full):`);
+    for (const c of others) {
+      const best = outputs(c.s, book).slice(0, 2);
+      lines.push(`- ${c.s.name} [${c.s.id}] (fit: ${c.why.join(", ")})${threadOf(c.s) ? `, ${threadOf(c.s)}` : ""}: ${best.length ? `yields e.g. ${best.map(priceText).join(", ")}` : "outputs not priced on poe.ninja"}.`);
+    }
+  }
+  if (!asked && EXCLUDED.length) lines.push(`Not offered: ${EXCLUDED.map((x) => `${x.name}: ${cite(x)}`).join("; ")}.`);
+  if (falling.length) lines.push(`Sell soon (price falling at least ${-D.rules.fallingPct}% on poe.ninja; don't stockpile): ${[...new Set(falling)].slice(0, 8).join(", ")}.`);
+  if (thin.length) lines.push(`Thin markets (few trades on poe.ninja, the price may not be reachable): ${[...new Set(thin)].slice(0, 8).join(", ")}.`);
   if (used !== undefined) lines.push("", `Atlas now: ${used} / ${total} points used.`);
 
   lines.push("", ...progression(cap.tier, pinnacleOk, uberOk));
@@ -207,7 +280,7 @@ export async function farmingText(ctx: Context, a: FarmArgs): Promise<string> {
   lines.push("");
   if (ssf) {
     lines.push("4. SSF: FARM FOR WHAT THE BUILD NEEDS (no trading)", ...(await ssfTargets(ctx)).map((l) => `- ${l}`),
-      `- Materials: ${ranked.filter((x) => (x.s.ninja as readonly unknown[]).length).slice(0, 4).map((x) => `${x.s.name} (${"rewards" in x.s && x.s.rewards ? x.s.rewards.quote : x.s.what.quote})`).join("; ")}.`,
+      `- Materials: ${ranked.filter((x) => rulesOf(x.s).length).slice(0, 4).map((x) => `${x.s.name} (${(quoteOf(x.s, "rewards") ?? x.s.what).quote})`).join("; ")}.`,
       "- Gear to keep from drops per slot: plan_upgrades { budget: \"all\" } shows the stats a rare needs.");
   } else if (typeof a.goal === "string" && a.goal.trim()) {
     const ns: string[] = [];
@@ -230,9 +303,10 @@ export async function farmingText(ctx: Context, a: FarmArgs): Promise<string> {
 
   if (a.leagueNote) notes.add(a.leagueNote);
   if (notes.size) lines.push("", "Notes:", ...[...notes].map((x) => `- ${x}`));
-  const used_ = new Set(["patch", "tiers", "voidstone", "nightmare", "thread", "delirium", "simulacrum", "rarity", "map", "atlas", ...chosen.map((c) => c.s.what.src)]);
-  lines.push("", `Sources (data file ${D.generated}; re-checked each league):`,
-    ...[...used_].map((k) => SRC[k]).filter(Boolean).map((s) => `- ${s.title}: ${s.url}${s.edited ? ` (edited ${s.edited})` : ""}${s.outdated ? " - may be outdated (edited before the league started)" : ""}`),
+  const used_ = new Set(["patch", "tiers", "voidstone", "nightmare", "thread", "delirium", "simulacrum", "rarity", "map", "atlas",
+    ...chosen.flatMap((c) => [c.s.what.src, quoteOf(c.s, "rewards")?.src ?? "", quoteOf(c.s, "caveat")?.src ?? ""]), ...(asked ? [] : EXCLUDED.map((x) => x.src))]);
+  lines.push("", `Sources (data file ${D.generated}; re-checked each league; prices, trends and trade volumes: poe.ninja):`,
+    ...[...used_].map((k) => SRC[k]).filter(Boolean).map((s) => `- ${s.title}: ${s.url}${s.edited ? ` (edited ${s.edited})` : ""}${s.outdated ? " - may be outdated (edited before the league started)" : ""}${s.needsUpdate ? ` - the wiki flags it for an update ("${s.needsUpdate}")` : ""}`),
     `- Advisor rules (not game facts): ${D.rules.note} Safe = at least ${profile.hardcore ? D.rules.hitsSafeHardcore : D.rules.hitsSafe} hits to die; a rare dies within ${D.rules.rareKillComfortable} s.`);
   return lines.join("\n");
 }

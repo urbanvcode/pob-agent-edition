@@ -9,11 +9,21 @@ import { n } from "../format.js";
 import { FARMING_DATA as D } from "./data.js";
 
 export interface Measure { dps: number; ehp?: number; maxHit?: number; maxHitType?: string; hits?: number; enemyDamage?: number; recovery?: number }
-export interface TierRow { level: number; monsterLife?: number; clearDps: number; bossDps: number; hits?: number; packHits?: number; maxHit?: number; maxHitType?: string; enemyDamage?: number; ehp?: number }
+export interface TierRow { level: number; monsterLife?: number; clearDps: number; bossDps: number; hits?: number; packHits?: number; maxHit?: number; maxHitType?: string; enemyDamage?: number; ehp?: number; bossHit?: Record<string, number> }
 export interface ModRow { name: string; kind: string; text: string; dpsPct?: number; bossDpsPct?: number; maxHitPct?: number; hitsPct?: number; ehpPct?: number; recoveryPct?: number }
 export interface CheckResult {
   base: Measure; clear: Measure; tiers: TierRow[]; pinnacle: Measure; uber: Measure; mods: ModRow[];
   life?: number; energyShield?: number; resists?: Record<string, number>; level?: number; mainSkill?: string; assumptions?: string;
+  /** The player's own enemy settings set aside for the check (custom hit damage, a boss skill preset, a fixed damage type). */
+  overridden?: string[];
+}
+
+const TYPES = ["Physical", "Fire", "Cold", "Lightning", "Chaos"];
+/** "23% physical, 23% fire, ..." of PoB's map boss hit (Standard Boss preset). */
+export function hitMix(hit: Record<string, number> | undefined): string | undefined {
+  const total = hit ? TYPES.reduce((a, t) => a + (hit[t] ?? 0), 0) : 0;
+  if (!hit || !(total > 0)) return undefined;
+  return TYPES.filter((t) => hit[t] > 0).map((t) => `${Math.round((hit[t] / total) * 100)}% ${t.toLowerCase()}`).join(", ");
 }
 
 export type Verdict = "safe" | "risky" | "unsafe";
@@ -110,11 +120,20 @@ export function capabilityText(r: CheckResult, hardcore: boolean): { lines: stri
   const v = tierVerdicts(r, hardcore);
   const tier = comfortableTier(v);
   const pick = [1, 5, 6, 10, 11, 14, 16].map((t) => v.find((x) => x.tier === t)!).filter(Boolean);
+  const rows = [...r.tiers].sort((a, b) => a.level - b.level);
+  const low = rows[0], high = rows[rows.length - 1];
+  const mix = hitMix(high?.bossHit);
+  const weakest = rows.find((x) => x.maxHit !== undefined);
   const lines = [
     `1. WHAT THE BUILD CAN DO (PoB: a map boss at each area level for survival, normal packs for clear; ${r.mainSkill ?? "main skill"}, level ${r.level ?? "?"})`,
-    ...pick.map((t) => `- T${t.tier} (${t.color}, area level ${t.level}): survive ${MARK[t.survive]} (map boss takes ${hitsText(t.hits)} hits to kill you, weakest max hit ${n(t.maxHit)} ${t.maxHitType ?? ""}); clear ${MARK[t.clear]} (a rare dies in ${secs(t.rareKill)})`),
-    tier >= 16 ? "Verdict: comfortable in T16 maps." : tier > 0 ? `Verdict: comfortable up to T${tier}; T${tier + 1}+ needs more defence or damage first.` : "Verdict: even white maps are not comfortable yet; fix defences first (diagnose).",
+    `Map boss model: PoB's "Standard Boss", one average hit of ${n(low?.bossHit?.total)} (area level ${low?.level ?? "?"}) to ${n(high?.bossHit?.total)} (area level ${high?.level ?? "?"})${mix ? `, split ${mix}` : ""}. It stands for a boss's average attack, not one boss's real skill: a boss that hits with mostly one type is worse if that is your weak type.`,
+    ...pick.map((t) => `- T${t.tier} (${t.color}, area level ${t.level}): survive ${MARK[t.survive]} (${hitsText(t.hits)} of those hits to kill you); clear ${MARK[t.clear]} (a rare dies in ${secs(t.rareKill)})`),
+    ...(weakest ? [`- Weakest single-type max hit: ${n(weakest.maxHit)} ${weakest.maxHitType ?? ""} (the biggest hit of only that type you survive; not what the verdict above uses).`] : []),
+    tier >= 16 ? "Verdict: comfortable in T16 maps."
+      : tier > 0 ? `Verdict: comfortable up to T${tier}; T${tier + 1}+ needs more defence or damage first.`
+      : `Verdict: not comfortable even in white maps by the advisor's margin (at least ${hardcore ? D.rules.hitsSafeHardcore : D.rules.hitsSafe} average boss hits to die); go carefully and fix defences first (diagnose).`,
   ];
+  if (r.overridden?.length) lines.push(`- Your own enemy settings were set aside for these checks (they would make every map boss hit like them): ${r.overridden.join(", ")}.`);
   const p = survival(r.pinnacle.hits, hardcore), u = survival(r.uber.hits, hardcore);
   lines.push(`- Pinnacle bosses (PoB's pinnacle preset, level 84): ${MARK[p]}, ${hitsText(r.pinnacle.hits)} hits to die, boss DPS ${n(r.pinnacle.dps)}. Uber (level 85): ${MARK[u]}, ${hitsText(r.uber.hits)} hits, DPS ${n(r.uber.dps)}. Per boss: diagnose { boss }. PoB has no boss life data, so kill time is not judged.`);
   const deli = deliriumRows(r, hardcore);

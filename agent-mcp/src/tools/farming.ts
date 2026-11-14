@@ -7,10 +7,10 @@ import { resolveLeague } from "./trade.js";
 export function farmingTools(trade: TradeApiClient): Tool[] {
   return [
     tool("farming_plan", "Farming advisor: content the build can do, strategies with atlas presets, Threads, prices, progression, money plan, SSF targets; log records a session.",
-      { farm: S.str(), goal: S.str(), log: S.obj(), league: S.str(), points: S.num() }, [],
+      { farm: S.str(), goal: S.str(), log: S.obj(), league: S.str(), points: S.num(), limit: S.num() }, [],
       async (ctx, args) => {
         const { league, note } = await resolveLeague(ctx.trade ?? trade, args.league);
-        return farmingText(ctx, { farm: args.farm === true ? "true" : args.farm, goal: args.goal, log: args.log, league, leagueNote: note, points: Number(args.points) || undefined });
+        return farmingText(ctx, { farm: args.farm === true ? "true" : args.farm, goal: args.goal, log: args.log, league, leagueNote: note, points: Number(args.points) || undefined, limit: Number(args.limit) || undefined });
       }, { trade: true }),
   ];
 }

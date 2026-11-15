@@ -7,13 +7,13 @@ import { ToolError, type Pob } from "../pob.js";
 import { S, tool, type Args, type Context, type Tool } from "../registry.js";
 import { buildFile, currentBuildsDir } from "./session.js";
 import { TREE_HINT } from "./optimise.js";
-import { planText, treeTarget } from "./treeplan.js";
+import { pairPlan, planText, treeTarget } from "./treeplan.js";
 
 type Op = Record<string, unknown> & { op: string };
 
 const ITEM_OPS = ["equip", "unequip", "flask", "item_set"];
 const SKILL_OPS = ["main_skill", "add_group", "remove_group", "group_enabled", "add_gem", "remove_gem", "gem"];
-const TREE_OPS = ["alloc", "dealloc", "mastery", "spec", "spec_notes"];
+const TREE_OPS = ["alloc", "dealloc", "mastery", "spec", "spec_notes", "apply_tree"];
 
 function opList(args: Args, allowed: string[] | null, toolName: string): Op[] {
   const ops = args.ops;
@@ -106,8 +106,20 @@ function changeReport(res: any, live: boolean, kept: boolean): string {
   return lines.join("\n");
 }
 
+/** apply_tree ops name their tree like compare { tree }: resolve it to what PoB loads. */
+async function resolveTreeOps(pob: Pob, link: Awaited<ReturnType<Pob["link"]>>, ops: Op[]): Promise<Op[]> {
+  const out: Op[] = [];
+  for (const o of ops) {
+    if (o.op !== "apply_tree") { out.push(o); continue; }
+    const t = await treeTarget(pob, link, o.tree);
+    out.push({ ...o, tree: undefined, compare: t.compare, xml: t.xml, source_title: t.title, spec: t.spec });
+  }
+  return out;
+}
+
 async function applyEdit({ pob }: Context, ops: Op[]): Promise<string> {
   const link = await pob.link();
+  ops = await resolveTreeOps(pob, link, ops);
   const res = await link.call("edit", { ops });
   return changeReport(res, link.kind === "live", true);
 }
@@ -125,7 +137,7 @@ function knownSnapshots(): string[] {
   return fs.readdirSync(dir).filter((f) => f.endsWith(".xml")).map((f) => f.replace(/\.xml$/, ""));
 }
 
-function readSnapshot(name: string): string {
+export function readSnapshot(name: string): string {
   const file = snapshots.get(name)?.file ?? snapshotFile(name);
   if (!fs.existsSync(file)) {
     const known = knownSnapshots();
@@ -143,18 +155,15 @@ async function loadSide(pob: Pob, ref: string): Promise<Side> {
     const [stats, summary] = [await link.call("key_stats"), await link.call("summary")];
     return { title: `current (${stats.name})`, stats: stats.stats, summary: summary.summary, assumptions: stats.assumptions };
   }
-  let xml: string, title: string;
-  if (ref.startsWith("snapshot:")) {
-    title = ref;
-    xml = readSnapshot(ref.slice(9));
-  } else {
-    const file = buildFile(await currentBuildsDir(pob), ref);
-    if (!fs.existsSync(file)) throw new ToolError(`No build named "${ref}". Use list_builds for names, or "snapshot:<name>" / "current".`);
-    title = ref;
-    xml = fs.readFileSync(file, "utf8");
-  }
+  const src = await treeTarget(pob, await pob.link().catch(() => null), ref, false);
+  if (src.compare !== undefined) throw new ToolError('For a tree of the open build use compare { tree }, or a = "current".');
+  const title = src.spec ? `${src.title} / ${src.spec}` : src.title!;
   const side = await pob.sideLink();
-  await side.call("load_build_xml", { xml, name: title });
+  await side.call("load_build_xml", { xml: src.xml, name: src.title });
+  if (src.spec) {
+    const r = await side.call("select_tree", { spec: src.spec });
+    if (!r.ok) throw new ToolError(r.error);
+  }
   const [stats, summary] = [await side.call("key_stats"), await side.call("summary")];
   return { title, stats: stats.stats, summary: summary.summary, assumptions: stats.assumptions };
 }
@@ -189,7 +198,7 @@ function compareText(a: Side, b: Side): string {
 const OPS = S.list(S.obj());
 
 export const editTools: Tool[] = [
-  tool("edit", 'Change the open build, before/after. Ops in order. Items: {op:"equip",slot,text|id}, {op:"unequip",slot}, {op:"flask",index,active}, {op:"item_set",id}. Skills (numbers: build_summary): {op:"main_skill",group}, {op:"add_group",gems:[{name,level?,quality?}]}, {op:"remove_group",group}, {op:"group_enabled",group,enabled}, {op:"add_gem",group,name}, {op:"remove_gem",group,gem}, {op:"gem",group,gem,level?,quality?,enabled?}. Tree (ids: tree_search): {op:"alloc"|"dealloc",nodes}, {op:"mastery",node,effect}, {op:"spec",index|create},{op:"spec_notes",spec,notes:{id:"why"}}. {op:"config",values}.',
+  tool("edit", 'Change the open build; ops in order. Items: {op:"equip",slot,text|id}, {op:"unequip",slot}, {op:"flask",index,active}, {op:"item_set",id}. Skills (build_summary nos): {op:"main_skill",group}, {op:"add_group",gems:[{name,level?}]}, {op:"remove_group",group}, {op:"group_enabled",group,enabled}, {op:"add_gem",group,name}, {op:"remove_gem",group,gem}, {op:"gem",group,gem,level?,quality?,enabled?}. Tree (ids: tree_search): {op:"alloc"|"dealloc",nodes}, {op:"mastery",node,effect}, {op:"spec",index|create},{op:"spec_notes",spec,notes:{id:"why"}}, {op:"apply_tree",tree,only?}. {op:"config",values}.',
     { ops: OPS }, ["ops"], async (ctx, args) => applyEdit(ctx, opList(args, [...ITEM_OPS, ...SKILL_OPS, ...TREE_OPS, "config"], "edit"))),
 
   tool("edit_items", 'Change gear in the open build. Ops: {op:"equip",slot,text} (PoB/in-game item text) or {op:"equip",slot,id} (item already in the build), {op:"unequip",slot}, {op:"flask",index:1-5,active}, {op:"item_set",id}. Returns before/after stats.',
@@ -228,7 +237,7 @@ export const editTools: Tool[] = [
     async ({ pob }, args) => {
       const ops = opList(args, null, "what_if");
       const link = await pob.link();
-      const res = await link.call("what_if", { ops, keep: args.keep === true });
+      const res = await link.call("what_if", { ops: await resolveTreeOps(pob, link, ops), keep: args.keep === true });
       let text = changeReport(res, link.kind === "live", res.kept === true);
       if (res.kept && ops.some((o) => ["alloc", "dealloc", "mastery"].includes(o.op))) text += `
 ${TREE_HINT}`;
@@ -261,7 +270,7 @@ ${TREE_HINT}`;
       return `Restored snapshot "${args.name}" (Combined DPS ${n(stats.stats.CombinedDPS)}, EHP ${n(stats.stats.TotalEHP)}).`;
     }),
 
-  tool("compare", 'Compare two builds (stats, tree, items, gems) without touching the window. Each side: "current" (default a), "snapshot:<name>" or a saved build name. tree: respec plan vs a tree no./title, build or "last sync".',
+  tool("compare", 'Compare two builds (stats, items, gems, tree changes) without touching the window. Each side: "current" (default a), a build, guide:name[:stage], "last sync", code/link, "snapshot:<name>". tree: respec plan of the open build vs a tree no./title or any side.',
     { a: S.str(), b: S.str(), tree: {}, skip: S.list(S.str(), "change ids to untick"), save_as: S.str("new tree") }, [],
     async ({ pob }, args) => {
       if (args.tree !== undefined && args.tree !== null) {
@@ -269,7 +278,13 @@ ${TREE_HINT}`;
         const res = await link.call("tree_plan", { ...(await treeTarget(pob, link, args.tree)), skip: args.skip, save_as: args.save_as });
         return planText(res);
       }
-      if (typeof args.b !== "string" || !args.b) throw new ToolError('compare needs b (a build, "snapshot:<name>") or tree.');
+      if (typeof args.b !== "string" || !args.b) throw new ToolError('compare needs b (a build, "guide:<name>[:stage]", "last sync", a code or link, "snapshot:<name>") or tree.');
+      const stats = compareText(await loadSide(pob, typeof args.a === "string" ? args.a : "current"), await loadSide(pob, String(args.b)));
+      let plan: string;
+      try { plan = planText(await pairPlan(pob, typeof args.a === "string" ? args.a : "current", args.b)); } catch (e) { plan = `Tree plan: ${e instanceof Error ? e.message : String(e)}`; }
+      return `${stats}
+
+${plan}`;
       const a = await loadSide(pob, typeof args.a === "string" ? args.a : "current");
       const b = await loadSide(pob, String(args.b));
       return compareText(a, b);

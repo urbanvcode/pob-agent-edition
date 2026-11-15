@@ -114,7 +114,7 @@ export async function statusText(pob: Pob): Promise<string> {
 }
 
 /** set_view { compare }: no JSON type (a number, a string or false). */
-export const COMPARE = { description: 'TREE: tree no./title, build or "last sync"; false=off' };
+export const COMPARE = { description: 'TREE: tree no./title, build, guide:name[:stage], "last sync", code/link; false=off' };
 const VIEWS = ["OVERVIEW", "GUIDE", "ATLAS", "TREE", "SKILLS", "ITEMS", "CALCS", "CONFIG", "NOTES", "IMPORT", "PARTY", "COMPARE"];
 
 export const sessionTools: Tool[] = [

@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-11-15
+
+Hotfix: AI marks and guided tours can be clicked on every tab again (Items too), and Esc closes them. Based on **Path of Building Community v2.67.2** (same as 0.9.5). **After updating, restart PoB Agent Edition and your AI app.**
+
 ### Fixed
 - **AI marks can be clicked on every tab again**: a guided-tour box on the Items tab (on a flask, say) could not be clicked: Next, Back and closing it did nothing, because the item list under it took the click first. Clicks on marks, their boxes and the "Clear AI marks" button now reach the marks first on every tab (Items, Skills, Configuration, Calcs and the tree, where a click on a box no longer reaches the passive under it), and Esc closes the tour or marks.
 
@@ -313,7 +317,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.5...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.6...HEAD
+[0.9.6]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.2...v0.9.3

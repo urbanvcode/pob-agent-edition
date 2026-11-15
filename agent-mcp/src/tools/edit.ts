@@ -6,12 +6,14 @@ import { cacheDir } from "../paths.js";
 import { ToolError, type Pob } from "../pob.js";
 import { S, tool, type Args, type Context, type Tool } from "../registry.js";
 import { buildFile, currentBuildsDir } from "./session.js";
+import { TREE_HINT } from "./optimise.js";
+import { planText, treeTarget } from "./treeplan.js";
 
 type Op = Record<string, unknown> & { op: string };
 
 const ITEM_OPS = ["equip", "unequip", "flask", "item_set"];
 const SKILL_OPS = ["main_skill", "add_group", "remove_group", "group_enabled", "add_gem", "remove_gem", "gem"];
-const TREE_OPS = ["alloc", "dealloc", "mastery", "spec"];
+const TREE_OPS = ["alloc", "dealloc", "mastery", "spec", "spec_notes"];
 
 function opList(args: Args, allowed: string[] | null, toolName: string): Op[] {
   const ops = args.ops;
@@ -200,7 +202,7 @@ function compareText(a: Side, b: Side): string {
 const OPS = S.list(S.obj());
 
 export const editTools: Tool[] = [
-  tool("edit", 'Change the open build; returns before/after stats. Ops in order. Items: {op:"equip",slot,text|id}, {op:"unequip",slot}, {op:"flask",index,active}, {op:"item_set",id}. Skills (numbers from build_summary): {op:"main_skill",group}, {op:"add_group",gems:[{name,level?,quality?}]}, {op:"remove_group",group}, {op:"group_enabled",group,enabled}, {op:"add_gem",group,name}, {op:"remove_gem",group,gem}, {op:"gem",group,gem,level?,quality?,enabled?}. Tree (ids from tree_search): {op:"alloc"|"dealloc",nodes}, {op:"mastery",node,effect}, {op:"spec",index|create}. {op:"config",values}.',
+  tool("edit", 'Change the open build, before/after. Ops in order. Items: {op:"equip",slot,text|id}, {op:"unequip",slot}, {op:"flask",index,active}, {op:"item_set",id}. Skills (numbers: build_summary): {op:"main_skill",group}, {op:"add_group",gems:[{name,level?,quality?}]}, {op:"remove_group",group}, {op:"group_enabled",group,enabled}, {op:"add_gem",group,name}, {op:"remove_gem",group,gem}, {op:"gem",group,gem,level?,quality?,enabled?}. Tree (ids: tree_search): {op:"alloc"|"dealloc",nodes}, {op:"mastery",node,effect}, {op:"spec",index|create},{op:"spec_notes",spec,notes:{id:"why"}}. {op:"config",values}.',
     { ops: OPS }, ["ops"], async (ctx, args) => applyEdit(ctx, opList(args, [...ITEM_OPS, ...SKILL_OPS, ...TREE_OPS, "config"], "edit"))),
 
   tool("edit_items", 'Change gear in the open build. Ops: {op:"equip",slot,text} (PoB/in-game item text) or {op:"equip",slot,id} (item already in the build), {op:"unequip",slot}, {op:"flask",index:1-5,active}, {op:"item_set",id}. Returns before/after stats.',
@@ -241,6 +243,8 @@ export const editTools: Tool[] = [
       const link = await pob.link();
       const res = await link.call("what_if", { ops, keep: args.keep === true });
       let text = changeReport(res, link.kind === "live", res.kept === true);
+      if (res.kept && ops.some((o) => ["alloc", "dealloc", "mastery"].includes(o.op))) text += `
+${TREE_HINT}`;
       if (!res.kept) {
         text += res.rolledBack
           ? `\nRolled back: the build is as it was.${args.keep === true ? " (keep was ignored because an op failed.)" : ""}`
@@ -270,9 +274,15 @@ export const editTools: Tool[] = [
       return `Restored snapshot "${args.name}" (Combined DPS ${n(stats.stats.CombinedDPS)}, EHP ${n(stats.stats.TotalEHP)}).`;
     }),
 
-  tool("compare", 'Compare two builds (stats, tree, items, gems) without touching the window. Each side: "current" (default a), "snapshot:<name>" or a saved build name.',
-    { a: S.str(), b: S.str() }, ["b"],
+  tool("compare", 'Compare two builds (stats, tree, items, gems) without touching the window. Each side: "current" (default a), "snapshot:<name>" or a saved build name. tree: respec plan vs a tree no./title, build or "last sync".',
+    { a: S.str(), b: S.str(), tree: {}, skip: S.list(S.str(), "change ids to untick"), save_as: S.str("new tree") }, [],
     async ({ pob }, args) => {
+      if (args.tree !== undefined && args.tree !== null) {
+        const link = await pob.link();
+        const res = await link.call("tree_plan", { ...(await treeTarget(pob, link, args.tree)), skip: args.skip, save_as: args.save_as });
+        return planText(res);
+      }
+      if (typeof args.b !== "string" || !args.b) throw new ToolError('compare needs b (a build, "snapshot:<name>") or tree.');
       const a = await loadSide(pob, typeof args.a === "string" ? args.a : "current");
       const b = await loadSide(pob, String(args.b));
       return compareText(a, b);

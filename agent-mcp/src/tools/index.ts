@@ -26,7 +26,7 @@ import { checkLeague, tradeTools } from "./trade.js";
 const WRITES: Record<string, (a: Args) => boolean> = {
   edit: () => true, edit_items: () => true, edit_skills: () => true, edit_tree: () => true,
   set_config: (a) => !!a.values && typeof a.values === "object" && Object.keys(a.values).length > 0,
-  what_if: (a) => a.keep === true,
+  what_if: (a) => a.keep === true, compare: (a) => typeof a.save_as === "string" && a.save_as.trim() !== "",
   restore: () => true, open_build: () => true, save_build: (a) => a.export_code !== true,
   atlas_edit: () => true, guide_import: () => true, character_sync: () => true,
 };
@@ -100,7 +100,7 @@ export function allTools(trade: TradeApiClient, internal: Tool[] = internalTools
 
   const setView = get("set_view");
   const view = routed("set_view", "Switch the PoB window to a tab the player should look at. OPTIONS opens the Options window (Agent profile, POESESSID).",
-    { view: S.enum([...((setView.inputSchema.properties.view as any).enum as string[]), "OPTIONS"]) }, ["view"],
+    { view: S.enum([...((setView.inputSchema.properties.view as any).enum as string[]), "OPTIONS"]), compare: setView.inputSchema.properties.compare }, ["view"],
     (a) => (a.view === "OPTIONS" ? [get("open_options"), {}] : [setView, a]));
 
   const character = routed("character",

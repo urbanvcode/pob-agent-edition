@@ -204,6 +204,9 @@ export async function priceGemCopies(levels: GemLevel[], league: string, lines?:
 /** Test hook: replaces the poe.ninja lookup (no network in tests). */
 export const gemPriceSource = { lines: undefined as undefined | ((league: string) => Promise<NinjaLine[]>) };
 
+/** One line on showing tree changes on the tree (optimise, what_if { keep }). */
+export const TREE_HINT = 'To show passive changes on the tree: put them in a new tree (edit [{op:"spec",create:"AI"}, ...ops]), then set_view { view: "TREE", compare: "AI" } (labels, planner, Orbs of Regret).';
+
 export function formatOptimise(r: any, mode: string, learned: string[]): { text: string; tags: string[] } {
   const L: string[] = [];
   const goal = String(r.goal);
@@ -262,6 +265,7 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
   const ex = explanations(allTags, mode, learned);
   if (ex.length) L.push("", `Mechanics (${mode} mode; explain these, then profile { learned }):`, ...ex);
   L.push("", "Try one with what_if (the ops above), apply with edit, then save_build under a new name. Jewels: suggest { kind: jewel }.");
+  if ([...list, ...ascList].some((s) => ["passives", "respec", "ascendancy"].includes(s.lever) || s.lever === undefined)) L.push(TREE_HINT);
   return { text: L.join("\n"), tags: allTags };
 }
 

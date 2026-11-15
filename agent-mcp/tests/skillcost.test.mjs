@@ -29,7 +29,7 @@ process.env.POB_AGENT_UPDATE_CHECK = "off";
 fs.writeFileSync(process.env.POB_AGENT_SETTINGS, JSON.stringify({ profile: { playMode: "ssf", league: "Testleague" } }));
 globalThis.fetch = async (url) => { throw new Error(`test made an unexpected request: ${url}`); };
 
-const { costText } = await import("../build/tools/edit.js");
+const { costText, warningText } = await import("../build/tools/edit.js");
 const { createTools, runTool } = await import("../build/server.js");
 const { tools, context } = createTools();
 after(() => context.pob.close());
@@ -64,6 +64,30 @@ test("costText: the warning, the real result and the cheapest fix (the Skitterbo
   assert.match(text, /Haste off: DPS \+7\.8%/);
   assert.deepEqual(costText(undefined, before), []);
   assert.deepEqual(costText({ warnings: [] }, before), []);
+});
+
+test("warningText: new and gone PoB warnings; skill-cost lines left to the detailed block", () => {
+  const w = { added: ["You do not have enough Mana to use: Vortex", "You do not meet the Strength requirement of Enduring Cry"], removed: ["You have eligible items missing an anoint: Amulet"] };
+  const text = warningText(w, true).join("\n");
+  assert.match(text, /^New PoB warning after this change \(the side bar list\):\n- You do not meet the Strength requirement of Enduring Cry\nPoB warning gone after this change:\n- You have eligible items missing an anoint: Amulet$/);
+  assert.match(warningText(w, false).join("\n"), /New PoB warnings after this change[^\n]*\n- You do not have enough Mana to use: Vortex/);
+  assert.deepEqual(warningText(undefined, false), []);
+});
+
+test("what_if: any PoB warning a change adds is shown, not only skill costs", async () => {
+  await ok("open_build", { name: "cost-test" });
+  const text = await ok("what_if", { ops: [{ op: "unequip", slot: "Amulet" }] });
+  assert.match(text, /New PoB warning after this change \(the side bar list\):\n- You do not meet the Strength requirement of Enduring Cry/);
+  assert.doesNotMatch(text, /Cheapest fix/);
+  assert.match(text, /Rolled back/);
+});
+
+test("what_if: warnings a change takes away are listed as gone", async () => {
+  await ok("open_build", { name: "cost-blocked" });
+  assert.match(await ok("build_summary"), /\n7: 1\.Vitality/);
+  const text = await ok("what_if", { ops: [{ op: "group_enabled", group: 7, enabled: false }] });
+  assert.match(text, /PoB warning gone after this change:\n- You do not have enough Mana to use: [^\n]*Vortex/);
+  assert.doesNotMatch(text, /^Warning:/m);
 });
 
 test("what_if: a change that leaves a skill short says so, with the real result and the cheapest fix", async () => {
@@ -120,12 +144,14 @@ test("optimise: an aura that only fits with another reserving skill off is ranke
   assert.match(line, /NEEDS THE FIX IN THE OPS/);
   const block = text.slice(text.indexOf(line));
   assert.match(block, /side effect: over-reserves mana on its own, so .*Vortex can't be used/);
+  // The reservation line PoB shows on paper belongs to the mana case and its fix, not a separate warning.
+  assert.doesNotMatch(block.split("\n").slice(0, 3).join("\n"), /PoB warning: Your unreserved Mana is negative/);
   assert.match(block, /mana options \(goal score vs the paper gain\): .*\(still short\)/);
   const ops = JSON.parse(block.match(/what_if ops: (\[.*\])/)[1]);
   assert.equal(ops[0].op, "add_group");
   assert.deepEqual({ op: ops[1].op, enabled: ops[1].enabled }, { op: "gem", enabled: false });
   // The ranked ops really fit: simulated together, no skill is left short.
   const check = await ok("what_if", { ops });
-  assert.doesNotMatch(check, /Warning:/);
+  assert.doesNotMatch(check, /Warning:|New PoB warning/);
   assert.match(check, /Rolled back/);
 });

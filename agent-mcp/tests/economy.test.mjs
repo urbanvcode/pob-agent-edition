@@ -353,4 +353,35 @@ test("plan_upgrades focus dps: slots by damage potential, every slot gets a line
   const r2 = await up.planUpgrades(link, junk, { league: "Testleague", budget_chaos: 20, focus: "dps", slots: ["Ring 1"] });
   assert.match(r2.notes.join("\n"), /Ring 1: (1 listing under 20c simulated, none an upgrade|1 upgrade of 1)/);
 });
+
+// Problem #18: plan_upgrades { budget, focus: "dps" } searched armour slots first and never reached rings or the weapon.
+test("budget plan focus dps: slots by damage potential, the slots it did not reach are named", async () => {
+  const up = await import("../build/trade/upgrades.js");
+  const { slots: want, rest } = await up.orderSlots(link, undefined, "dps", []);
+  assert.ok(want.length >= 2, `ranked slots: ${want}`);
+  let calls = 0;
+  const capped = {
+    async searchItems() {
+      if (++calls > 1) throw new Error("Stopped after 16 trade requests for this question to stay well inside pathofexile.com's limits.");
+      return { id: "fake-empty", result: [], total: 0 };
+    },
+    async fetchItems() { return []; },
+  };
+  const plan = await setPlan.planBudget(link, capped, { league: "Testleague", budgetChaos: 30, focus: "dps" });
+  assert.deepEqual(plan.searched, want.slice(0, 1), "the slot with the most damage potential is searched first");
+  assert.deepEqual(plan.unreached.map((u) => u.slot), [...want.slice(1), ...rest], "every other ranked slot is named as not reached");
+  assert.ok(plan.unreached.every((u) => u.reason === (rest.includes(u.slot) ? "past the 8 slots one question can search" : "request cap reached")));
+  assert.match(plan.notes.join("\n"), /order of damage potential/);
+  const text = report.formatSetPlan(plan, budget.parseBudgetText("30c", RATES), { mode: "trade", divine: DIVINE });
+  if (process.env.ECON_SHOW) console.log(text);
+  assert.match(text, /NOT REACHED: .*\(request cap reached\)[;.].*Ask again with slots: \[/);
+  for (const s of [...want.slice(1), ...rest]) assert.ok(text.includes(`"${s}"`), `${s} is named`);
+
+  // Given slots keep their order; a slot past the 8 a question can search is named, not dropped.
+  const empty = { async searchItems() { return { id: "fake-empty", result: [], total: 0 }; }, async fetchItems() { return []; } };
+  const many = ["Ring 1", "Ring 2", "Amulet", "Belt", "Gloves", "Boots", "Helmet", "Body Armour", "Weapon 1"];
+  const p2 = await setPlan.planBudget(link, empty, { league: "Testleague", budgetChaos: 30, focus: "dps", slots: many });
+  assert.deepEqual(p2.searched, many.slice(0, 8));
+  assert.deepEqual(p2.unreached, [{ slot: "Weapon 1", reason: "past the 8 slots one question can search" }]);
+});
 });

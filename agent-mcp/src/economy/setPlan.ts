@@ -17,7 +17,7 @@
  * Trade traffic stays inside the client's per-question budget (two requests
  * per slot) and its pacing; the player buys by opening each link.
  */
-import { evaluateCandidate, isStop, isUpgrade, ratesOrChaosOnly, searchSlot, toCandidate, DEFAULT_SLOTS,
+import { evaluateCandidate, isStop, isUpgrade, orderSlots, ratesOrChaosOnly, searchSlot, toCandidate,
   type PobLink, type SlotResult, type TestStats, type UpgradeCandidate } from "../trade/upgrades.js";
 import type { TradeApiClient } from "../trade/client.js";
 import { buyWarnings } from "./sanity.js";
@@ -50,6 +50,8 @@ export interface SetPlan {
   singles: { dpsPct: number; ehpPct: number };
   saveFor: Array<PlanItem & { more: number }>;
   searched: string[];
+  /** Slots planned but never searched (request cap, a site pause, or past the 8 slots a question can search), with the reason. */
+  unreached: Array<{ slot: string; reason: string }>;
   notes: string[];
   sims: number;
 }
@@ -91,23 +93,29 @@ export function problems(c: Combined, noDefenceLoss: boolean): string[] {
 export async function planBudget(lua: PobLink, trade: TradeApiClient, args: SetArgs): Promise<SetPlan> {
   const budget = Math.max(1, args.budgetChaos);
   const focus = args.focus ?? "balanced";
-  const slots = (args.slots && args.slots.length ? args.slots : DEFAULT_SLOTS).slice(0, 7);
   const perSlot = Math.min(Math.max(args.perSlot ?? 10, 1), 10);
   const maxSims = Math.max(1, args.maxSims ?? 30);
   const notes: string[] = [];
   const rates = await ratesOrChaosOnly(args.league, notes);
+  // Same order as plan_upgrades (problem #18): focus dps without slots = by PoB's damage potential.
+  const { slots, rest, targets } = await orderSlots(lua, args.slots, focus, notes);
+  const unreached: Array<{ slot: string; reason: string }> = rest.map((slot) => ({ slot, reason: "past the 8 slots one question can search" }));
 
   // 1. search and simulate each slot on its own
   const groups: PlanItem[][] = [];
   const searched: string[] = [];
-  for (const slot of slots) {
+  for (const [i, slot] of slots.entries()) {
     let r: SlotResult | string;
     try {
-      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates, notes });
+      r = await searchSlot(lua, trade, args.league, slot, { focus, maxPrice: budget, perSlot, rates, notes, target: targets.get(slot) });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       notes.push(`${slot}: ${msg}`);
-      if (isStop(msg)) break;
+      if (isStop(msg)) {
+        const reason = /Stopped after/i.test(msg) ? "request cap reached" : "pathofexile.com asked for a pause";
+        unreached.unshift(...[slot, ...slots.slice(i + 1)].map((s) => ({ slot: s, reason })));
+        break;
+      }
       continue;
     }
     searched.push(slot);
@@ -206,5 +214,5 @@ export async function planBudget(lua: PobLink, trade: TradeApiClient, args: SetA
   }).filter((x): x is PlanItem & { more: number } => !!x).sort((a, b) => b.score - a.score).slice(0, 3);
 
   set.sort((a, b) => b.score - a.score);
-  return { league: args.league, budget, focus, buy: set, spent, left: budget - spent, combined, singles, saveFor, searched, notes, sims };
+  return { league: args.league, budget, focus, buy: set, spent, left: budget - spent, combined, singles, saveFor, searched, unreached, notes, sims };
 }

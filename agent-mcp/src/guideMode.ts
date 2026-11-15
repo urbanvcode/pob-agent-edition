@@ -175,7 +175,9 @@ export interface LightStage {
 }
 
 // --- formatting ---------------------------------------------------------------------------
-export interface Gain { dps: number; dpsPct: number; ehp: number; ehpPct: number; life: number; res?: Record<string, number>; failed?: string[]; error?: string; rollbackProblem?: string }
+export interface Gain { dps: number; dpsPct: number; ehp: number; ehpPct: number; life: number; res?: Record<string, number>; failed?: string[]; error?: string; rollbackProblem?: string;
+  /** PoB: the change leaves these skills without enough mana to use; dpsPct is then the real result. */
+  costWarnings?: string[]; paperDpsPct?: number; costFix?: string; unusable?: boolean }
 
 export const dpsOf = (s: any): number => (s?.FullDPS > 0 ? s.FullDPS : s?.CombinedDPS ?? s?.TotalDPS ?? 0);
 
@@ -189,6 +191,10 @@ export function gainText(g: Gain | undefined | null): string {
   const res = Object.entries(g.res ?? {}).filter(([, v]) => Math.abs(v) >= 1).map(([k, v]) => `${k} res ${sign(v, 0)}`);
   if (res.length) parts.push(res.join(", "));
   if (g.failed?.length) parts.push(`(partly failed: ${g.failed[0]})`);
+  if (g.costWarnings?.length) {
+    const real = g.unusable ? "no real result: nothing that fits keeps it usable" : `real result with ${g.costFix ?? "that skill switched off"}`;
+    parts.push(`BREAKS A SKILL: ${g.costWarnings.join("; ")} (${real}; paper DPS ${sign(g.paperDpsPct ?? 0)}%)`);
+  }
   return parts.join(", ");
 }
 

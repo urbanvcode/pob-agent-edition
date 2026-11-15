@@ -70,14 +70,20 @@ export const adviceTools: Tool[] = [
       const list = (Array.isArray(res.suggestions) ? res.suggestions : []) as any[];
       const asc = (Array.isArray(res.ascendancy) ? res.ascendancy : []) as any[];
       const head = `Passive suggestions (${res.focus}, within ${res.maxPoints} points; ${res.pointsFree} unspent point(s) at this level; ${res.evaluated} options simulated)`;
-      if (!list.length && !asc.length) return `${head}\nNothing nearby improves the build for this focus. Try a larger max_points or another focus.`;
+      if (!list.length && !asc.length && !res.manaBlocked) return `${head}\nNothing nearby improves the build for this focus. Try a larger max_points or another focus.`;
       const line = (s: any, lead: string, unit: string) => {
         const life = Math.abs(s.lifeDelta) >= 1 ? ` | Life ${s.lifeDelta > 0 ? "+" : ""}${Math.round(s.lifeDelta)}` : "";
         const how = s.effect ? `mastery effect ${s.effect}` : String(s.type).toLowerCase();
-        return `${lead} ${s.name} [id ${s.id}, ${how}, ${s.points} ${unit}${s.points === 1 ? "" : "s"}${pathText({ path: s.points > 1, via: s.via })}]: DPS ${pct(s.dpsPct)} | EHP ${pct(s.ehpPct)}${life}\n   ${(s.stats ?? []).filter((x: string) => x.trim()).join("; ")}`;
+        // A passive that leaves a skill without mana to use: its real result, the fix in its ops.
+        const mana = s.costFix
+          ? ` - NEEDS THE FIX IN THE OPS (paper: DPS ${pct(s.paper?.dpsPct ?? 0)} | EHP ${pct(s.paper?.ehpPct ?? 0)})\n   ${(s.costWarnings ?? []).join("; ")}; ranked with the fix: ${s.costFix.text}\n   what_if ops: ${JSON.stringify([s.effect ? { op: "mastery", node: s.id, effect: s.effect } : { op: "alloc", node: s.id }, ...(s.costFix.ops ?? [])])}`
+          : "";
+        return `${lead} ${s.name} [id ${s.id}, ${how}, ${s.points} ${unit}${s.points === 1 ? "" : "s"}${pathText({ path: s.points > 1, via: s.via })}]: DPS ${pct(s.dpsPct)} | EHP ${pct(s.ehpPct)}${life}${mana}\n   ${(s.stats ?? []).filter((x: string) => x.trim()).join("; ")}`;
       };
+      const blockedMana = (Array.isArray(res.manaBlocked) ? res.manaBlocked : []) as any[];
       const lines = list.length ? list.map((s, i) => line(s, `${i + 1}.`, "point")) : ["No passive within reach improves the build for this focus."];
       if (asc.length) lines.push("", ascendancyHead(res.ascendancyInfo ?? {}), ...asc.map((s) => line(s, "- [ascendancy]", "ascendancy point")), ...ascendancyEarn(res.ascendancyInfo ?? {}));
+      if (blockedMana.length) lines.push("", `Would help on paper but break a skill (not enough mana): ${blockedMana.map((x) => `${x.name} (paper DPS ${pct(x.paperDpsPct)}, EHP ${pct(x.paperEhpPct)}): ${x.why}`).join("; ")}`);
       return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit (alloc, or mastery with the effect id); preview first with what_if."].join("\n");
     }),
 

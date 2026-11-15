@@ -1389,3 +1389,4 @@ The player always runs two sessions:
 | 0.9.2 (2026-11-14) | Patch: bench crafts that fit, damage upgrade search order, character sync fight settings and levelling line |
 | 0.9.3 (2026-11-14) | Patch: optimiser keeps ascendancy nodes apart from passive points |
 | 0.9.4 (2026-11-14) | Patch: Fixes from testing: the optimiser warns when a change leaves a skill without mana or loses an ailment immunity |
+| 0.9.5 (2026-11-15) | Patch: Tree compare view with a respec planner, the AI can point at things in PoB and show its advice there, and fixes from testing (warnings, character sync, budget planner, weapon trade searches, support advice, Doedre's Tongue, respec mana, passive suggestions) |

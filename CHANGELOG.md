@@ -6,6 +6,10 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-11-15
+
+Tree compare view with a respec planner, the AI can point at things in PoB and show its advice there, and fixes from testing (warnings, character sync, budget planner, weapon trade searches, support advice, Doedre's Tongue, respec mana, passive suggestions). Based on **Path of Building Community v2.67.2** (same as 0.9.4). **After updating, restart PoB Agent Edition and your AI app.**
+
 ### Added
 - **See the AI's passive tree changes on top of your own tree, and plan the respec**: the Tree tab's Compare now labels every changed node with a box beside it: "NEW", "REMOVED", "MASTERY CHANGED: old -> new" or "JEWEL CHANGED", in PoB's compare colours (green, red, blue), with the AI's one-line reason under it when it left one. Boxes are placed so they don't overlap; the new "Labels" box hides them. A planner panel beside the tree ("Plan" box) shows what the respec costs (Orbs of Regret, points used of the points you have), one row per change (a notable or keystone with the small passives that lead to it) with its own DPS, EHP and weakest-max-hit change as PoB calculates it, and a tick box per row: untick a change and the total is recalculated at once, with the same warnings as `what_if` (a skill left without mana, over-reserved mana, attributes short, a resistance falling under the cap, a lost immunity, nodes that lose their path). Click a row to centre the tree on that node. "Save as new tree" keeps the ticked changes as a new tree; your own tree is never changed. The Compare list also has "Other build..." (any saved build of the same class) and "Last sync" (your character as it was at the previous sync). Mastery swaps and ascendancy refunds are counted but not priced.
 - **Compare any two trees, and see which changes to take first**: the Compare list also has "Guide..." (any stage of an imported guide) and "Paste code/link..." (a PoB code or a pobb.in, poe.ninja, pastebin or maxroll link, loaded only for comparing). A tree of another class still shows its differences, with a clear "the class differs" note. Changes are numbered in the order to take them (best gain per point or Orb of Regret first, but never before the nodes they need; refunds start at the edge of the tree), and nodes and boxes are coloured by their gain: green for damage, blue for defence, red for a loss, brighter for bigger, with a legend and a button back to PoB's own colours. Hover a changed node to see what changed, why (the AI's note) and its own gain. Each row has an "Apply" button, and "Apply ticked" / "Apply all" write the changes into a new tree; your own tree is never changed. Jewels, cluster jewel nodes and mastery choices that differ are labelled too.
@@ -306,7 +310,8 @@ First private preview. Based on **Path of Building Community v2.67.2**, with the
 ### Fixed
 - `get_build_issues` only counts jewel sockets on allocated passives.
 
-[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.5...HEAD
+[0.9.5]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/urbanvcode/pob-agent-edition/compare/v0.9.1...v0.9.2

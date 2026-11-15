@@ -21,6 +21,12 @@ fs.writeFileSync(path.join(builds, "cost-test.xml"), fixture);
 assert.match(fixture, /<\/Skills>/);
 fs.writeFileSync(path.join(builds, "cost-blocked.xml"), fixture.replace("</Skills>",
   '\t<Skill enabled="true" mainActiveSkill="1" mainActiveSkillCalcs="1"><Gem enableGlobal2="true" level="10" gemId="Metadata/Items/Gems/SkillGemVitality" skillId="Vitality" enableGlobal1="true" qualityId="Default" quality="0" enabled="true" nameSpec="Vitality"/></Skill>\n\t</Skills>'));
+// A made-up tree change that takes away mana: the Witch start only, Clarity at level 4. With
+// Deep Wisdom (+20 maximum Mana, allocated in the test) 96 mana stays unreserved and Vortex
+// (92) fits; respeccing Deep Wisdom away leaves 89, so Vortex can't be cast.
+const manaRespec = fixture.replace(/nodes="[^"]*"/, 'nodes="54447"').replace(/(<Gem[^>]*level=")5("[^>]*nameSpec="Clarity")/, "$14$2");
+assert.notEqual(manaRespec, fixture);
+fs.writeFileSync(path.join(builds, "mana-respec.xml"), manaRespec);
 process.env.POB_LIVE = "off";
 process.env.POB_DIRECTORY = builds;
 process.env.POB_AGENT_SETTINGS = path.join(tmp, "AgentEdition.json");
@@ -30,6 +36,7 @@ fs.writeFileSync(process.env.POB_AGENT_SETTINGS, JSON.stringify({ profile: { pla
 globalThis.fetch = async (url) => { throw new Error(`test made an unexpected request: ${url}`); };
 
 const { costText } = await import("../build/tools/edit.js");
+const { gainText } = await import("../build/guideMode.js");
 const { createTools, runTool } = await import("../build/server.js");
 const { tools, context } = createTools();
 after(() => context.pob.close());
@@ -128,4 +135,56 @@ test("optimise: an aura that only fits with another reserving skill off is ranke
   const check = await ok("what_if", { ops });
   assert.doesNotMatch(check, /Warning:/);
   assert.match(check, /Rolled back/);
+});
+
+test("optimise: a respec that takes away mana a skill needs is not ranked on its paper gain", async () => {
+  await ok("open_build", { name: "mana-respec" });
+  await ok("edit", { ops: [{ op: "alloc", node: 27929 }] }); // Deep Wisdom and its path
+  const stats = await ok("stats", { fields: ["ManaUnreserved", "ManaCost"] });
+  const free = Number(stats.match(/ManaUnreserved: ([\d,]+)/)?.[1].replace(/,/g, ""));
+  const cost = Number(stats.match(/ManaCost: ([\d,]+)/)?.[1].replace(/,/g, ""));
+  assert.ok(free >= cost, `the fixture starts with Vortex usable (${free} unreserved, costs ${cost})`);
+  // Taking Deep Wisdom out on its own: PoB says Vortex can't be used.
+  const alone = await ok("what_if", { ops: [{ op: "dealloc", node: 27929 }] });
+  assert.match(alone, /Warning: Vortex costs \d+ mana but only \d+ is unreserved/);
+
+  const text = await ok("optimise", { goal: "bossing", levers: ["respec"], points: 1 }); // 1 point: Deep Wisdom alone
+  const lines = text.split("\n");
+  const ranked = lines.filter((l) => /^\d+\. \[respec\] Respec Deep Wisdom/.test(l));
+  const blocked = lines.find((l) => l.startsWith("Would help but cannot be used now:"));
+  assert.ok(ranked.length || (blocked && /Deep Wisdom/.test(blocked)), `the Deep Wisdom respec is considered:\n${text}`);
+  // Set aside as breaking Vortex, or ranked only with ops that keep it usable: when the tree
+  // change alone blocks Vortex, the line says NEEDS THE FIX and the fix is in its ops.
+  if (blocked && /Deep Wisdom/.test(blocked)) assert.match(blocked, /Vortex without enough mana/);
+  let fixed = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^\d+\. \[respec\] /.test(lines[i])) continue;
+    const opsLine = lines.slice(i, i + 6).find((l) => l.trim().startsWith("what_if ops:"));
+    assert.ok(opsLine, `ops listed for: ${lines[i]}`);
+    const ops = JSON.parse(opsLine.trim().slice("what_if ops:".length));
+    const treeOnly = ops.filter((o) => o.op !== "gem");
+    const paper = await ok("what_if", { ops: treeOnly });
+    if (/Warning: Vortex/.test(paper)) {
+      fixed++;
+      assert.match(lines[i], /NEEDS THE FIX IN THE OPS/, `ranked on its paper gain: ${lines[i]}`);
+      assert.ok(ops.some((o) => o.op === "gem" && o.enabled === false), `the fix is in the ops: ${opsLine}`);
+      assert.match(lines.slice(i, i + 4).join("\n"), /Vortex costs \d+ mana but only \d+ is unreserved/);
+    }
+    // The ranked ops really fit: Vortex stays usable.
+    const check = await ok("what_if", { ops });
+    assert.doesNotMatch(check, /Warning: Vortex/, `ranked ops still block Vortex: ${opsLine}`);
+  }
+  assert.ok(fixed > 0 || (blocked && /Deep Wisdom/.test(blocked)), `a Deep Wisdom respec that blocks Vortex is caught:\n${text}`);
+  // suggest passives runs the same check on its list (nothing here takes mana away: no regressions).
+  const sp = await ok("suggest", { kind: "passives" });
+  assert.doesNotMatch(sp, /simulation failed|could not restore/);
+  await ok("open_build", { name: "cost-test" });
+});
+
+test("guide: a step that leaves a skill without mana says BREAKS A SKILL with its real result", () => {
+  const t = gainText({ dps: -900, dpsPct: -100, ehp: 0, ehpPct: 0, life: 0, paperDpsPct: 2.5,
+    costWarnings: ["Vortex costs 92 mana but only 89 is unreserved: it can't be used"] });
+  assert.match(t, /^DPS -100\.0%/);
+  assert.match(t, /BREAKS A SKILL: Vortex costs 92 mana/);
+  assert.match(t, /paper DPS \+2\.5%/);
 });

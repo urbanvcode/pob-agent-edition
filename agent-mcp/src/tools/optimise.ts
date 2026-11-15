@@ -299,6 +299,8 @@ export function optimiseTools(planUpgrades?: Tool): Tool[] {
         priceAnoints(res, oils.prices);
         const { text } = formatOptimise(res, profile.explanationMode, profile.learnedTopics);
         const parts = [text];
+        const own = (Array.isArray(res.gemAilments?.list) ? res.gemAilments.list : []) as any[];
+        if (own.length) parts.push(`Support swaps are ranked with your own ${own.map((a) => String(a.name).toLowerCase()).join(" and ")} counted (${own.map((a) => `${String(a.name).toLowerCase()}${a.effect !== undefined ? ` ~${a.effect}%` : ""}`).join(", ")}): the skill inflicts ${own.length > 1 ? "them" : "it"}, but PoB only counts ${own.length > 1 ? "them" : "it"} when Configuration says the enemy has it. The other levers use the config as it is.`);
         if (oils.note) parts.push(oils.note);
         const levels = (Array.isArray(res.gemLevels) ? res.gemLevels : []) as GemLevel[];
         let prices = new Map<string, GemPrice>();

@@ -58,10 +58,26 @@ export function costText(cost: any, before: Stats): string[] {
   return L;
 }
 
+const CONFIG_LABEL: Record<string, string> = { Shock: "Is the enemy Shocked?", Chill: "Is the enemy Chilled?", Ignite: "Is the enemy Ignited?", Freeze: "Is the enemy Frozen?" };
+
+/** A change after which the main skill can no longer inflict an ailment it did before (Elemental
+ *  Focus: "cannot inflict elemental ailments"). PoB measures the shock/chill only when the config
+ *  sets it, so a config that still sets it keeps counting a shock the build no longer applies. */
+export function ailmentText(a: any): string[] {
+  const lost = (Array.isArray(a?.lost) ? a.lost : []) as any[];
+  if (!lost.length) return [];
+  const L = [`Warning: ${a.skill ?? "the main skill"} can no longer inflict ${lost.map((x) => String(x.name).toLowerCase()).join(", ")}: ${a.text ?? "it loses those ailments"}.`];
+  const still = (Array.isArray(a.configStillOn) ? a.configStillOn : []) as string[];
+  if (still.length) L.push(`The config still says the enemy has it (${still.map((s) => `"${CONFIG_LABEL[s] ?? s}"`).join(", ")}), so PoB keeps counting it: the DPS after is too high. Switch ${still.length > 1 ? "them" : "it"} off with set_config to see the real number, unless something else applies it.`);
+  return L;
+}
+
 function changeReport(res: any, live: boolean, kept: boolean): string {
   const lines: string[] = (res.results as any[]).map(describe);
   const delta = deltaLines(res.before as Stats, res.after as Stats);
   lines.push("", delta.length ? "Before -> after:" : "No calculated stat changed.", ...delta);
+  const ailments = ailmentText(res.ailments);
+  if (ailments.length) lines.push("", ...ailments);
   const cost = costText(res.cost, res.before as Stats);
   if (cost.length) lines.push("", ...cost);
   lines.push("", `Config assumptions: ${res.assumptions}`);

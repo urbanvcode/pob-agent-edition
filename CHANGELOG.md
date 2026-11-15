@@ -6,6 +6,9 @@ Each release also lists the official Path of Building Community version it is ba
 
 ## [Unreleased]
 
+### Fixed
+- **Support gem advice now counts the shock your skill applies itself**: PoB only counts a shock (or chill) on the enemy when Configuration says "Is the enemy Shocked?", so a skill that shocks on its own was measured as if it never did. Supports that add raw damage then looked better than ones that keep the shock. The worst case was Elemental Focus, which stops the skill inflicting ailments, ranked above Volatility. `suggest { kind: "gems" }` and the optimiser's support swaps now rank with the shock and chill your skill inflicts, sized by PoB's own shock calculation for the enemy you set, and say so ("Counts your own shock (~28% more damage taken)"). A shock below PoB's 5% minimum (common on pinnacle bosses) is not counted, and the result says that too. A support that stops the skill inflicting ailments is ranked without them, even when the config says the enemy is shocked, and is flagged: "you lose your shock (~28% more damage taken), chill and freeze". `what_if` and `edit` warn when a change takes away an ailment the skill was applying, and when the config would still count it.
+
 ## [0.9.4] - 2026-11-14
 
 Fixes from testing: the optimiser warns when a change leaves a skill without mana or loses an ailment immunity. Based on **Path of Building Community v2.67.2** (same as 0.9.3). **After updating, restart PoB Agent Edition and your AI app.**

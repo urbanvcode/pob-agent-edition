@@ -157,6 +157,14 @@ export const adviceTools: Tool[] = [
       const res = await (await pob.link()).call("suggest_gems", { group: args.group, replace: args.replace, add: args.add === true, awakened: args.awakened, limit: args.limit }, 180_000);
       const L = [`Support gems for ${res.skill ?? "the skill"} (group ${res.group}): ${n(res.baseDps)} DPS, mana cost ${n(res.manaCost)}`];
       for (const a of (Array.isArray(res.assumed) ? res.assumed : []) as any[]) L.push(`Measured with ${a.skill}: ${a.label} = ${a.value} (0 in PoB, ${a.note}; ${pct(a.dpsPct)} DPS). Set it in Configuration to what you hold in fights.`);
+      const own = (Array.isArray(res.ownAilments?.list) ? res.ownAilments.list : []) as any[];
+      if (own.length) {
+        const what = own.map((a) => `${String(a.name).toLowerCase()}${a.effect !== undefined ? ` (~${a.effect}%${a.name === "Shock" ? " more damage taken" : a.name === "Chill" ? " slower" : ""})` : ""}`).join(", ");
+        const it = own.length > 1 ? "them" : "it";
+        L.push(`Counts your own ${what}: the skill inflicts ${it}, but PoB only counts ${it} when Configuration says the enemy has ${it} (${pct(res.ownAilments.dpsPct)} DPS). Supports are ranked with ${it}; one that stops the skill inflicting ${it} is ranked without.`);
+      }
+      const weak = (Array.isArray(res.ownWeak) ? res.ownWeak : []) as any[];
+      if (weak.length) L.push(`Not counted: your ${weak.map((a) => `${String(a.name).toLowerCase()} is ~${a.effect}% on this enemy`).join(", ")}, under PoB's ${weak[0].min ?? 5}% minimum, so PoB treats it as not applied.`);
       const unset = (Array.isArray(res.unsetCounts) ? res.unsetCounts : []) as any[];
       if (unset.length) L.push(`Not set in PoB (0), numbers may be low: ${unset.map((u) => `${u.skill}: ${u.label}`).join("; ")}`);
       const current = (Array.isArray(res.current) ? res.current : []) as any[];

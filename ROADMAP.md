@@ -1140,6 +1140,11 @@ cap, with five stages still to add tools. Freed (same features, same handlers):
 | Tool definitions (chars / 4) | 4,744 | 3,056 (test cap 3,100) |
 | Agent guide | 1,200 (cap 1,200) | 676 (cap 950) |
 
+**2026-11-15, tree compare + "point at it" (0.9.5 batch):** no new tools: modes on `set_view` (`compare`, `point`),
+`compare` (`tree`, `skip`, `save_as`, any two sides) and `edit` ops (`spec_notes`, `apply_tree`). Existing descriptions
+were tightened to make room; the point options (tone, style, line, candidate, to, to_slot, ops, tour, again) needed
+16 tokens more: test cap raised from 3,714 to **3,730** (tool definitions now about 3,727; guide 948 of 950).
+
 **Allocation for the remaining stages** (tool definitions; guide text about 50 tokens each):
 
 | Stage | Tools | Guide |

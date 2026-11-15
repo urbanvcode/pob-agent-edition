@@ -38,7 +38,8 @@ const tokens = (value) => Math.ceil(JSON.stringify(value).length / 4);
 // Stage 8 used 130 of its 350 (atlas farm, goal, log).
 // Stage 7 used 65 of its 350 (guide levelling).
 // Stage 11 used 242 of its 450 (build_create).
-const TOOL_BUDGET = 3714, GUIDE_BUDGET = 950;
+// Tree compare + "point at it" (0.9.5) used 16 more for the point options (set_view point, ROADMAP budget note).
+const TOOL_BUDGET = 3730, GUIDE_BUDGET = 950;
 test("tool definitions stay within the budget (3,100 now, 5,000 with every reserved stage)", () => {
   const total = tokens(defs);
   assert.ok(total <= TOOL_BUDGET, `tool definitions are about ${total} tokens (budget ${TOOL_BUDGET})`);

@@ -115,21 +115,35 @@ export async function statusText(pob: Pob): Promise<string> {
 
 /** set_view { compare }: no JSON type (a number, a string or false). */
 /** set_view { point }: numbered marks (Agent/Marks.lua). */
-export const POINT = { type: "array", items: {}, description: "[{target,kind?,text?}] marks; []=clear" };
+export const POINT = { description: '[{target,kind?,text?,tone:do|problem|info,style:ring|outline|glow|arrow,line?,candidate?,to?,to_slot?,ops?}], {marks,tour:true}, "again"; []=clear' };
+
+/** The point argument as PoB's point_marks takes it: a list, { marks, tour }, "again" or { again: n }. */
+export function pointParams(point: unknown): Record<string, unknown> {
+  const norm = (p: any) => (typeof p === "string" || typeof p === "number" ? { target: String(p) } : p);
+  if (typeof point === "string" && /^(show )?again$/i.test(point.trim())) return { again: 1 };
+  if (point && typeof point === "object" && !Array.isArray(point)) {
+    const o = point as Record<string, any>;
+    if (o.again !== undefined) return { again: o.again === true ? 1 : Number(o.again) || 1 };
+    if (Array.isArray(o.marks)) return { marks: o.marks.map(norm), tour: o.tour === true };
+    return { marks: [norm(o)] };
+  }
+  return { marks: (Array.isArray(point) ? point : [point]).map(norm) };
+}
 
 /** "Point at it": draw numbered marks in the PoB window. Never opens or raises it. */
 async function pointText(pob: Pob, point: unknown): Promise<string> {
-  const marks = (Array.isArray(point) ? point : [point]).map((p) => (typeof p === "string" || typeof p === "number" ? { target: String(p) } : p));
+  const params = pointParams(point);
   const link = await pob.link().catch(() => null);
   if (!link || link.kind !== "live") {
-    const where = link ? await link.call("point_marks", { marks, dry: true }).catch(() => null) : null;
+    const where = link ? await link.call("point_marks", { ...params, dry: true }).catch(() => null) : null;
     return [`The PoB window is not open, so nothing was marked (no window was opened). Tell the player where to look instead${where?.marks?.length ? ":" : "."}`,
-      ...(where?.marks ?? []).map((m: any) => m.line), ...(where?.errors ?? []).map((e: string) => `Not found: ${e}`)].join("\n");
+      ...(where?.marks ?? []).map((m: any) => m.text_line), ...(where?.errors ?? []).map((e: string) => `Not found: ${e}`)].join("\n");
   }
   const state = await link.call("window_state").catch(() => ({ window: "unknown" }));
-  const res = await link.call("point_marks", { marks });
+  const res = await link.call("point_marks", params);
+  if (!res.ok) throw new ToolError(res.error);
   if (res.cleared) return "AI marks cleared in the PoB window.";
-  const L = [`Marked in the PoB window (${res.stored}), numbered; the player clears them by clicking them or "Clear AI marks":`, ...(res.marks ?? []).map((m: any) => m.line)];
+  const L = [`Marked in the PoB window (${res.stored}), numbered${res.tour ? `, as a tour of ${res.tour} steps (the player uses Next / Back on the box)` : ""}; the player clears them by clicking them or "Clear AI marks":`, ...(res.marks ?? []).map((m: any) => m.text_line)];
   for (const e of res.errors ?? []) L.push(`Not found: ${e}`);
   if (state.window === "minimised") L.push("PoB is minimised: the marks show when the player opens it (it was not brought to the front).");
   return L.join("\n");

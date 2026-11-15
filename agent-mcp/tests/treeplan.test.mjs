@@ -213,6 +213,7 @@ test("point at it: without the PoB window nothing is opened; the answer says whe
   assert.match(text, /1\. Ash, Frost and Storm \(node, passive tree, \d+ points? from your tree\): take this next/);
   assert.match(text, /2\. Helmet: Heretic's Veil.*\(slot, Items tab\)/);
   assert.match(text, /3\. Vortex \(group \d+\) \(gem, Skills tab\)/);
+  assert.match(await ok("set_view", { view: "TREE", point: { marks: ["Helmet", "Vortex"], tour: true } }), /not open[\s\S]*1\. Helmet/);
   assert.match(text, /Not found: nothing called "zzzz nothing"/);
 });
 
@@ -227,7 +228,7 @@ test("point at it: every target type resolves, is stored, drawn and cleared (hea
     LUA_PATH: `${path.join(runtime, "lua", "?.lua")};${path.join(runtime, "lua", "?", "init.lua")};;`,
     LUA_CPATH: `${path.join(runtime, process.platform === "win32" ? "?.dll" : "?.so")};;`,
   };
-  const r = spawnSync(exe, [path.join(here, "point.lua"), path.join(here, "fixtures", "occ-vortex.xml")], { cwd: src, env, encoding: "utf8", timeout: 300_000 });
+  const r = spawnSync(exe, [path.join(here, "point.lua"), path.join(here, "fixtures", "occ-vortex.xml"), fs.mkdtempSync(path.join(os.tmpdir(), "agent-point-"))], { cwd: src, env, encoding: "utf8", timeout: 300_000 });
   assert.equal(r.status, 0, `point.lua failed:\n${r.stdout}\n${r.stderr.slice(-2000)}`);
   assert.match(r.stdout, /point ok: \d+ checks/);
 });

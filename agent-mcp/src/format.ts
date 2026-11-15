@@ -73,3 +73,31 @@ export function statLines(stats: Stats, skipZero = true): string[] {
   }
   return lines;
 }
+
+/** A mark for set_view { point } (Agent/Marks.lua). */
+export interface PointMark { target: string; kind?: string; text?: string; tone?: string; to?: string; ops?: unknown[] }
+
+/** The marks that show what a list of edit ops changes: the node, slot, flask, gem group or config option. */
+export function marksFromOps(ops: unknown, text?: string): PointMark[] {
+  const out: PointMark[] = [];
+  for (const o of (Array.isArray(ops) ? ops : []) as any[]) {
+    let m: PointMark | undefined;
+    if ((o?.op === "alloc" || o?.op === "dealloc") && (o.nodes?.[0] ?? o.node) !== undefined) m = { target: String(o.nodes?.[0] ?? o.node), kind: "node" };
+    else if (o?.op === "mastery" && o.node !== undefined) m = { target: String(o.node), kind: "node" };
+    else if ((o?.op === "equip" || o?.op === "unequip") && o.slot) m = { target: String(o.slot), kind: "slot" };
+    else if (o?.op === "flask" && o.index) m = { target: `Flask ${o.index}`, kind: "flask" };
+    else if (["gem", "add_gem", "remove_gem", "group_enabled", "main_skill"].includes(o?.op) && o.group) m = { target: `group ${o.group}`, kind: "gem" };
+    else if (o?.op === "config" && o.values && Object.keys(o.values).length) m = { target: Object.keys(o.values)[0], kind: "config" };
+    if (m && !out.some((x) => x.target === m!.target && x.kind === m!.kind)) out.push(m);
+  }
+  if (out[0]) { out[0].tone = "do"; if (text) out[0].text = text; out[0].ops = ops as unknown[]; }
+  return out;
+}
+
+/** One line offering the marks (several = a guided tour) for when the PoB window is open. */
+export function showLine(marks: PointMark[], view = "TREE"): string {
+  const list = marks.filter(Boolean).slice(0, 6);
+  if (!list.length) return "";
+  const point = list.length > 1 ? { tour: true, marks: list } : list;
+  return `Show it in PoB (window open): set_view ${JSON.stringify({ view, point })}`;
+}

@@ -1,7 +1,7 @@
 // The atlas tools are ported from our pob-mcp fork (ianderse/pob-mcp (https://github.com/ianderse/pob-mcp, GPL-3.0)): src/handlers/atlasHandlers.ts.
 // Licensed under the GNU General Public License v3.0; see LICENSE at the repository root.
 /** Atlas tools and simulated suggestions (passives, anoints, affix tiers). */
-import { n, pct } from "../format.js";
+import { n, pct, showLine } from "../format.js";
 import { ToolError } from "../pob.js";
 import { S, tool, type Tool } from "../registry.js";
 import { chaosText, recipeCost, recipeText } from "../trade/ninja.js";
@@ -84,7 +84,9 @@ export const adviceTools: Tool[] = [
       const lines = list.length ? list.map((s, i) => line(s, `${i + 1}.`, "point")) : ["No passive within reach improves the build for this focus."];
       if (asc.length) lines.push("", ascendancyHead(res.ascendancyInfo ?? {}), ...asc.map((s) => line(s, "- [ascendancy]", "ascendancy point")), ...ascendancyEarn(res.ascendancyInfo ?? {}));
       if (blockedMana.length) lines.push("", `Would help on paper but break a skill (not enough mana): ${blockedMana.map((x) => `${x.name} (paper DPS ${pct(x.paperDpsPct)}, EHP ${pct(x.paperEhpPct)}): ${x.why}`).join("; ")}`);
-      return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit (alloc, or mastery with the effect id); preview first with what_if."].join("\n");
+      const show = showLine(list.slice(0, 4).map((s, i) => ({ target: String(s.id), kind: "node", tone: "do", text: `${i + 1}. ${s.name}`,
+        ops: [s.effect ? { op: "mastery", node: s.id, effect: s.effect } : { op: "alloc", nodes: [s.id] }] })));
+      return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit (alloc, or mastery with the effect id); preview first with what_if.", ...(show ? [show] : [])].join("\n");
     }),
 
   tool("anoint", "Best amulet anointments: simulates every anointable notable in PoB and lists the top ones with their oil recipes.",
@@ -112,7 +114,8 @@ export const adviceTools: Tool[] = [
         out.push("Best value (gain per chaos):", ...priced.slice(0, 5).map((x, i) => `${i + 1}. ${x.c.name}: ${chaosText(x.chaos)} | DPS ${per10(dPct(x.c), x.chaos)} / EHP ${per10(ePct(x.c), x.chaos)} per 10c`));
       }
       if (oils.note) out.push(oils.note);
-      return [...out, `Config assumptions: ${res.assumptions}`].join("\n");
+      const show = showLine([{ target: res.slot ?? "Amulet", kind: "slot", tone: "do", text: `anoint ${list[0].name}` }], "ITEMS");
+      return [...out, `Config assumptions: ${res.assumptions}`, ...(show ? [show] : [])].join("\n");
     }),
 
   tool("affixes", `PoB mod tables. query: tiers of a prefix/suffix (ranges, ilvl, item types); bench: true for bench crafts. slot or item_text: classify an item's mods (tier, bench, open prefixes/suffixes). craft: plan to craft wanted stats ("life, 2 res, crit multi") on slot's base or base: methods by expected cost with odds, steps, stop points, buy vs craft, gain simulated; "item" = item_text is the target (guide item); "fix" = bench crafts for slot, simulated.`,
@@ -190,6 +193,12 @@ export const adviceTools: Tool[] = [
       if (play.length) L.push(`Not ranked because they change how the skill is played: ${play.map((c) => `${c.name} ${pct(c.dpsPct)} (${c.playstyle})`).join(", ")}`);
       L.push(`Config assumptions: ${res.assumptions}`, "A support can win on paper and still have a drawback PoB does not price in (lost clear speed, ailments, mana). Try one with what_if: remove_gem + add_gem.");
       if (res.rollbackProblem) L.push(`WARNING: the build may not be exactly as before (${res.rollbackProblem}).`);
+      if (list[0] && (list[0].dpsPct ?? 0) > 0) {
+        const show = showLine([res.mode === "replace" && res.targetName
+          ? { target: String(res.targetName), kind: "gem", tone: "do", to: String(list[0].name), text: `swap for ${list[0].name} (${pct(list[0].dpsPct)} DPS)` }
+          : { target: `group ${res.group}`, kind: "gem", tone: "do", text: `add ${list[0].name} (${pct(list[0].dpsPct)} DPS)` }], "SKILLS");
+        if (show) L.push(show);
+      }
       return L.join("\n");
     }),
 

@@ -1,7 +1,7 @@
 /** Edit and simulate: edit (edit_items, edit_skills, edit_tree as aliases), set_config, what_if, snapshot, restore, compare. */
 import fs from "fs";
 import path from "path";
-import { deltaLines, n, type Stats } from "../format.js";
+import { deltaLines, marksFromOps, n, showLine, type Stats } from "../format.js";
 import { cacheDir } from "../paths.js";
 import { ToolError, type Pob } from "../pob.js";
 import { S, tool, type Args, type Context, type Tool } from "../registry.js";
@@ -254,6 +254,9 @@ export const editTools: Tool[] = [
       let text = changeReport(res, link.kind === "live", res.kept === true);
       if (res.kept && ops.some((o) => ["alloc", "dealloc", "mastery"].includes(o.op))) text += `
 ${TREE_HINT}`;
+      const show = showLine(marksFromOps(ops, res.kept ? "changed here" : "try this"));
+      if (show) text += `
+${show}`;
       if (!res.kept) {
         text += res.rolledBack
           ? `\nRolled back: the build is as it was.${args.keep === true ? " (keep was ignored because an op failed.)" : ""}`

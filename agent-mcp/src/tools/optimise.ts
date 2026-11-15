@@ -7,7 +7,7 @@
  * Gear comes from plan_upgrades (Stage 5 hook: budget_chaos).
  */
 import { findGlossary, wikiUrl, type GlossaryEntry } from "../knowledge/glossary.js";
-import { n, pct } from "../format.js";
+import { marksFromOps, n, pct, showLine } from "../format.js";
 import { getProfile } from "../profile.js";
 import { S, tool, type Context, type Tool } from "../registry.js";
 import { matchGem } from "../economy/sell.js";
@@ -266,6 +266,8 @@ export function formatOptimise(r: any, mode: string, learned: string[]): { text:
   if (ex.length) L.push("", `Mechanics (${mode} mode; explain these, then profile { learned }):`, ...ex);
   L.push("", "Try one with what_if (the ops above), apply with edit, then save_build under a new name. Jewels: suggest { kind: jewel }.");
   if ([...list, ...ascList].some((s) => ["passives", "respec", "ascendancy"].includes(s.lever) || s.lever === undefined)) L.push(TREE_HINT);
+  const show = showLine(list.slice(0, 4).flatMap((s, i) => marksFromOps(s.ops, `${i + 1}. ${s.text}`).slice(0, 1)));
+  if (show) L.push(show);
   return { text: L.join("\n"), tags: allTags };
 }
 

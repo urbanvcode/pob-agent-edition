@@ -254,3 +254,19 @@ test("show, don't tell: suggestions and what_if offer set_view marks that resolv
   assert.deepEqual(marksFromOps([{ op: "equip", slot: "Helmet", text: "x" }, { op: "flask", index: 2, active: true }, { op: "add_gem", group: 3, name: "x" }]).map((m) => m.target), ["Helmet", "Flask 2", "group 3"]);
   assert.equal(showLine([]), "");
 });
+
+test("marks take their clicks first on every tab (Items, Skills, Configuration, Calcs, Tree), Esc closes them", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const root = path.join(here, "..", "..");
+  const src = path.join(root, "PathOfBuilding", "src");
+  const runtime = path.join(root, "PathOfBuilding", "runtime");
+  const exe = path.join(root, "luajit", process.platform === "win32" ? "luajit.exe" : "luajit");
+  const env = {
+    ...process.env,
+    LUA_PATH: `${path.join(runtime, "lua", "?.lua")};${path.join(runtime, "lua", "?", "init.lua")};;`,
+    LUA_CPATH: `${path.join(runtime, process.platform === "win32" ? "?.dll" : "?.so")};;`,
+  };
+  const r = spawnSync(exe, [path.join(here, "marks-input.lua"), path.join(here, "fixtures", "occ-vortex.xml")], { cwd: src, env, encoding: "utf8", timeout: 300_000 });
+  assert.equal(r.status, 0, `marks-input.lua failed:\n${r.stdout}\n${r.stderr.slice(-2000)}`);
+  assert.match(r.stdout, /marks input ok: \d+ checks/);
+});

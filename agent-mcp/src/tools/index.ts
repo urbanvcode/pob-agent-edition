@@ -100,7 +100,7 @@ export function allTools(trade: TradeApiClient, internal: Tool[] = internalTools
 
   const setView = get("set_view");
   const view = routed("set_view", "Switch the PoB window to a tab the player should look at. OPTIONS opens the Options window (Agent profile, POESESSID).",
-    { view: S.enum([...((setView.inputSchema.properties.view as any).enum as string[]), "OPTIONS"]), compare: setView.inputSchema.properties.compare }, ["view"],
+    { view: S.enum([...((setView.inputSchema.properties.view as any).enum as string[]), "OPTIONS"]), compare: setView.inputSchema.properties.compare, point: setView.inputSchema.properties.point }, ["view"],
     (a) => (a.view === "OPTIONS" ? [get("open_options"), {}] : [setView, a]));
 
   const character = routed("character",

@@ -270,8 +270,8 @@ ${TREE_HINT}`;
       return `Restored snapshot "${args.name}" (Combined DPS ${n(stats.stats.CombinedDPS)}, EHP ${n(stats.stats.TotalEHP)}).`;
     }),
 
-  tool("compare", 'Compare two builds (stats, items, gems, tree changes) without touching the window. Each side: "current" (default a), a build, guide:name[:stage], "last sync", code/link, "snapshot:<name>". tree: respec plan of the open build vs a tree no./title or any side.',
-    { a: S.str(), b: S.str(), tree: {}, skip: S.list(S.str(), "change ids to untick"), save_as: S.str("new tree") }, [],
+  tool("compare", 'Compare two builds (stats, items, gems, tree changes); window untouched. Side: "current" (default a), build, guide:name[:stage], "last sync", code/link, snapshot:name. tree: respec plan of the open build vs a tree no./title or a side.',
+    { a: S.str(), b: S.str(), tree: {}, skip: S.list(S.str()), save_as: S.str() }, [],
     async ({ pob }, args) => {
       if (args.tree !== undefined && args.tree !== null) {
         const link = await pob.link();

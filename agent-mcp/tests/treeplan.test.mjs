@@ -205,3 +205,29 @@ ${r.stdout}
 ${r.stderr.slice(-2000)}`);
   assert.match(r.stdout, /treeplan ok: \d+ checks/);
 });
+
+test("point at it: without the PoB window nothing is opened; the answer says where things are", async () => {
+  await ok("open_build", { name: "occ-vortex" });
+  const text = await ok("set_view", { view: "TREE", point: [{ target: "Ash, Frost and Storm", text: "take this next" }, { target: "Helmet" }, { target: "Vortex", kind: "gem" }, "zzzz nothing"] });
+  assert.match(text, /The PoB window is not open, so nothing was marked \(no window was opened\)/);
+  assert.match(text, /1\. Ash, Frost and Storm \(node, passive tree, \d+ points? from your tree\): take this next/);
+  assert.match(text, /2\. Helmet: Heretic's Veil.*\(slot, Items tab\)/);
+  assert.match(text, /3\. Vortex \(group \d+\) \(gem, Skills tab\)/);
+  assert.match(text, /Not found: nothing called "zzzz nothing"/);
+});
+
+test("point at it: every target type resolves, is stored, drawn and cleared (headless engine)", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const root = path.join(here, "..", "..");
+  const src = path.join(root, "PathOfBuilding", "src");
+  const runtime = path.join(root, "PathOfBuilding", "runtime");
+  const exe = path.join(root, "luajit", process.platform === "win32" ? "luajit.exe" : "luajit");
+  const env = {
+    ...process.env,
+    LUA_PATH: `${path.join(runtime, "lua", "?.lua")};${path.join(runtime, "lua", "?", "init.lua")};;`,
+    LUA_CPATH: `${path.join(runtime, process.platform === "win32" ? "?.dll" : "?.so")};;`,
+  };
+  const r = spawnSync(exe, [path.join(here, "point.lua"), path.join(here, "fixtures", "occ-vortex.xml")], { cwd: src, env, encoding: "utf8", timeout: 300_000 });
+  assert.equal(r.status, 0, `point.lua failed:\n${r.stdout}\n${r.stderr.slice(-2000)}`);
+  assert.match(r.stdout, /point ok: \d+ checks/);
+});

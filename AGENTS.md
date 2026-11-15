@@ -114,6 +114,7 @@ The same rules are sent automatically by the `pob` MCP server on connect
 - `status` shows unsaved changes: ask before `open_build` replaces them.
 - Try a change with `what_if` first (it rolls back), then apply it with `edit` (item, skill, tree and config ops) or `set_config`.
 - Show before/after numbers; switch the window to the relevant tab (`set_view`).
+- Tree changes: put them in a new spec (`edit [{op:"spec",create:"AI"}, ...]`), then `set_view { view: "TREE", compare: "AI" }` (also a tree number, a build name or "last sync"; `compare: false` = off). The Tree tab labels each changed node (NEW / REMOVED / MASTERY CHANGED / jewel) and opens the respec planner: per-change gain, tick boxes (recalculated live), Orbs of Regret and points, what_if's warnings, "Save as new tree". `compare { tree, skip, save_as }` returns the same list as text; `edit { op: "spec_notes", spec, notes: { nodeId: "why" } }` puts a one-line note in a label (saved in the build). Mastery swaps and ascendancy refunds are counted, not priced (not verified).
 
 ## Developing this project
 - **Two sessions per stage:** one **working session** does the stage, and one **repo-control session** ("Git repo release setup") owns git pushes and releases.

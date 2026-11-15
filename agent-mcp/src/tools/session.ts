@@ -7,6 +7,7 @@ import { ToolError, type Pob } from "../pob.js";
 import { formatProfile, getProfile, markLearned, profileSummaryLine, updateProfile, type ProfileUpdate } from "../profile.js";
 import { S, tool, type Tool } from "../registry.js";
 import { updateNotice } from "../update.js";
+import { changeCount, planSummary, treeTarget } from "./treeplan.js";
 
 interface LiveState {
   mode: string;
@@ -112,6 +113,8 @@ export async function statusText(pob: Pob): Promise<string> {
   return lines.join("\n");
 }
 
+/** set_view { compare }: no JSON type (a number, a string or false). */
+export const COMPARE = { description: 'TREE: tree no./title, build or "last sync"; false=off' };
 const VIEWS = ["OVERVIEW", "GUIDE", "ATLAS", "TREE", "SKILLS", "ITEMS", "CALCS", "CONFIG", "NOTES", "IMPORT", "PARTY", "COMPARE"];
 
 export const sessionTools: Tool[] = [
@@ -195,9 +198,21 @@ export const sessionTools: Tool[] = [
       return `Saved to ${file}.`;
     }),
 
-  tool("set_view", "Switch the PoB window to a tab so the player sees what you are talking about.", { view: S.enum(VIEWS) }, ["view"],
+  tool("set_view", "Switch the PoB window to a tab so the player sees what you are talking about.", { view: S.enum(VIEWS), compare: COMPARE }, ["view"],
     async ({ pob }, args) => {
       const link = await pob.link();
+      const compare = args.compare;
+      if (compare !== undefined && compare !== null) {
+        if (link.kind !== "live") return "The tree compare view only works in the PoB window (headless now). compare { tree } gives the same list of changes as text.";
+        if (compare === false || /^(off|false|none|no)$/i.test(String(compare))) {
+          await link.call("tree_compare_view", { off: true });
+          return "Compare is off: the Tree tab shows the active tree alone.";
+        }
+        const res = await link.call("tree_compare_view", await treeTarget(pob, link, compare));
+        if (!res.changes?.length) return `PoB window: Tree tab comparing the active tree with ${res.compareTitle ?? res.other?.title}: the trees are the same, nothing to label.`;
+        return [`PoB window: Tree tab comparing the active tree with ${res.compareTitle ?? res.other?.title}: ${changeCount(res)}, labelled on the tree; the planner panel on the right has tick boxes and the respec cost.`,
+          ...(res.changes?.length ? planSummary(res) : [])].join("\n");
+      }
       if (link.kind !== "live") return "No PoB window is open (headless mode), nothing to switch.";
       const res = await link.call("set_view", { view: args.view });
       return `PoB window switched to the ${res.view} tab.`;

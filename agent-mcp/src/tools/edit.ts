@@ -27,6 +27,7 @@ function describe(result: any): string {
   if (!result.ok) return `FAILED ${result.op ?? "?"}: ${result.error}`;
   const r = result.result ?? {};
   const bits = Object.entries(r)
+    .filter(([k]) => k !== "unparsed")
     .filter(([, v]) => v !== undefined && v !== null && !(Array.isArray(v) && v.length === 0) && !(typeof v === "object" && !Array.isArray(v) && Object.keys(v as object).length === 0))
     .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(", ") : typeof v === "object" ? JSON.stringify(v) : v}`);
   return `ok ${result.op}${bits.length ? `: ${bits.join("; ")}` : ""}`;
@@ -72,8 +73,24 @@ export function ailmentText(a: any): string[] {
   return L;
 }
 
+/** Item lines PoB could not parse (red in its tooltip): they count for nothing in the numbers.
+ *  Custom theorycraft items (a new league's uniques) are checked this way. */
+export function unparsedText(results: any[]): string[] {
+  const L: string[] = [];
+  for (const r of Array.isArray(results) ? results : []) {
+    const lines = (r?.ok && Array.isArray(r.result?.unparsed) ? r.result.unparsed : []) as string[];
+    if (!lines.length) continue;
+    L.push(`Warning: PoB did not understand ${lines.length === 1 ? "this line" : `${lines.length} lines`} of ${r.result.name ?? "the item"} (${r.result.slot ?? "?"}), so ${lines.length === 1 ? "it adds" : "they add"} nothing to the numbers:`,
+      ...lines.map((l) => `  - ${l}`));
+  }
+  if (L.length) L.push("Reword the line the way PoB writes similar mods (a unique's line in PoB's item list), or treat the result as missing that effect.");
+  return L;
+}
+
 function changeReport(res: any, live: boolean, kept: boolean): string {
   const lines: string[] = (res.results as any[]).map(describe);
+  const unparsed = unparsedText(res.results);
+  if (unparsed.length) lines.push("", ...unparsed);
   const delta = deltaLines(res.before as Stats, res.after as Stats);
   lines.push("", delta.length ? "Before -> after:" : "No calculated stat changed.", ...delta);
   const ailments = ailmentText(res.ailments);

@@ -149,6 +149,27 @@ check(tab.agentCompare and tab.agentCompare.title == "Pasted build" and tab:Comp
 tab:AgentCompare({ off = true })
 check(not tab.isComparing and tab:CompareSpecObj() == nil, "compare off")
 
+-- Switching the active tree while the Tree tab draws (select_tree, the tree dropdown, Apply):
+-- every draw path (compare labels, planner, marks) must cope with the new spec at once.
+local vp = { x = 312, y = 32, width = 1500, height = 900 }
+build.viewMode = "TREE"
+local function draws(label)
+	local okD, errD = pcall(tab.Draw, tab, vp, { })
+	check(okD, label .. ": " .. tostring(errD))
+end
+tab:AgentCompare({ compare = 2 })
+draws("compare on")
+handlers.select_tree({ spec = 2 })
+draws("select_tree to the compared tree")
+handlers.select_tree({ spec = 1 })
+draws("select_tree back")
+handlers.point_marks({ marks = { { target = "Ash, Frost and Storm" }, { target = "Helmet" } }, tour = true })
+handlers.select_tree({ spec = 3 })
+draws("marks + select_tree")
+for i = 1, 12 do tab:SetActiveSpec((i % #tab.specList) + 1) draws("dropdown switch " .. i) end
+handlers.point_marks({ marks = { } })
+tab:AgentCompare({ off = true })
+
 print = io.write
 if failures > 0 then os.exit(1) end
 print("treeplan ok: " .. checks .. " checks\n")

@@ -114,7 +114,28 @@ export async function statusText(pob: Pob): Promise<string> {
 }
 
 /** set_view { compare }: no JSON type (a number, a string or false). */
-export const COMPARE = { description: 'TREE: tree no./title, build or "last sync"; false=off' };
+/** set_view { point }: numbered marks (Agent/Marks.lua). */
+export const POINT = { type: "array", items: {}, description: "[{target,kind?,text?}] marks; []=clear" };
+
+/** "Point at it": draw numbered marks in the PoB window. Never opens or raises it. */
+async function pointText(pob: Pob, point: unknown): Promise<string> {
+  const marks = (Array.isArray(point) ? point : [point]).map((p) => (typeof p === "string" || typeof p === "number" ? { target: String(p) } : p));
+  const link = await pob.link().catch(() => null);
+  if (!link || link.kind !== "live") {
+    const where = link ? await link.call("point_marks", { marks, dry: true }).catch(() => null) : null;
+    return [`The PoB window is not open, so nothing was marked (no window was opened). Tell the player where to look instead${where?.marks?.length ? ":" : "."}`,
+      ...(where?.marks ?? []).map((m: any) => m.line), ...(where?.errors ?? []).map((e: string) => `Not found: ${e}`)].join("\n");
+  }
+  const state = await link.call("window_state").catch(() => ({ window: "unknown" }));
+  const res = await link.call("point_marks", { marks });
+  if (res.cleared) return "AI marks cleared in the PoB window.";
+  const L = [`Marked in the PoB window (${res.stored}), numbered; the player clears them by clicking them or "Clear AI marks":`, ...(res.marks ?? []).map((m: any) => m.line)];
+  for (const e of res.errors ?? []) L.push(`Not found: ${e}`);
+  if (state.window === "minimised") L.push("PoB is minimised: the marks show when the player opens it (it was not brought to the front).");
+  return L.join("\n");
+}
+
+export const COMPARE = { description: 'TREE vs a tree no./title or any compare side; false=off' };
 const VIEWS = ["OVERVIEW", "GUIDE", "ATLAS", "TREE", "SKILLS", "ITEMS", "CALCS", "CONFIG", "NOTES", "IMPORT", "PARTY", "COMPARE"];
 
 export const sessionTools: Tool[] = [
@@ -198,8 +219,9 @@ export const sessionTools: Tool[] = [
       return `Saved to ${file}.`;
     }),
 
-  tool("set_view", "Switch the PoB window to a tab so the player sees what you are talking about.", { view: S.enum(VIEWS), compare: COMPARE }, ["view"],
+  tool("set_view", "Switch the PoB window to a tab so the player sees what you are talking about.", { view: S.enum(VIEWS), compare: COMPARE, point: POINT }, ["view"],
     async ({ pob }, args) => {
+      if (args.point !== undefined && args.point !== null) return pointText(pob, args.point);
       const link = await pob.link();
       const compare = args.compare;
       if (compare !== undefined && compare !== null) {

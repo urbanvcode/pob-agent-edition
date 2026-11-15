@@ -255,8 +255,14 @@ function compareText(a: Analysis, showNotes: boolean): string {
   if (a.choice.accept.length) L.push("", `Accepted deviations (not flagged): ${a.choice.accept.join(", ")}`);
   if (showNotes && guide.notes) L.push("", `GUIDE NOTES (${guide.notes.length} characters)`, guide.notes.slice(0, 6000) + (guide.notes.length > 6000 ? "\n... (cut)" : ""));
   else if (guide.notes) L.push("", `The guide has notes (${guide.notes.length} characters: gem swaps, bandit, pantheon, item tips); notes: true shows them.`);
-  L.push("", `Config assumptions (your build): ${a.gap.assumptionsText ?? "see stats"}`);
+  L.push("", `Config assumptions (your build): ${a.gap.assumptionsText ?? "see stats"}`, guideTreeLine(a));
   return L.join("\n");
+}
+
+/** The guide stage's tree on the player's own, in PoB (labels, order, planner). */
+function guideTreeLine(a: Analysis): string {
+  const name = String(a.guideName ?? "").replace(/^Guide - /i, "");
+  return `Show it in PoB (window open): set_view ${JSON.stringify({ view: "TREE", compare: `guide:${name}:${a.stage.title}` })} (the guide's passives labelled and numbered on your tree)`;
 }
 
 // --- next steps -----------------------------------------------------------------------------
@@ -404,7 +410,7 @@ function nextStepsText(a: Analysis, r: Awaited<ReturnType<typeof rankSteps>>): s
   }
   if (r.negative.length) L.push("", `Guide items that lower your numbers right now (they need the rest of the guide first, or config such as kills/flasks): ${r.negative.map((s) => `${s.text.split(" with ")[0]} (${gainText(s.gain)})`).join(" | ")}`);
   if (r.notes.length) L.push("", ...r.notes);
-  L.push("", "Not happy with a guide choice? guide with accept stops flagging it.");
+  L.push("", guideTreeLine(a), "Not happy with a guide choice? guide with accept stops flagging it.");
   return L.join("\n");
 }
 

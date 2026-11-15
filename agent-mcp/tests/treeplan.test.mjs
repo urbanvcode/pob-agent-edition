@@ -232,3 +232,25 @@ test("point at it: every target type resolves, is stored, drawn and cleared (hea
   assert.equal(r.status, 0, `point.lua failed:\n${r.stdout}\n${r.stderr.slice(-2000)}`);
   assert.match(r.stdout, /point ok: \d+ checks/);
 });
+
+test("show, don't tell: suggestions and what_if offer set_view marks that resolve", async () => {
+  await ok("open_build", { name: "occ-vortex" });
+  const shown = (text) => {
+    const m = /Show it in PoB \(window open\): set_view (\{.*\})/.exec(text);
+    assert.ok(m, `no show line in:\n${text}`);
+    return JSON.parse(m[1]);
+  };
+  const w = shown(await ok("what_if", { ops: [{ op: "alloc", nodes: [AFS] }, { op: "config", values: { enemyIsBoss: "None" } }] }));
+  assert.equal(w.view, "TREE");
+  assert.equal(w.point.tour, true);
+  assert.deepEqual(w.point.marks.map((m) => m.kind), ["node", "config"]);
+  const back = await ok("set_view", w);
+  assert.match(back, /1\. Ash, Frost and Storm \(node, passive tree, .*\): try this \[[+-][\d.]+% DPS/);
+  assert.match(back, /2\. .* \(config, Configuration tab\)/);
+  const p = shown(await ok("suggest", { kind: "passives", points: 3, limit: 3 }));
+  assert.equal(p.point.marks.length, 3);
+  assert.match(await ok("set_view", p), /1\. .* \(node, passive tree/);
+  const { marksFromOps, showLine } = await import("../build/format.js");
+  assert.deepEqual(marksFromOps([{ op: "equip", slot: "Helmet", text: "x" }, { op: "flask", index: 2, active: true }, { op: "add_gem", group: 3, name: "x" }]).map((m) => m.target), ["Helmet", "Flask 2", "group 3"]);
+  assert.equal(showLine([]), "");
+});

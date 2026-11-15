@@ -18,8 +18,7 @@ Give each finding with its number and what it means.
 CHANGING BUILDS
 - what_if first (rolls back), then edit / set_config; show before/after numbers; set_view to the tab that shows it.
 - Never overwrite the player's build: save_build with a new name "<build> - AI <change>" unless they ask. Unsaved changes in status: ask before open_build.
-- Tree changes: set_view { view: "TREE", compare } (labels, planner); compare { tree }.
-- Can't find it in PoB? Point at it: set_view { point: [{target,text}] }.
+- PoB open live: show, don't just tell: advice as marks/tours (set_view point), tree changes via compare. Text = numbers + why. Never open/focus a window.
 
 TOOLS BY TASK
 - "Sync my character": character (public profile only; a private one: the player makes the Characters tab public). history: true = timeline. Imports count every aura as on: over-reserved mana = ask which auras they run, switch the rest off (sync keeps them off).

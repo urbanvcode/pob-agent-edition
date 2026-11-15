@@ -106,6 +106,8 @@ export interface ItemState { slot: string; name: string; base?: string; rarity?:
 export interface GemState { name: string; level: number; quality: number; support?: boolean; slot?: string; enabled?: boolean }
 export interface CharacterState {
   name?: string; level: number; className?: string; ascendancy?: string; mainSkill?: string;
+  /** false: the main skill is an aura, herald, buff or other non-damage skill (its DPS means nothing). */
+  mainSkillDamage?: boolean;
   stats: Record<string, number | undefined>; assumptions?: string; characterHash?: string;
   items: ItemState[]; gems: GemState[]; nodes: number[]; named: Record<string, string>; pointsUsed?: number;
 }
@@ -210,6 +212,8 @@ export interface Diff {
   gems: string[];
   passives: string[];
   counts: { items: number; gems: number; passives: number };
+  /** Main skill at both syncs; dpsComparable is false when either is not a damage skill. */
+  mainSkill: { before?: string; after?: string; dpsComparable: boolean };
 }
 
 const itemLabel = (i: ItemState) => `${i.name}${i.base && !i.name.includes(i.base) ? ` (${i.base})` : ""}`;
@@ -271,9 +275,11 @@ export function diffStates(before: CharacterState, after: CharacterState): Diff 
     if (x && y && x !== y) passives.push(`changed ${x} -> ${y.replace(/^[^:]+: /, "")}`);
   }
 
+  const dpsComparable = before.mainSkillDamage !== false && after.mainSkillDamage !== false && !!before.mainSkill === !!after.mainSkill;
   return {
     level: [before.level, after.level],
     headline, items, gems, passives,
+    mainSkill: { before: before.mainSkill, after: after.mainSkill, dpsComparable },
     counts: { items: items.length, gems: gems.length, passives: added.length + removed.length },
   };
 }
@@ -288,7 +294,11 @@ function change(before: number, after: number, absolute: boolean): string {
 export function diffText(d: Diff): string[] {
   const lines: string[] = [];
   lines.push(d.level[0] !== d.level[1] ? `Level ${d.level[0]} -> ${d.level[1]}` : `Level ${d.level[1]} (unchanged)`);
-  const moved = d.headline.filter((h) => Math.abs(h.after - h.before) > Math.max(Math.abs(h.before) * 1e-4, 0.5));
+  const m = d.mainSkill ?? { dpsComparable: true };
+  const skillChanged = (m.before ?? "") !== (m.after ?? "");
+  if (skillChanged) lines.push(`Main skill changed: ${m.before ?? "none"} -> ${m.after ?? "none"}${m.dpsComparable ? " (DPS below compares two different skills)" : " (DPS not compared: one of them is not a damage skill)"}`);
+  else if (!m.dpsComparable) lines.push(`Main skill ${m.after ?? "none"} is not a damage skill: DPS not compared. Set the main skill to the damage skill (edit main_skill).`);
+  const moved = d.headline.filter((h) => (h.label !== "DPS" || m.dpsComparable) && Math.abs(h.after - h.before) > Math.max(Math.abs(h.before) * 1e-4, 0.5));
   lines.push(...(moved.length ? moved.map((h) => `${h.label}: ${fmt(h.before)} -> ${fmt(h.after)} (${change(h.before, h.after, h.label.endsWith("res"))})`) : ["Stats: no change"]));
   lines.push(`ITEMS (${d.items.length} changed)`, ...d.items.map((s) => `- ${s}`));
   lines.push(`GEMS (${d.gems.length} changed)`, ...d.gems.slice(0, 30).map((s) => `- ${s}`), ...(d.gems.length > 30 ? [`- ... ${d.gems.length - 30} more`] : []));
@@ -300,8 +310,10 @@ export function diffText(d: Diff): string[] {
 export function diffSummary(d: Diff): string {
   const parts: string[] = [];
   if (d.level[0] !== d.level[1]) parts.push(`level ${d.level[0]}->${d.level[1]}`);
+  const m = d.mainSkill ?? { dpsComparable: true };
+  if ((m.before ?? "") !== (m.after ?? "")) parts.push(`main skill ${m.before ?? "none"} -> ${m.after ?? "none"}`);
   const p = d.headline[0];
-  if (p.before > 0 && Math.abs(p.after - p.before) > p.before * 1e-4) parts.push(`DPS ${change(p.before, p.after, false)}`);
+  if (m.dpsComparable && p.before > 0 && Math.abs(p.after - p.before) > p.before * 1e-4) parts.push(`DPS ${change(p.before, p.after, false)}`);
   const e = d.headline[1];
   if (e.before > 0 && Math.abs(e.after - e.before) > e.before * 1e-4) parts.push(`EHP ${change(e.before, e.after, false)}`);
   if (d.counts.items || d.gems.length || d.counts.passives) parts.push(`${d.counts.items} items, ${d.gems.length} gems, ${d.counts.passives} passives changed`);

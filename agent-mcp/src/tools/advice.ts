@@ -85,7 +85,7 @@ export const adviceTools: Tool[] = [
       if (asc.length) lines.push("", ascendancyHead(res.ascendancyInfo ?? {}), ...asc.map((s) => line(s, "- [ascendancy]", "ascendancy point")), ...ascendancyEarn(res.ascendancyInfo ?? {}));
       if (blockedMana.length) lines.push("", `Would help on paper but break a skill (not enough mana): ${blockedMana.map((x) => `${x.name} (paper DPS ${pct(x.paperDpsPct)}, EHP ${pct(x.paperEhpPct)}): ${x.why}`).join("; ")}`);
       const show = showLine(list.slice(0, 4).map((s, i) => ({ target: String(s.id), kind: "node", tone: "do", text: `${i + 1}. ${s.name}`,
-        ops: [s.effect ? { op: "mastery", node: s.id, effect: s.effect } : { op: "alloc", nodes: [s.id] }] })));
+        ops: [s.effect ? { op: "mastery", node: s.id, effect: s.effect } : { op: "alloc", nodes: [s.id] }, ...(s.costFix?.ops ?? [])] })));
       return [head, ...lines, `Config assumptions: ${res.assumptions}`, "Apply with edit (alloc, or mastery with the effect id); preview first with what_if.", ...(show ? [show] : [])].join("\n");
     }),
 
